@@ -5,18 +5,17 @@ extern uint32_t g_gpio_pwm_channel[];
 extern const uint32_t g_pwm_channel_len;
 void timer_cb(void* arg) {
 	
+
+	uint32_t tem_mask = GPIO_REG_READ(GPIO_OUT_ADDRESS);
+	
 	g_cnt_pwm = (g_cnt_pwm + 1) % RELOAD_DATA_PWM;
 	
 	for (uint32_t i = 0; i < g_pwm_channel_len; i++)
 	{
-		if (g_cnt_pwm < g_dutis[i])
-		{
-			gpio_set_level(g_gpio_pwm_channel[i], 1);
-		}
+		if (g_cnt_pwm < g_dutis[g_gpio_pwm_channel[i]])
+			tem_mask |= (1 << g_gpio_pwm_channel[i]);
 		else
-		{
-			gpio_set_level(g_gpio_pwm_channel[i], 0);
-		}
+			tem_mask &= (~(1 << g_gpio_pwm_channel[i]));
 	}
-	
+	GPIO_REG_WRITE(GPIO_OUT_ADDRESS, tem_mask);
 }
