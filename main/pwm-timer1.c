@@ -9,7 +9,8 @@ volatile uint32_t g_dutis[MAX_CHANNEL] = {0};
 volatile uint32_t g_cnt_pwm = 0;
 
 
-
+//Chỗ này em nên dùng 1 câu lệnh để set tất cả GPIO cùng lúc.
+//Vì nếu như thế này khoảng cách bật tắt giữa các kênh có khoảng lệch
 void timer_cb(void* arg) {
 	
 	g_cnt_pwm = (g_cnt_pwm + 1) % RELOAD_DATA_PWM;
