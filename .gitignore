@@ -1,0 +1,19 @@
+# Visual Studio cache
+.vs/
+.visualgdb/
+
+# Build files
+sdkconfig-debug
+build/
+*.o
+*.elf
+*.map
+
+# Images, logs, temp
+*.png
+*.log
+
+# CMake cache
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
