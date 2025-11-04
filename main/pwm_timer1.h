@@ -1,14 +1,11 @@
 #ifndef TIMER_CONFIG
 #define TIMER_CONFIG
 
-#include <stdbool.h>
-#include "driver/gpio.h"
-#include "driver/hw_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include "my_lib.h"
+
 
 #define MAX_CHANNEL 20
-#define DEFAUL_DUTY 60
+#define DEFAUL_DUTY 30
 
 #define RELOAD_DATA_PWM 100
 
@@ -29,13 +26,10 @@
 
 
 /********* prototype ***********/
-
-extern uint32_t g_gpio_pwm_channel [];
 extern volatile uint32_t g_dutis[MAX_CHANNEL];
 
 extern volatile uint32_t g_cnt_pwm;
 
-void timer_cb(void* arg);
 void config_GPIO_PWM();
 void config_Timer();
 
