@@ -3,30 +3,42 @@
 
 #include "my_lib.h"
 
+/*
+ * To make a GPIOx to PWM only assign PWM_PIN_GPIOx into any position in array g_gpio_pwm_channel[] (this array in file pwm-timer1.c) 
+ **/
 
-#define MAX_CHANNEL 20
+#define	TOTAL_GPIO_MCU 32
+
 #define DEFAUL_DUTY 30
 
 #define RELOAD_DATA_PWM 100
 
-#define PWM_CHANNEL0 0
-#define GPIO_PWM_CHANNEL0 2	// D4
+#define PWM_PIN_GPIO0 0
+#define PWM_PIN_GPIO1 1
+#define PWM_PIN_GPIO2 2			// D4
+#define PWM_PIN_GPIO3 3
+#define PWM_PIN_GPIO4 4			// D2
 
-#define PWM_CHANNEL1 1
-#define GPIO_PWM_CHANNEL1 4	// D2
+#define PWM_PIN_GPIO5 5			// D1
+#define PWM_PIN_GPIO6 6
+#define PWM_PIN_GPIO7 7
+#define PWM_PIN_GPIO8 8
+#define PWM_PIN_GPIO9 9
 
-#define PWM_CHANNEL2 2
-#define GPIO_PWM_CHANNEL2 5 // D1
+#define PWM_PIN_GPIO10 10
+#define PWM_PIN_GPIO11 11
+#define PWM_PIN_GPIO12 12
+#define PWM_PIN_GPIO13 13		// D7
+#define PWM_PIN_GPIO14 14		// D5
 
-#define PWM_CHANNEL3 3
-#define GPIO_PWM_CHANNEL3 13 // D7
+#define PWM_PIN_GPIO15 15
+#define PWM_PIN_GPIO16 16
+#define PWM_PIN_GPIO17 17
 
-#define PWM_CHANNEL4 4
-#define GPIO_PWM_CHANNEL4 14 // D5
 
 
 /********* prototype ***********/
-extern volatile uint32_t g_dutis[MAX_CHANNEL];
+extern volatile uint32_t g_dutis[TOTAL_GPIO_MCU];
 
 extern volatile uint32_t g_cnt_pwm;
 
