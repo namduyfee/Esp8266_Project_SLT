@@ -1,10 +1,6 @@
 
 #include "my_callback.h"
 
-extern uint32_t g_gpio_pwm_channel[];
-extern const uint32_t g_pwm_channel_len;
-
-
 void timer_cb(void* arg) {
 	
 	uint32_t tem_mask = GPIO_REG_READ(GPIO_OUT_ADDRESS);

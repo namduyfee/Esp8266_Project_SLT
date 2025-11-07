@@ -38,14 +38,17 @@
 
 
 /********* prototype ***********/
-extern volatile uint32_t g_dutis[TOTAL_GPIO_MCU];
 
-extern volatile uint32_t g_cnt_pwm;
-
-void config_GPIO_PWM();
-void config_Timer();
+void config_GPIO_PWM(void);
+void config_Timer(void);
 
 uint32_t precent_to_duty(uint32_t precent);
 
+extern uint32_t g_gpio_pwm_channel[];
+extern const uint32_t g_pwm_channel_len;
+
+extern volatile uint32_t g_dutis[TOTAL_GPIO_MCU];
+
+extern volatile uint32_t g_cnt_pwm;
 
 #endif

@@ -18,7 +18,7 @@ uint32_t precent_to_duty(uint32_t precent)
 	
 	return (uint32_t)((RELOAD_DATA_PWM * precent) / 100); 
 }
-void config_GPIO_PWM()
+void config_GPIO_PWM(void)
 {
 	uint32_t tem_pin_bit_mask = 0;
 	
@@ -37,7 +37,7 @@ void config_GPIO_PWM()
 	gpio_config(&io_conf);
 }
 
-void config_Timer()
+void config_Timer(void)
 {
 	// hw_timer_init is must first config
 	
