@@ -1,8 +1,10 @@
 #include "my_lib.h"
 
+uint8_t data_esp_now [] = "xhello from ESP8266";
+uint8_t len_test_data_esp_now = sizeof(data_esp_now) / sizeof(data_esp_now[0]); 
 
-extern uint8_t esp32_macadrr[6];
-
+uint8_t data_frame2 [] = "i am frame 2";
+uint8_t len_test_data_2 = sizeof(data_frame2) / sizeof(data_frame2[0]); 
 
 void app_main(void) {
 	
@@ -10,11 +12,11 @@ void app_main(void) {
 	config_GPIO_PWM();
 	config_espnow();
 	config_Timer();
-	uint8_t data_esp_now[] = "hello from ESP8266";
+	
+//	send_to_all_peer(data_esp_nowp_now, len_test_data_esp_now);
+	
 	while (1) {
-
-		esp_now_send(g_peer_esp32.peer_addr, data_esp_now, sizeof(data_esp_now));
-		vTaskDelay(pdMS_TO_TICKS(1000));
+		check_send_request();
+		vTaskDelay(pdMS_TO_TICKS(10)); 
 	}
 }
-

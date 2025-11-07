@@ -18,8 +18,12 @@
 #include "my_callback.h"
 #include "esp_now_config.h"
 
+extern uint8_t data_esp_now [];
 
+extern uint8_t len_test_data_esp_now;
 
+extern uint8_t data_frame2 [];
+extern uint8_t len_test_data_2; 
 
 #endif
 
