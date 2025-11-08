@@ -36,7 +36,7 @@ typedef struct My_Esp_Now
 	
 	volatile bool can_send; 
 	
-	
+	volatile uint8_t start;
 } My_Esp_Now_Typedef;
 
 

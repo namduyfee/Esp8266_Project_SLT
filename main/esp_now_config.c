@@ -33,6 +33,7 @@ void init_my_esp_now(void)
 {
 	uint8_t my_macaddr[6] = {0xC8, 0xC9, 0xA3, 0x69, 0x88, 0x56};
 	memcpy(g_my_esp_now.addr, my_macaddr, 6);
+	g_my_esp_now.start = 0; 
 	g_my_esp_now.can_send = true;
 	for (int i = 0; i < ESP_NOW_MAX_LEN; i++)
 		g_my_esp_now.send_frame[i] = NULL;
@@ -95,6 +96,7 @@ void send_esp_now(void)
 					ret = esp_now_send(NULL, g_my_esp_now.send_frame[i], g_my_esp_now.len_send_frame[i]);
 				}
 				i++;
+				vTaskDelay(pdMS_TO_TICKS(10));
 			}
 		}
 		else
@@ -104,6 +106,7 @@ void send_esp_now(void)
 			while (g_send_list_peer[i][j] != NULL)
 			{
 				if (g_my_esp_now.can_send == true) {
+					g_my_esp_now.can_send = false;
 					esp_err_t ret = esp_now_send((*g_send_list_peer[i][j]).inf.peer_addr, g_my_esp_now.send_frame[i], g_my_esp_now.len_send_frame[i]);
 					while (ret != ESP_OK)
 					{
@@ -111,9 +114,11 @@ void send_esp_now(void)
 						ret = esp_now_send((*g_send_list_peer[i][j]).inf.peer_addr, g_my_esp_now.send_frame[i], g_my_esp_now.len_send_frame[i]);
 					}			
 					j++;
+					vTaskDelay(pdMS_TO_TICKS(10));
 				}	
 			}
 			i++;
 		}
 	}
+	g_my_esp_now.start = 0;
 }

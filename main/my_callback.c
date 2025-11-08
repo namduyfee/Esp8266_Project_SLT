@@ -1,6 +1,7 @@
 
 #include "my_callback.h"
 
+
 void timer_cb(void* arg) {
 	
 	uint32_t tem_mask = GPIO_REG_READ(GPIO_OUT_ADDRESS);
@@ -20,12 +21,17 @@ void timer_cb(void* arg) {
 
 void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len) 
 {
+//	if(is_same_macadrr(mac_addr, g_peer_esp32.inf.peer_addr) == true) // && 
+	// && data[0] == 's' && data[1] == 't' && data[2] == 'a' && data[3] == 'r' && data[4] == 't'
+	if (is_same_macadrr(mac_addr, g_peer_esp32.inf.peer_addr) == true )
+		g_my_esp_now.start = 1; 
 //	ESP_LOGI("ESPNOW", "Received data from " MACSTR ", len=%d", MAC2STR(mac_addr), len);
 }
 
 void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status) 
 {
-	g_my_esp_now.can_send = true;
+	if(status == ESP_NOW_SEND_SUCCESS)
+		g_my_esp_now.can_send = true;
 	/*
 	if (is_same_macadrr(mac_addr, g_peer_esp32.inf.peer_addr) == true)
 	{
