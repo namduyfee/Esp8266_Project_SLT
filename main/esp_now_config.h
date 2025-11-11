@@ -10,6 +10,8 @@
 
 #define TOTAL_REQUEST ((*g_peer[i]).total_request)
 
+#define CONFIG_ESPNOW_CHANNEL 1
+
 void wifi_init(void);
 void config_espnow(void);
 
@@ -40,7 +42,7 @@ typedef struct My_Esp_Now
 } My_Esp_Now_Typedef;
 
 
-extern Peer_Typedef g_peer_esp32;
+extern Peer_Typedef g_peer_esp8266;
 extern My_Esp_Now_Typedef g_my_esp_now;
 
 
