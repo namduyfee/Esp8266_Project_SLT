@@ -4,7 +4,7 @@
 /********* global variables ***********/
 
 uint32_t g_gpio_pwm_channel[] = {PWM_PIN_GPIO14, PWM_PIN_GPIO2, PWM_PIN_GPIO4, PWM_PIN_GPIO5, PWM_PIN_GPIO13};
-const uint32_t g_pwm_channel_len = sizeof(g_gpio_pwm_channel) / sizeof(uint32_t);
+const uint32_t g_pwm_channel_len = sizeof(g_gpio_pwm_channel) / sizeof(g_gpio_pwm_channel[0]);
 	
 volatile uint32_t g_dutis[TOTAL_GPIO_MCU] = {0};
 
@@ -18,7 +18,7 @@ uint32_t precent_to_duty(uint32_t precent)
 	
 	return (uint32_t)((RELOAD_DATA_PWM * precent) / 100); 
 }
-void config_GPIO_PWM()
+void config_GPIO_PWM(void)
 {
 	uint32_t tem_pin_bit_mask = 0;
 	
@@ -37,7 +37,7 @@ void config_GPIO_PWM()
 	gpio_config(&io_conf);
 }
 
-void config_Timer()
+void config_Timer(void)
 {
 	// hw_timer_init is must first config
 	
