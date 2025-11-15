@@ -20,7 +20,7 @@ void app_main(void) {
 	gpio_set_level(PWM_PIN_GPIO4, 0);
 	
 	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);
-	
+	nvs_open()
 	while (1) {
 			
 		vTaskDelay(pdMS_TO_TICKS(100));
@@ -35,7 +35,7 @@ void esp_now_task()
 	{
 		if (g_my_esp_now.can_send == true)
 		{
-		
+
 			ret = esp_now_send(g_peer_esp8266.inf.peer_addr, data_esp_now, len_test_data_esp_now);
 			while (ret != ESP_OK)
 			{
@@ -44,6 +44,6 @@ void esp_now_task()
 			}
 			g_my_esp_now.can_send = false;
 		}
-		vTaskDelay(pdMS_TO_TICKS(1));
+		vTaskDelay(pdMS_TO_TICKS(10));
 	}
 }

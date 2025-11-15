@@ -14,6 +14,13 @@
 #include "esp_log.h"
 #include "esp_wifi.h"
 
+#include "esp_system.h"
+#include "esp_event_loop.h"
+#include "nvs_flash.h"
+#include "tcpip_adapter.h"
+#include "esp_http_server.h"
+
+
 #include "pwm_timer1.h"
 #include "my_callback.h"
 #include "esp_now_config.h"
