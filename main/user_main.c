@@ -13,14 +13,15 @@ void app_main(void) {
 	
 	
 	config_GPIO_PWM();
-	config_espnow();
+//	config_espnow();
 //	config_Timer();
 //	g_dutis[PWM_PIN_GPIO2] = 70;
+	
 	gpio_set_level(PWM_PIN_GPIO2, 0); 
 	gpio_set_level(PWM_PIN_GPIO4, 0);
 	
-	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);
-	nvs_open()
+//	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);
+	start_wifi();
 	while (1) {
 			
 		vTaskDelay(pdMS_TO_TICKS(100));

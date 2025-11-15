@@ -54,3 +54,20 @@ void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status)
 	//	ESP_LOGI("ESPNOW", "Send to " MACSTR ", status=%d", MAC2STR(mac_addr), status);
 //	state_esp_now_send = 1;
 }
+
+
+esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
+{
+	switch (event->event_id) {
+		
+	case SYSTEM_EVENT_AP_START:
+		start_http_server(); 
+		break;
+	case SYSTEM_EVENT_STA_GOT_IP:
+		break;
+	default:
+		break;
+	}
+			
+	return ESP_OK;
+}

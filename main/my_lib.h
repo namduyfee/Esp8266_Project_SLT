@@ -24,6 +24,8 @@
 #include "pwm_timer1.h"
 #include "my_callback.h"
 #include "esp_now_config.h"
+#include "wifi_config.h"
+#include "esp_http_config.h"
 
 extern uint8_t data_esp_now [];
 
