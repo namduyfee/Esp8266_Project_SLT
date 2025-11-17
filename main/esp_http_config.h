@@ -7,6 +7,7 @@
 esp_err_t root_get_handler(httpd_req_t *req);
 esp_err_t save_post_handler(httpd_req_t *req);
 void start_http_server(void);
+esp_err_t upload_post_handler(httpd_req_t *req);
 
 
 #endif

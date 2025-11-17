@@ -19,13 +19,15 @@
 #include "nvs_flash.h"
 #include "tcpip_adapter.h"
 #include "esp_http_server.h"
-
+#include "esp_spiffs.h"
 
 #include "pwm_timer1.h"
 #include "my_callback.h"
 #include "esp_now_config.h"
 #include "wifi_config.h"
 #include "esp_http_config.h"
+#include "gpio_config.h"
+#include <fcntl.h>
 
 extern uint8_t data_esp_now [];
 
@@ -33,6 +35,8 @@ extern uint8_t len_test_data_esp_now;
 
 extern uint8_t data_frame2 [];
 extern uint8_t len_test_data_2; 
+
+extern QueueHandle_t http_queue;
 
 #endif
 

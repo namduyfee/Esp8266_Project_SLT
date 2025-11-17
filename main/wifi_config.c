@@ -3,7 +3,6 @@
 
 wifi_cred_t wifi_cred;
 
-
 void init_wifi(void)
 {
 	nvs_flash_init();

@@ -11,6 +11,15 @@ static const char *html_form =
     "<input type=\"submit\" value=\"Save\">"
     "</form></body></html>";
 
+static const char *html_upload_form =
+	"<!DOCTYPE html><html><body>"
+	"<h2>Upload file .bin cho ESP</h2>"
+	"<form action=\"/upload\" method=\"post\" enctype=\"multipart/form-data\">"
+	"<label for=\"file\">enter file .bin:</label>"
+	"<input type=\"file\" id=\"file\" name=\"file\" accept=\".bin\"><br><br>"
+	"<input type=\"submit\" value=\"Upload\">"
+	"</form>""</body>""</html>";
+
 static httpd_uri_t uri_root = {
 	.uri = "/",
 	.method = HTTP_GET,
@@ -23,58 +32,34 @@ static httpd_uri_t uri_save = {
 	.handler = save_post_handler
 };
 
+static httpd_uri_t uri_upload = {
+	.uri = "/upload",
+	.method = HTTP_POST,
+	.handler = upload_post_handler
+};
+
+esp_err_t upload_post_handler(httpd_req_t *req)
+{
+	xQueueSendFromISR(http_queue, &req, NULL);
+	return ESP_OK;
+}
 
 esp_err_t root_get_handler(httpd_req_t *req)
 {
-	httpd_resp_send(req, html_form, strlen(html_form));
+	wifi_mode_t wifi_mode;
+	esp_wifi_get_mode(&wifi_mode);
+	
+	if (wifi_mode == WIFI_MODE_AP)
+		httpd_resp_send(req, html_form, strlen(html_form));
+	else if(wifi_mode == WIFI_MODE_STA)
+		httpd_resp_send(req, html_upload_form, strlen(html_upload_form));
 	return ESP_OK; 
 	
 }
 
 esp_err_t save_post_handler(httpd_req_t *req)
 {
-	char buf[64];           // buffer t?m ?? ??c t?ng ph?n
-	int remaining = req->content_len;
-	char body[128] = {0};   // l?u toàn b? body an toàn
-	int idx = 0;
-
-	while (remaining > 0 && idx < sizeof(body) - 1) {
-		int to_read = remaining;
-		if (to_read > sizeof(buf))
-			to_read = sizeof(buf);
-
-		int ret = httpd_req_recv(req, buf, to_read);
-		if (ret <= 0) {
-			return ESP_FAIL;
-		}
-
-		// Copy vào body
-		memcpy(body + idx, buf, ret);
-		idx += ret;
-		remaining -= ret;
-	}
-
-	body[idx] = '\0'; // k?t thúc chu?i
-
-
-	// Parse ssid và pass
-	sscanf(body, "ssid=%31[^&]&pass=%63s", wifi_cred.ssid, wifi_cred.pass);
-
-	// Save vào NVS
-	nvs_handle nvs;
-	if (nvs_open("wifi", NVS_READWRITE, &nvs) == ESP_OK) {
-		nvs_set_str(nvs, "ssid", wifi_cred.ssid);
-		nvs_set_str(nvs, "pass", wifi_cred.pass);
-		nvs_commit(nvs);
-		nvs_close(nvs);
-	}
-
-	// G?i response
-	const char *resp = "Saved! Rebooting...";
-	httpd_resp_send(req, resp, strlen(resp));
-
-	vTaskDelay(1000 / portTICK_PERIOD_MS);
-	esp_restart();
+	xQueueSendFromISR(http_queue, &req, NULL);
 
 	return ESP_OK;
 }
@@ -85,5 +70,6 @@ void start_http_server(void)
 	httpd_start(&server, &config);
 	httpd_register_uri_handler(server, &uri_root);
 	httpd_register_uri_handler(server, &uri_save);
+	httpd_register_uri_handler(server, &uri_upload);
 }
 
