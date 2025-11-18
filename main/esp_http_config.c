@@ -40,7 +40,8 @@ static httpd_uri_t uri_upload = {
 
 esp_err_t upload_post_handler(httpd_req_t *req)
 {
-	xQueueSendFromISR(http_queue, &req, NULL);
+	
+	
 	return ESP_OK;
 }
 
@@ -59,7 +60,29 @@ esp_err_t root_get_handler(httpd_req_t *req)
 
 esp_err_t save_post_handler(httpd_req_t *req)
 {
-	xQueueSendFromISR(http_queue, &req, NULL);
+	char buf[512] = {0};
+	int len_read;
+	
+	if ((sizeof(buf)) <= req->content_len)
+		len_read = sizeof(buf) - 1;
+	else 
+		len_read = req->content_len;
+
+	int ret = httpd_req_recv(req, buf, len_read);
+	if (ret <= 0) {
+				
+	}
+
+	buf[len_read] = '\0';	
+	// Parse ssid và pass
+	sscanf(buf, "ssid=%31[^&]&pass=%63s", wifi_cred.ssid, wifi_cred.pass);			
+	const char *resp = "Saved! Rebooting...";
+	httpd_resp_send(req, resp, strlen(resp));
+	
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+	xSemaphoreGiveFromISR(xRecvPassWifi, &xHigherPriorityTaskWoken); 
+	if (xHigherPriorityTaskWoken)
+		portYIELD_FROM_ISR();
 
 	return ESP_OK;
 }
