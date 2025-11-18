@@ -29,6 +29,7 @@
 #include "esp_http_config.h"
 #include "gpio_config.h"
 #include <fcntl.h>
+#include "spiffs_config.h"
 
 extern uint8_t data_esp_now [];
 

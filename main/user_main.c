@@ -4,7 +4,7 @@
 void esp_now_task();
 void esp_reset_wifi(); 
 void esp_recv_inf_wifi();
-
+void esp_recv_file_bin();
 
 uint8_t data_esp_now[] = "hello from ESP8266";
 uint8_t len_test_data_esp_now = sizeof(data_esp_now) / sizeof(data_esp_now[0]); 
@@ -23,21 +23,21 @@ void app_main(void) {
 	config_GPIO_PWM();
 //	config_espnow();
 //	config_Timer();
-	
+//	spiffs_init();
 	start_wifi();
-	
+
 	gpio_set_level(GPIO_NUM_2, 0); 
 	gpio_set_level(GPIO_NUM_4, 0);
 	
 //	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);
 	
-	xTaskCreate(esp_reset_wifi, "esp_reset_wifi", 1024, NULL, 4, NULL);
-	xTaskCreate(esp_recv_inf_wifi, "esp_recv_inf_wifi", 1024, NULL, 5, NULL);
-
+//	xTaskCreate(esp_reset_wifi, "esp_reset_wifi", 2048, NULL, 4, NULL);
+//	xTaskCreate(esp_recv_inf_wifi, "esp_recv_inf_wifi", 2048, NULL, 4, NULL);
+//	xTaskCreate(esp_recv_file_bin, "esp_recv_file_bin", 1024, NULL, 5, NULL);
 	
 	while (1)
 	{
-		vTaskDelay(pdMS_TO_TICKS(1));
+		vTaskDelay(pdMS_TO_TICKS(10));
 	}
 	
 }
@@ -84,7 +84,7 @@ void esp_reset_wifi()
 			nvs_commit(nvs);
 			nvs_close(nvs);
 		}
-		vTaskDelay(pdMS_TO_TICKS(100));
+		vTaskDelay(pdMS_TO_TICKS(2000));
 		esp_restart();
 		
 		
@@ -115,6 +115,23 @@ void esp_recv_inf_wifi()
 			esp_restart();
 		}
 		vTaskDelay(pdMS_TO_TICKS(1));
+	}
+}
+
+void esp_recv_file_bin()
+{
+	char tem[3] = {0, 0, 0};
+
+	while (1)
+	{
+		spiffs_read_file("/spiffs/data.bin", tem, 3);
+		if (tem[0] == 11 && tem[1] == 20 && tem[2] == 41)
+		{
+			gpio_set_level(GPIO_NUM_2, 1); 
+			gpio_set_level(GPIO_NUM_4, 1);
+		}
+			
+		vTaskDelay(pdMS_TO_TICKS(500));
 	}
 }
 

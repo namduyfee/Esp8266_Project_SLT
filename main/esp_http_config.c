@@ -40,7 +40,30 @@ static httpd_uri_t uri_upload = {
 
 esp_err_t upload_post_handler(httpd_req_t *req)
 {
+	gpio_set_level(GPIO_NUM_2, 1); 
+	gpio_set_level(GPIO_NUM_4, 1);
 	
+	char buf[128];
+	int remaining = req->content_len;
+	while (remaining > 0)
+	{
+		int to_read = sizeof(buf) < remaining ? sizeof(buf) : remaining;
+
+		int ret = httpd_req_recv(req, buf, to_read);
+		if (ret <= 0)
+		{
+			
+		}
+//		spiffs_write_file("/spiffs/data.bin", buf, to_read);
+		remaining = remaining - to_read;
+	}
+	if (buf[0] == 11 && buf[1] == 20 && buf[2] == 41)
+	{
+
+	}
+	
+	const char *resp = "stored!";
+	httpd_resp_send(req, resp, strlen(resp));
 	
 	return ESP_OK;
 }
@@ -61,13 +84,7 @@ esp_err_t root_get_handler(httpd_req_t *req)
 esp_err_t save_post_handler(httpd_req_t *req)
 {
 	char buf[512] = {0};
-	int len_read;
-	
-	if ((sizeof(buf)) <= req->content_len)
-		len_read = sizeof(buf) - 1;
-	else 
-		len_read = req->content_len;
-
+	int len_read = ((sizeof(buf)) <= req->content_len) ? sizeof(buf) - 1 : req->content_len;
 	int ret = httpd_req_recv(req, buf, len_read);
 	if (ret <= 0) {
 				
