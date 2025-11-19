@@ -40,31 +40,67 @@ static httpd_uri_t uri_upload = {
 
 esp_err_t upload_post_handler(httpd_req_t *req)
 {
-	gpio_set_level(GPIO_NUM_2, 1); 
-	gpio_set_level(GPIO_NUM_4, 1);
-	
-	char buf[128];
+	char buf[512];
 	int remaining = req->content_len;
+	int ret;
+
+	// M? file ?? l?u d? li?u
+	FILE *fd = fopen("/spiffs/upload.bin", "wb");
+	
+	if (!fd)
+	{
+		httpd_resp_send_500(req);
+		return ESP_FAIL;
+	}
+	bool header_skipped = false;
+
 	while (remaining > 0)
 	{
-		int to_read = sizeof(buf) < remaining ? sizeof(buf) : remaining;
-
-		int ret = httpd_req_recv(req, buf, to_read);
-		if (ret <= 0)
-		{
-			
+		int to_read = remaining < sizeof(buf) ? remaining : sizeof(buf);
+		ret = httpd_req_recv(req, buf, to_read);
+		if (ret <= 0) {
+			fclose(fd);
+			return ESP_FAIL;
 		}
-//		spiffs_write_file("/spiffs/data.bin", buf, to_read);
-		remaining = remaining - to_read;
-	}
-	if (buf[0] == 11 && buf[1] == 20 && buf[2] == 41)
-	{
 
+		remaining = remaining - ret;
+
+		// Ch? b? ph?n header l?n ??u tiên
+		if (header_skipped == false)
+		{
+			// Tìm d?u k?t thúc header: "\r\n\r\n"
+			char *body = strstr(buf, "\r\n\r\n");
+			if (body != NULL)
+			{
+				body += 4; // skip \r\n\r\n
+				int body_len = (buf + ret) - body;
+
+				if (body_len > 0)
+					fwrite(body,1, body_len, fd);
+
+				header_skipped = true;
+				continue;
+			}
+		}
+		else
+		{
+			// Ph?n sau header, ghi tr?c ti?p
+			fwrite(buf, 1, ret, fd);
+		}
 	}
-	
-	const char *resp = "stored!";
-	httpd_resp_send(req, resp, strlen(resp));
-	
+
+	fclose(fd);
+	if (header_skipped == true)
+	{
+		
+		const char *resp = "stored!";
+		httpd_resp_send(req, resp, strlen(resp));
+	}
+	else
+	{
+		const char *resp = "faild stored!";
+		httpd_resp_send(req, resp, strlen(resp));
+	}
 	return ESP_OK;
 }
 

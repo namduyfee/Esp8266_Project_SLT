@@ -23,7 +23,7 @@ void app_main(void) {
 	config_GPIO_PWM();
 //	config_espnow();
 //	config_Timer();
-//	spiffs_init();
+	spiffs_init();
 	start_wifi();
 
 	gpio_set_level(GPIO_NUM_2, 0); 
@@ -31,9 +31,9 @@ void app_main(void) {
 	
 //	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);
 	
-//	xTaskCreate(esp_reset_wifi, "esp_reset_wifi", 2048, NULL, 4, NULL);
-//	xTaskCreate(esp_recv_inf_wifi, "esp_recv_inf_wifi", 2048, NULL, 4, NULL);
-//	xTaskCreate(esp_recv_file_bin, "esp_recv_file_bin", 1024, NULL, 5, NULL);
+	xTaskCreate(esp_reset_wifi, "esp_reset_wifi", 1024, NULL, 4, NULL);
+	xTaskCreate(esp_recv_inf_wifi, "esp_recv_inf_wifi", 1024, NULL, 5, NULL);
+//	xTaskCreate(esp_recv_file_bin, "esp_recv_file_bin", 2048, NULL, 4, NULL);
 	
 	while (1)
 	{
@@ -70,26 +70,36 @@ void esp_reset_wifi()
 {
 	while (1)
 	{
+		// Ki?m tra nút nh?n
+		if (RESET_WIFI_BUT == IS_RESET_WIFI)   // nút ?ang nh?n gi?
+		{
+			int count = 0;
 
-		for (int i = 0; i < 100; i++)
-		{
-			if (RESET_WIFI_BUT != IS_RESET_WIFI)
-				goto NOT_RESET;
-			vTaskDelay(pdMS_TO_TICKS(30));
+			while (RESET_WIFI_BUT == IS_RESET_WIFI)
+			{
+				vTaskDelay(pdMS_TO_TICKS(20));
+				count++;
+
+				if (count >= 100)   // Gi? ?? 2 giây
+					break;
+			}
+
+			if (count >= 100)
+			{
+				// XÓA NVS
+				nvs_handle nvs;
+				if (nvs_open("wifi", NVS_READWRITE, &nvs) == ESP_OK)
+				{
+					nvs_erase_all(nvs);
+					nvs_commit(nvs);
+					nvs_close(nvs);
+				}
+
+				vTaskDelay(pdMS_TO_TICKS(1000));
+				esp_restart();
+			}
 		}
-		nvs_handle nvs;
-		if (nvs_open("wifi", NVS_READWRITE, &nvs) == ESP_OK)
-		{
-			nvs_erase_all(nvs);
-			nvs_commit(nvs);
-			nvs_close(nvs);
-		}
-		vTaskDelay(pdMS_TO_TICKS(2000));
-		esp_restart();
-		
-		
-		NOT_RESET:
-		vTaskDelay(pdMS_TO_TICKS(1));
+		vTaskDelay(pdMS_TO_TICKS(10));
 	}
 }
 
@@ -124,8 +134,9 @@ void esp_recv_file_bin()
 
 	while (1)
 	{
-		spiffs_read_file("/spiffs/data.bin", tem, 3);
-		if (tem[0] == 11 && tem[1] == 20 && tem[2] == 41)
+		
+		spiffs_read_file("/spiffs/upload.bin", tem, 3);
+		if (tem[0] != 0 && tem[1] != 0 && tem[2] != 0)
 		{
 			gpio_set_level(GPIO_NUM_2, 1); 
 			gpio_set_level(GPIO_NUM_4, 1);
