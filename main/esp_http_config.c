@@ -43,15 +43,31 @@ esp_err_t upload_post_handler(httpd_req_t *req)
 	char buf[512];
 	int remaining = req->content_len;
 	int ret;
-
-	// M? file ?? l?u d? li?u
-	FILE *fd = fopen("/spiffs/upload.bin", "wb");
-	
-	if (!fd)
+	size_t total, used;
+	ret = esp_spiffs_info(NULL, &total, &used);
+	if (ret != ESP_OK)
 	{
+		gpio_set_level(GPIO_NUM_2, 1); 
+		
+		httpd_resp_send_500(req);
+		return ESP_FAIL;	
+	
+	}
+	
+//	FILE *fd = fopen("/spiffs/upload.txt", "w");
+	int fd = open("/spiffs/upload.bin", O_WRONLY, O_CREAT, 0666);
+	
+	if (fd < 0)
+	{
+		gpio_set_level(GPIO_NUM_4, 1);
 		httpd_resp_send_500(req);
 		return ESP_FAIL;
+
 	}
+//	if (!fd)
+//	{
+
+//	}
 	bool header_skipped = false;
 
 	while (remaining > 0)
@@ -59,16 +75,16 @@ esp_err_t upload_post_handler(httpd_req_t *req)
 		int to_read = remaining < sizeof(buf) ? remaining : sizeof(buf);
 		ret = httpd_req_recv(req, buf, to_read);
 		if (ret <= 0) {
-			fclose(fd);
+			close(fd);
+	//		fclose(fd);
 			return ESP_FAIL;
 		}
 
 		remaining = remaining - ret;
 
-		// Ch? b? ph?n header l?n ??u tiên
 		if (header_skipped == false)
 		{
-			// Tìm d?u k?t thúc header: "\r\n\r\n"
+			// end of header: "\r\n\r\n"
 			char *body = strstr(buf, "\r\n\r\n");
 			if (body != NULL)
 			{
@@ -76,7 +92,8 @@ esp_err_t upload_post_handler(httpd_req_t *req)
 				int body_len = (buf + ret) - body;
 
 				if (body_len > 0)
-					fwrite(body,1, body_len, fd);
+					write(fd, body, body_len);
+//					fwrite(body,1, body_len, fd);
 
 				header_skipped = true;
 				continue;
@@ -84,12 +101,12 @@ esp_err_t upload_post_handler(httpd_req_t *req)
 		}
 		else
 		{
-			// Ph?n sau header, ghi tr?c ti?p
-			fwrite(buf, 1, ret, fd);
+			write(fd, buf, ret);
+	//		fwrite(buf, 1, ret, fd);
 		}
 	}
-
-	fclose(fd);
+	close(fd);
+//	fclose(fd);
 	if (header_skipped == true)
 	{
 		

@@ -3,9 +3,9 @@
 
 wifi_cred_t wifi_cred;
 
+
 void init_wifi(void)
 {
-	nvs_flash_init();
 	tcpip_adapter_init();
 	esp_event_loop_init(wifi_event_handler, NULL);
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();

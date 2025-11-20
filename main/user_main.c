@@ -18,22 +18,24 @@ SemaphoreHandle_t xRecvPassWifi;
 void app_main(void) {
 	
 	xRecvPassWifi = xSemaphoreCreateBinary();
-	
+	nvs_flash_init();
 	config_input_pullup_gpio();
 	config_GPIO_PWM();
+	gpio_set_level(GPIO_NUM_2, 0); 
+	gpio_set_level(GPIO_NUM_4, 0);
+	
 //	config_espnow();
 //	config_Timer();
 	spiffs_init();
 	start_wifi();
+	
 
-	gpio_set_level(GPIO_NUM_2, 0); 
-	gpio_set_level(GPIO_NUM_4, 0);
 	
 //	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);
 	
 	xTaskCreate(esp_reset_wifi, "esp_reset_wifi", 1024, NULL, 4, NULL);
 	xTaskCreate(esp_recv_inf_wifi, "esp_recv_inf_wifi", 1024, NULL, 5, NULL);
-//	xTaskCreate(esp_recv_file_bin, "esp_recv_file_bin", 2048, NULL, 4, NULL);
+	xTaskCreate(esp_recv_file_bin, "esp_recv_file_bin", 2048, NULL, 4, NULL);
 	
 	while (1)
 	{
@@ -70,8 +72,8 @@ void esp_reset_wifi()
 {
 	while (1)
 	{
-		// Ki?m tra nút nh?n
-		if (RESET_WIFI_BUT == IS_RESET_WIFI)   // nút ?ang nh?n gi?
+		
+		if (RESET_WIFI_BUT == IS_RESET_WIFI)   
 		{
 			int count = 0;
 
@@ -80,7 +82,7 @@ void esp_reset_wifi()
 				vTaskDelay(pdMS_TO_TICKS(20));
 				count++;
 
-				if (count >= 100)   // Gi? ?? 2 giây
+				if (count >= 100)   
 					break;
 			}
 
@@ -130,19 +132,23 @@ void esp_recv_inf_wifi()
 
 void esp_recv_file_bin()
 {
-	char tem[3] = {0, 0, 0};
+//	char tem_w[3] = {10, 11, 12};
+	//char tem[3] = {0, 0, 0};
+	gpio_set_level(GPIO_NUM_2, 1);
+	gpio_set_level(GPIO_NUM_4, 1);
+	int fd = open("/spiffs/hello.bin", O_WRONLY| O_CREAT | O_TRUNC, 0666);
+	if (fd < 0)
+	{
+//		gpio_set_level(GPIO_NUM_2, 0); 
+//		gpio_set_level(GPIO_NUM_4, 1);
+	}
+//	fprintf(f, "Hello World!\n");
+	close(fd);
 
 	while (1)
 	{
-		
-		spiffs_read_file("/spiffs/upload.bin", tem, 3);
-		if (tem[0] != 0 && tem[1] != 0 && tem[2] != 0)
-		{
-			gpio_set_level(GPIO_NUM_2, 1); 
-			gpio_set_level(GPIO_NUM_4, 1);
-		}
 			
-		vTaskDelay(pdMS_TO_TICKS(500));
+		vTaskDelay(pdMS_TO_TICKS(1000));
 	}
 }
 
