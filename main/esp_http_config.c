@@ -43,31 +43,15 @@ esp_err_t upload_post_handler(httpd_req_t *req)
 	char buf[512];
 	int remaining = req->content_len;
 	int ret;
-	size_t total, used;
-	ret = esp_spiffs_info(NULL, &total, &used);
-	if (ret != ESP_OK)
-	{
-		gpio_set_level(GPIO_NUM_2, 1); 
-		
-		httpd_resp_send_500(req);
-		return ESP_FAIL;	
-	
-	}
-	
-//	FILE *fd = fopen("/spiffs/upload.txt", "w");
-	int fd = open("/spiffs/upload.bin", O_WRONLY, O_CREAT, 0666);
+	int fd = open("/spiffs/upload.bin", O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	
 	if (fd < 0)
 	{
-		gpio_set_level(GPIO_NUM_4, 1);
 		httpd_resp_send_500(req);
 		return ESP_FAIL;
 
 	}
-//	if (!fd)
-//	{
 
-//	}
 	bool header_skipped = false;
 
 	while (remaining > 0)
@@ -76,7 +60,6 @@ esp_err_t upload_post_handler(httpd_req_t *req)
 		ret = httpd_req_recv(req, buf, to_read);
 		if (ret <= 0) {
 			close(fd);
-	//		fclose(fd);
 			return ESP_FAIL;
 		}
 
@@ -84,7 +67,11 @@ esp_err_t upload_post_handler(httpd_req_t *req)
 
 		if (header_skipped == false)
 		{
-			// end of header: "\r\n\r\n"
+			/*
+			 * end of header: "\r\n\r\n" 
+			 * header alway the first buf before all data raw. header often < 512 byte (size buf[]) so header will not be cut into next buf
+			 * so no need to process "\r\n\r\n" in many cases
+			 */
 			char *body = strstr(buf, "\r\n\r\n");
 			if (body != NULL)
 			{
@@ -93,7 +80,6 @@ esp_err_t upload_post_handler(httpd_req_t *req)
 
 				if (body_len > 0)
 					write(fd, body, body_len);
-//					fwrite(body,1, body_len, fd);
 
 				header_skipped = true;
 				continue;
@@ -102,11 +88,9 @@ esp_err_t upload_post_handler(httpd_req_t *req)
 		else
 		{
 			write(fd, buf, ret);
-	//		fwrite(buf, 1, ret, fd);
 		}
 	}
 	close(fd);
-//	fclose(fd);
 	if (header_skipped == true)
 	{
 		
@@ -136,6 +120,7 @@ esp_err_t root_get_handler(httpd_req_t *req)
 
 esp_err_t save_post_handler(httpd_req_t *req)
 {
+	// only post ssid and pass, so all contens will < 512 byte
 	char buf[512] = {0};
 	int len_read = ((sizeof(buf)) <= req->content_len) ? sizeof(buf) - 1 : req->content_len;
 	int ret = httpd_req_recv(req, buf, len_read);

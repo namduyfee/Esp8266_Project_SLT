@@ -4,7 +4,7 @@
 void config_input_pullup_gpio(void)
 {
 	uint32_t tem_pin_bit_mask = 0;
-	tem_pin_bit_mask = (1UL << GPIO_NUM_5);
+	tem_pin_bit_mask = (1UL << RESET_WIFI_BUT);
 	
 	gpio_config_t io_conf = {
 			

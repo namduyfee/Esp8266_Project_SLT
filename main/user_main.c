@@ -73,11 +73,11 @@ void esp_reset_wifi()
 	while (1)
 	{
 		
-		if (RESET_WIFI_BUT == IS_RESET_WIFI)   
+		if (STATE_RESET_WIFI_BUT == IS_RESET_WIFI)   
 		{
 			int count = 0;
 
-			while (RESET_WIFI_BUT == IS_RESET_WIFI)
+			while (STATE_RESET_WIFI_BUT == IS_RESET_WIFI)
 			{
 				vTaskDelay(pdMS_TO_TICKS(20));
 				count++;
@@ -132,22 +132,25 @@ void esp_recv_inf_wifi()
 
 void esp_recv_file_bin()
 {
-//	char tem_w[3] = {10, 11, 12};
-	//char tem[3] = {0, 0, 0};
-	gpio_set_level(GPIO_NUM_2, 1);
-	gpio_set_level(GPIO_NUM_4, 1);
-	int fd = open("/spiffs/hello.bin", O_WRONLY| O_CREAT | O_TRUNC, 0666);
-	if (fd < 0)
-	{
-//		gpio_set_level(GPIO_NUM_2, 0); 
-//		gpio_set_level(GPIO_NUM_4, 1);
-	}
-//	fprintf(f, "Hello World!\n");
-	close(fd);
-
+	int tem[3] = {0, 0, 0};
+	
 	while (1)
 	{
-			
+		int f = open("/spiffs/upload.bin", O_RDONLY, 0666);
+		
+		if (f >= 0)
+		{
+			read(f, tem, 3);
+		
+			//	spiffs_read_file("/spiffs/hello.bin", tem, sizeof(tem));
+			if (tem[0] == 1 && tem[1] == 0 && tem[2] == 0)
+			{
+				gpio_set_level(GPIO_NUM_2, 1); 
+				gpio_set_level(GPIO_NUM_4, 1);
+			}
+			close(f);			
+		}
+
 		vTaskDelay(pdMS_TO_TICKS(1000));
 	}
 }
