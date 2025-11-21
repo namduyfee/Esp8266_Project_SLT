@@ -69,7 +69,7 @@ esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
 		break;
         
 	case SYSTEM_EVENT_STA_DISCONNECTED:
-		esp_wifi_connect(); // t? ??ng k?t n?i l?i
+		esp_wifi_connect(); // reconnect
 		break;
         
 	default:
