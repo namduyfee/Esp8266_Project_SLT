@@ -3,7 +3,7 @@
 
 /********* global variables ***********/
 
-uint32_t g_gpio_pwm_channel[] = {GPIO_NUM_14, GPIO_NUM_2, GPIO_NUM_4, GPIO_NUM_13};
+uint32_t g_gpio_pwm_channel[] = {GPIO_NUM_14, GPIO_NUM_2, GPIO_NUM_4};
 const uint32_t g_pwm_channel_len = sizeof(g_gpio_pwm_channel) / sizeof(g_gpio_pwm_channel[0]);
 	
 volatile uint32_t g_dutis[TOTAL_GPIO_MCU] = {0};

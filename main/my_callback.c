@@ -60,14 +60,16 @@ esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
 {
 	switch (event->event_id) {
         
-	case SYSTEM_EVENT_AP_START:
-		start_http_server(); 
-		break;
+	case SYSTEM_EVENT_AP_START: {
+			start_http_server(); 
+			break;
+		}
         
 	case SYSTEM_EVENT_STA_GOT_IP:
+		wifi_cred.is_connect = true;
 		start_http_server();
 		break;
-        
+    
 	case SYSTEM_EVENT_STA_DISCONNECTED:
 		esp_wifi_connect(); // reconnect
 		break;

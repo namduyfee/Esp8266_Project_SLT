@@ -12,10 +12,11 @@ void init_wifi(void)
 	esp_wifi_init(&cfg);
 }
 
-void start_wifi_sofap(void) 
+void start_wifi_apsta(void) 
 {
 	init_wifi();
 	esp_wifi_set_mode(WIFI_MODE_AP);
+	
 	wifi_config_t ap_config = {
 		.ap = {
 			.ssid = "ESP_SLT",
@@ -27,6 +28,7 @@ void start_wifi_sofap(void)
 	};
 	esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);
 	esp_wifi_start();
+	
 }
 
 void start_wifi_sta(void)
@@ -58,7 +60,7 @@ void start_wifi(void)
 	}
 	if (strlen(wifi_cred.ssid) == 0)
 	{
-		start_wifi_sofap();
+		start_wifi_apsta();
 	}
 	else
 	{

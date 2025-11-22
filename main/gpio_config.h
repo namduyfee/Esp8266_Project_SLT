@@ -27,6 +27,7 @@ void config_GPIO_PWM(void);
  *
  **/
 
+#define LED_WIFI GPIO_NUM_13
 #define RESET_WIFI_BUT GPIO_NUM_5
 #define STATE_RESET_WIFI_BUT gpio_get_level(RESET_WIFI_BUT)
 #define IS_RESET_WIFI 0
@@ -34,5 +35,6 @@ void config_GPIO_PWM(void);
 void config_input_pullup_gpio(void);
 void config_GPIO_PWM(void);
 
+void config_GPIO_OUT(void);
 #endif
 

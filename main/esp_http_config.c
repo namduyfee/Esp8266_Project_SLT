@@ -109,11 +109,12 @@ esp_err_t root_get_handler(httpd_req_t *req)
 {
 	wifi_mode_t wifi_mode;
 	esp_wifi_get_mode(&wifi_mode);
-	
-	if (wifi_mode == WIFI_MODE_AP)
-		httpd_resp_send(req, html_form, strlen(html_form));
-	else if(wifi_mode == WIFI_MODE_STA)
+	gpio_set_level(LED_WIFI, 1);
+	if (wifi_mode == WIFI_MODE_STA) {
 		httpd_resp_send(req, html_upload_form, strlen(html_upload_form));
+		return ESP_OK; 
+	}
+	httpd_resp_send(req, html_form, strlen(html_form));
 	return ESP_OK; 
 	
 }
@@ -131,7 +132,9 @@ esp_err_t save_post_handler(httpd_req_t *req)
 	buf[len_read] = '\0';	
 	// Parse ssid và pass
 	sscanf(buf, "ssid=%31[^&]&pass=%63s", wifi_cred.ssid, wifi_cred.pass);			
-	const char *resp = "Saved! Rebooting...";
+	wifi_cred.is_connect = false;
+	
+	const char *resp = "Processing...";
 	httpd_resp_send(req, resp, strlen(resp));
 	
 	BaseType_t xHigherPriorityTaskWoken = pdFALSE;

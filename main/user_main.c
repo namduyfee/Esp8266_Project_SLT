@@ -19,6 +19,7 @@ void app_main(void) {
 	
 	xRecvPassWifi = xSemaphoreCreateBinary();
 	nvs_flash_init();
+	config_GPIO_OUT();
 	config_input_pullup_gpio();
 	config_GPIO_PWM();
 	gpio_set_level(GPIO_NUM_2, 0); 
@@ -70,6 +71,7 @@ void esp_now_task()
  **/
 void esp_reset_wifi()
 {
+	gpio_set_level(LED_WIFI, 0);
 	while (1)
 	{
 		
@@ -79,15 +81,18 @@ void esp_reset_wifi()
 
 			while (STATE_RESET_WIFI_BUT == IS_RESET_WIFI)
 			{
-				vTaskDelay(pdMS_TO_TICKS(20));
+				int state = gpio_get_level(LED_WIFI);
+				gpio_set_level(LED_WIFI, !state);
+				vTaskDelay(pdMS_TO_TICKS(100));
 				count++;
-
-				if (count >= 100)   
+				
+				if (count >= 30)   
 					break;
 			}
-
-			if (count >= 100)
+			gpio_set_level(LED_WIFI, 0);
+			if (count >= 30)
 			{
+				gpio_set_level(LED_WIFI, 1);
 				// XÓA NVS
 				nvs_handle nvs;
 				if (nvs_open("wifi", NVS_READWRITE, &nvs) == ESP_OK)
@@ -111,20 +116,33 @@ void esp_reset_wifi()
  **/
 void esp_recv_inf_wifi()
 { 
+	gpio_set_level(LED_WIFI, 0);
 	xSemaphoreTake(xRecvPassWifi, 0);
 	while (1)
 	{
 		if (xSemaphoreTake(xRecvPassWifi, portMAX_DELAY) == pdTRUE)
 		{
-			nvs_handle nvs;
-			if (nvs_open("wifi", NVS_READWRITE, &nvs) == ESP_OK) {
-				nvs_set_str(nvs, "ssid", wifi_cred.ssid);
-				nvs_set_str(nvs, "pass", wifi_cred.pass);
-				nvs_commit(nvs);
-				nvs_close(nvs);
+
+			wifi_config_t sta_cfg = {0};
+			strcpy((char*)sta_cfg.sta.ssid, wifi_cred.ssid);
+			strcpy((char*)sta_cfg.sta.password, wifi_cred.pass);
+			esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
+			esp_wifi_connect();
+			gpio_set_level(LED_WIFI, 0);
+			vTaskDelay(pdMS_TO_TICKS(3000));
+			if (wifi_cred.is_connect == true)
+			{
+				gpio_set_level(LED_WIFI, 1);
+				nvs_handle nvs;
+				if (nvs_open("wifi", NVS_READWRITE, &nvs) == ESP_OK) {
+					nvs_set_str(nvs, "ssid", wifi_cred.ssid);
+					nvs_set_str(nvs, "pass", wifi_cred.pass);
+					nvs_commit(nvs);
+					nvs_close(nvs);
+				}
+				vTaskDelay(pdMS_TO_TICKS(1000));
+				esp_restart();
 			}
-			vTaskDelay(pdMS_TO_TICKS(2000));
-			esp_restart();
 		}
 		vTaskDelay(pdMS_TO_TICKS(1));
 	}
