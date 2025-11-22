@@ -129,6 +129,7 @@ void esp_recv_inf_wifi()
 			esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
 			esp_wifi_connect();
 			gpio_set_level(LED_WIFI, 0);
+			
 			vTaskDelay(pdMS_TO_TICKS(3000));
 			if (wifi_cred.is_connect == true)
 			{
