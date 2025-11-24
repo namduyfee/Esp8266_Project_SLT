@@ -1,8 +1,7 @@
 #include "my_lib.h"
 
 
-void esp_now_task();
-void esp_reset_wifi(); 
+void esp_now_task(); 
 void esp_recv_inf_wifi();
 void esp_recv_file_bin();
 
@@ -34,7 +33,6 @@ void app_main(void) {
 	
 //	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);
 	
-	xTaskCreate(esp_reset_wifi, "esp_reset_wifi", 1024, NULL, 4, NULL);
 	xTaskCreate(esp_recv_inf_wifi, "esp_recv_inf_wifi", 1024, NULL, 5, NULL);
 	xTaskCreate(esp_recv_file_bin, "esp_recv_file_bin", 2048, NULL, 4, NULL);
 	
@@ -66,49 +64,6 @@ void esp_now_task()
 	}
 }
 
-/*
- *	use a button to reset ssid and pass wifi then auto restart
- **/
-void esp_reset_wifi()
-{
-	gpio_set_level(LED_WIFI, 0);
-	while (1)
-	{
-		
-		if (STATE_RESET_WIFI_BUT == IS_RESET_WIFI)   
-		{
-			int count = 0;
-
-			while (STATE_RESET_WIFI_BUT == IS_RESET_WIFI)
-			{
-				int state = gpio_get_level(LED_WIFI);
-				gpio_set_level(LED_WIFI, !state);
-				vTaskDelay(pdMS_TO_TICKS(100));
-				count++;
-				
-				if (count >= 30)   
-					break;
-			}
-			gpio_set_level(LED_WIFI, 0);
-			if (count >= 30)
-			{
-				gpio_set_level(LED_WIFI, 1);
-				// XÓA NVS
-				nvs_handle nvs;
-				if (nvs_open("wifi", NVS_READWRITE, &nvs) == ESP_OK)
-				{
-					nvs_erase_all(nvs);
-					nvs_commit(nvs);
-					nvs_close(nvs);
-				}
-
-				vTaskDelay(pdMS_TO_TICKS(1000));
-				esp_restart();
-			}
-		}
-		vTaskDelay(pdMS_TO_TICKS(10));
-	}
-}
 
 /* 
  *	store ssid and pass wifi then auto restart
@@ -122,27 +77,13 @@ void esp_recv_inf_wifi()
 	{
 		if (xSemaphoreTake(xRecvPassWifi, portMAX_DELAY) == pdTRUE)
 		{
-
-			wifi_config_t sta_cfg = {0};
-			strcpy((char*)sta_cfg.sta.ssid, wifi_cred.ssid);
-			strcpy((char*)sta_cfg.sta.password, wifi_cred.pass);
-			esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
-			esp_wifi_connect();
-			gpio_set_level(LED_WIFI, 0);
-			
-			vTaskDelay(pdMS_TO_TICKS(3000));
-			if (wifi_cred.is_connect == true)
-			{
-				gpio_set_level(LED_WIFI, 1);
-				nvs_handle nvs;
-				if (nvs_open("wifi", NVS_READWRITE, &nvs) == ESP_OK) {
-					nvs_set_str(nvs, "ssid", wifi_cred.ssid);
-					nvs_set_str(nvs, "pass", wifi_cred.pass);
-					nvs_commit(nvs);
-					nvs_close(nvs);
-				}
-				vTaskDelay(pdMS_TO_TICKS(1000));
-				esp_restart();
+			gpio_set_level(LED_WIFI, 1);
+			nvs_handle nvs;
+			if (nvs_open("wifi", NVS_READWRITE, &nvs) == ESP_OK) {
+				nvs_set_str(nvs, "ssid", wifi_cred.ssid);
+				nvs_set_str(nvs, "pass", wifi_cred.pass);
+				nvs_commit(nvs);
+				nvs_close(nvs);
 			}
 		}
 		vTaskDelay(pdMS_TO_TICKS(1));
@@ -159,13 +100,13 @@ void esp_recv_file_bin()
 		
 		if (f >= 0)
 		{
-			read(f, tem, 3);
+			read(f, tem, sizeof(tem));
 		
 			//	spiffs_read_file("/spiffs/hello.bin", tem, sizeof(tem));
-			if (tem[0] == 1 && tem[1] == 0 && tem[2] == 0)
+			if (tem[0] == 10 && tem[1] == 20 && tem[2] == 30)
 			{
-				gpio_set_level(GPIO_NUM_2, 1); 
-				gpio_set_level(GPIO_NUM_4, 1);
+	//			gpio_set_level(GPIO_NUM_2, 1); 
+	//			gpio_set_level(GPIO_NUM_4, 1);
 			}
 			close(f);			
 		}

@@ -1,7 +1,13 @@
 
 #include "wifi_config.h"
-
-wifi_cred_t wifi_cred;
+//#include "lwip/ip_addr.h"
+//#include "lwip/ip6_addr.h"
+//#include "mdns.h"
+wifi_cred_t wifi_cred =
+{
+	.is_connected = false,
+	.is_call_discnt = false
+};
 
 
 void init_wifi(void)
@@ -12,36 +18,6 @@ void init_wifi(void)
 	esp_wifi_init(&cfg);
 }
 
-void start_wifi_apsta(void) 
-{
-	init_wifi();
-	esp_wifi_set_mode(WIFI_MODE_AP);
-	
-	wifi_config_t ap_config = {
-		.ap = {
-			.ssid = "ESP_SLT",
-			.ssid_len = 0,
-			.max_connection = 4,
-			.password = "12345678",
-			.authmode = WIFI_AUTH_WPA_WPA2_PSK		
-		}	
-	};
-	esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);
-	esp_wifi_start();
-	
-}
-
-void start_wifi_sta(void)
-{
-	init_wifi();
-	esp_wifi_set_mode(WIFI_MODE_STA);
-	wifi_config_t sta_cfg = {0};
-	strcpy((char*)sta_cfg.sta.ssid, wifi_cred.ssid);
-	strcpy((char*)sta_cfg.sta.password, wifi_cred.pass);
-	esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
-	esp_wifi_start();
-	esp_wifi_connect();
-}
 
 void start_wifi(void)
 {
@@ -58,12 +34,37 @@ void start_wifi(void)
 		}
 		nvs_close(nvs);
 	}
-	if (strlen(wifi_cred.ssid) == 0)
+	
+	init_wifi();
+	esp_wifi_set_mode(WIFI_MODE_APSTA);
+	
+	wifi_config_t ap_config = {
+		.ap = {
+			.ssid = "ESP_SLT",
+			.ssid_len = 0,
+			.max_connection = 4,
+			.password = "12345678",
+			.authmode = WIFI_AUTH_WPA_WPA2_PSK		
+		}	
+	};
+	esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);
+	
+
+	if (strlen(wifi_cred.ssid) != 0)
 	{
-		start_wifi_apsta();
+		wifi_config_t sta_cfg = {0};
+		strcpy((char*)sta_cfg.sta.ssid, wifi_cred.ssid);
+		strcpy((char*)sta_cfg.sta.password, wifi_cred.pass);
+		esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
 	}
-	else
-	{
-		start_wifi_sta();
-	}
+	
+	esp_wifi_start();
 }
+/*
+void start_mdns(void)
+{
+	mdns_init();
+	mdns_hostname_set("SLT");
+	
+}
+*/

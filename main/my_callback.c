@@ -59,20 +59,42 @@ void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status)
 esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
 {
 	switch (event->event_id) {
-        
+	case SYSTEM_EVENT_STA_START: {
+		if (strlen(wifi_cred.ssid) != 0) {
+			esp_wifi_connect(); 
+		}
+		
+		break;
+	}
+		
 	case SYSTEM_EVENT_AP_START: {
 			start_http_server(); 
 			break;
 		}
         
-	case SYSTEM_EVENT_STA_GOT_IP:
-		wifi_cred.is_connect = true;
+	case SYSTEM_EVENT_STA_GOT_IP: {
+		
+//		start_mdns();
+		wifi_cred.is_connected = true;
+		
+		if(wifi_cred.is_call_discnt == true)
+			wifi_cred.is_call_discnt = false;
+		
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+		xSemaphoreGiveFromISR(xRecvPassWifi, &xHigherPriorityTaskWoken); 
+		if (xHigherPriorityTaskWoken)
+			portYIELD_FROM_ISR();
+		
 		start_http_server();
 		break;
+	}
     
-	case SYSTEM_EVENT_STA_DISCONNECTED:
-		esp_wifi_connect(); // reconnect
+	case SYSTEM_EVENT_STA_DISCONNECTED: {
+		if (wifi_cred.is_call_discnt == false) {
+			esp_wifi_connect(); // reconnect
+		}
 		break;
+	}
         
 	default:
 		break;
