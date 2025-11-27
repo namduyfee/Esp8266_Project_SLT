@@ -1,8 +1,6 @@
 
 #include "wifi_config.h"
-//#include "lwip/ip_addr.h"
-//#include "lwip/ip6_addr.h"
-//#include "mdns.h"
+
 wifi_cred_t wifi_cred =
 {
 	.is_connected = false,
@@ -12,7 +10,6 @@ wifi_cred_t wifi_cred =
 
 void init_wifi(void)
 {
-	tcpip_adapter_init();
 	esp_event_loop_init(wifi_event_handler, NULL);
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	esp_wifi_init(&cfg);
@@ -60,11 +57,3 @@ void start_wifi(void)
 	
 	esp_wifi_start();
 }
-/*
-void start_mdns(void)
-{
-	mdns_init();
-	mdns_hostname_set("SLT");
-	
-}
-*/

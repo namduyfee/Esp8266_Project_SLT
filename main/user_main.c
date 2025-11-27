@@ -18,17 +18,21 @@ void app_main(void) {
 	
 	xRecvPassWifi = xSemaphoreCreateBinary();
 	nvs_flash_init();
+	spiffs_init();
 	config_GPIO_OUT();
 	config_input_pullup_gpio();
 	config_GPIO_PWM();
 	gpio_set_level(GPIO_NUM_2, 0); 
 	gpio_set_level(GPIO_NUM_4, 0);
 	
+	tcpip_adapter_init();
+	
 //	config_espnow();
 //	config_Timer();
-	spiffs_init();
+	
 	start_wifi();
 	
+	my_init_tcpip();
 
 	
 //	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);

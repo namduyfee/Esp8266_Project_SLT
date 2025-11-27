@@ -12,7 +12,6 @@
 
 #define CONFIG_ESPNOW_CHANNEL 1
 
-void wifi_init(void);
 void config_espnow(void);
 
 void init_all_peer(void);
