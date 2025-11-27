@@ -64,17 +64,16 @@ err_t wifi_server_recv(void* arg, struct tcp_pcb* pcb, struct pbuf *p, err_t err
 	const char *reply = " ESP ACK\n";
 	tcp_write(pcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
 	
-	sscanf(buf, "ssid=%31[^&]&pass=%63s", wifi_cred.ssid, wifi_cred.pass);	
-	
-	wifi_cred.is_call_discnt = true;
-	esp_wifi_disconnect();
+	sscanf(buf, "ssid=%31[^&]&pass=%63s", tem_wifi_cred.ssid, tem_wifi_cred.pass);	
 	
 	vTaskDelay(pdMS_TO_TICKS(1));
 	
+	wifi_cred.retry_connect = 0;
 	wifi_config_t sta_cfg = {0};
-	strcpy((char*)sta_cfg.sta.ssid, wifi_cred.ssid);
-	strcpy((char*)sta_cfg.sta.password, wifi_cred.pass);
+	strcpy((char*)sta_cfg.sta.ssid, tem_wifi_cred.ssid);
+	strcpy((char*)sta_cfg.sta.password, tem_wifi_cred.pass);
 	esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
+	esp_wifi_disconnect();
 	esp_wifi_connect();
 	
 	pbuf_free(p);

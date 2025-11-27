@@ -60,23 +60,20 @@ esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
 {
 	switch (event->event_id) {
 	case SYSTEM_EVENT_STA_START: {
-		if (strlen(wifi_cred.ssid) != 0) {
-			esp_wifi_connect(); 
+		if (wifi_cred.is_start_empty == false) {
+			esp_wifi_connect();
 		}
 		
 		break;
 	}
-		
-	case SYSTEM_EVENT_AP_START: {
-			break;
-		}
         
 	case SYSTEM_EVENT_STA_GOT_IP: {
 		
 		wifi_cred.is_connected = true;
 		
-		if(wifi_cred.is_call_discnt == true)
-			wifi_cred.is_call_discnt = false;
+		strcpy((char*)wifi_cred.ssid, tem_wifi_cred.ssid);
+		strcpy((char*)wifi_cred.pass, tem_wifi_cred.pass);
+		
 		
 		xSemaphoreGive(xRecvPassWifi);
 		
@@ -84,9 +81,34 @@ esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
 	}
     
 	case SYSTEM_EVENT_STA_DISCONNECTED: {
-		if (wifi_cred.is_call_discnt == false) {
+
+		if (wifi_cred.retry_connect  < MAX_RETRY_CONNECT)
+		{
 			esp_wifi_connect(); // reconnect
+			wifi_cred.retry_connect++;
 		}
+		else
+		{
+				
+			wifi_cred.retry_connect = 0;
+				
+			if (wifi_cred.is_start_empty == false)
+			{
+					
+				strcpy((char*)tem_wifi_cred.ssid, wifi_cred.ssid);
+				strcpy((char*)tem_wifi_cred.pass, wifi_cred.pass);
+				wifi_config_t sta_cfg = {0};
+				strcpy((char*)sta_cfg.sta.ssid, tem_wifi_cred.ssid);
+				strcpy((char*)sta_cfg.sta.password, tem_wifi_cred.pass);
+				esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
+				esp_wifi_connect();
+					
+			}
+		}
+	
+
+		wifi_cred.is_connected = false;
+		
 		break;
 	}
         
