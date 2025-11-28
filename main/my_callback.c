@@ -60,7 +60,7 @@ esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
 {
 	switch (event->event_id) {
 	case SYSTEM_EVENT_STA_START: {
-		if (wifi_cred.is_start_empty == false) {
+		if (wifi_cred.last_available == true) {
 			esp_wifi_connect();
 		}
 		
@@ -69,11 +69,8 @@ esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
         
 	case SYSTEM_EVENT_STA_GOT_IP: {
 		
+		wifi_cred.last_available = true;
 		wifi_cred.is_connected = true;
-		
-		strcpy((char*)wifi_cred.ssid, tem_wifi_cred.ssid);
-		strcpy((char*)wifi_cred.pass, tem_wifi_cred.pass);
-		
 		
 		xSemaphoreGive(xRecvPassWifi);
 		
@@ -90,23 +87,11 @@ esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
 		else
 		{
 				
-			wifi_cred.retry_connect = 0;
-				
-			if (wifi_cred.is_start_empty == false)
+			if (wifi_cred.last_available == true)
 			{
-					
-				strcpy((char*)tem_wifi_cred.ssid, wifi_cred.ssid);
-				strcpy((char*)tem_wifi_cred.pass, wifi_cred.pass);
-				wifi_config_t sta_cfg = {0};
-				strcpy((char*)sta_cfg.sta.ssid, tem_wifi_cred.ssid);
-				strcpy((char*)sta_cfg.sta.password, tem_wifi_cred.pass);
-				esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
-				esp_wifi_connect();
-					
+				xSemaphoreGive(xTryConnectWifi);
 			}
 		}
-	
-
 		wifi_cred.is_connected = false;
 		
 		break;

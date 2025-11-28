@@ -41,7 +41,7 @@ void start_wifi(void)
 	
 	if (strlen(wifi_cred.ssid) != 0)
 	{
-		wifi_cred.is_start_empty = false;
+		wifi_cred.last_available = true;
 		
 		wifi_config_t sta_cfg = {0};
 		strcpy((char*)sta_cfg.sta.ssid, wifi_cred.ssid);
@@ -49,7 +49,7 @@ void start_wifi(void)
 		esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
 	}	
 	else 
-		wifi_cred.is_start_empty = true;
+		wifi_cred.last_available = false;
 	
 	wifi_config_t ap_config = {
 		.ap = {

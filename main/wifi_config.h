@@ -4,14 +4,16 @@
 
 #include "my_lib.h"
 
-#define MAX_RETRY_CONNECT 10
+#define MAX_RETRY_CONNECT 6
+#define REQEST_FROM_USER 100
+
 typedef struct
 {
 	char ssid[32];
 	char pass[64];
 	volatile bool is_connected;
-	volatile bool is_start_empty;
-	uint32_t retry_connect;
+	volatile bool last_available;
+	volatile uint32_t retry_connect;
 	
 } wifi_cred_t;
 

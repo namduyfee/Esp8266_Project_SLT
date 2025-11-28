@@ -45,7 +45,9 @@ extern uint8_t len_test_data_2;
 
 
 extern SemaphoreHandle_t xRecvPassWifi;
+extern SemaphoreHandle_t xTryConnectWifi;
 
+extern QueueHandle_t xBuffLoadf;
 
 #endif
 
