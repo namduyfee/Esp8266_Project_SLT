@@ -4,7 +4,7 @@
 
 #include "my_lib.h"
 
-#define MAX_RETRY_CONNECT 6
+#define MAX_RETRY_CONNECT 7
 #define REQEST_FROM_USER 100
 
 typedef struct
@@ -24,6 +24,8 @@ void start_wifi(void);
 //void start_mdns(void);
 extern wifi_cred_t wifi_cred;
 extern wifi_cred_t tem_wifi_cred;
+
+extern wifi_cred_t tcp_wifi_cred;
 
 #endif
 

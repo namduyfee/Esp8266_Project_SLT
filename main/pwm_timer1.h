@@ -9,15 +9,14 @@
 
 #define	TOTAL_GPIO_MCU 32
 
-#define DEFAUL_DUTY 30
+#define DEFAUL_DUTY 4
 
-#define RELOAD_DATA_PWM 100
+#define RELOAD_DATA_PWM 16
 
 /********* prototype ***********/
 
 void config_Timer(void);
 
-uint32_t precent_to_duty(uint32_t precent);
 
 extern uint32_t g_gpio_pwm_channel[];
 extern const uint32_t g_pwm_channel_len;

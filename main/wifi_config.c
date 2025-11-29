@@ -9,6 +9,8 @@ wifi_cred_t wifi_cred =
 
 wifi_cred_t tem_wifi_cred;
 
+wifi_cred_t tcp_wifi_cred;
+
 void init_wifi(void)
 {
 	esp_event_loop_init(wifi_event_handler, NULL);

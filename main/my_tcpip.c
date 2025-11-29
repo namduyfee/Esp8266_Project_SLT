@@ -46,6 +46,8 @@ void wifi_pcb_tcp(void)
 
 err_t wifi_server_accept(void* arg, struct tcp_pcb* pcb, err_t err)
 {
+	hw_timer_enable(false);
+	
 	tcp_recv(pcb, wifi_server_recv);
 	tcp_sent(pcb, wifi_server_sent);
 	
@@ -59,6 +61,7 @@ err_t wifi_server_recv(void* arg, struct tcp_pcb* pcb, struct pbuf *p, err_t err
 	if (p == NULL) {
 		// Client closed connection or tcp_abort(pcb)
 		tcp_close(pcb);
+		hw_timer_enable(true);
 		return ERR_OK;
 	}
 
@@ -89,7 +92,6 @@ err_t wifi_server_recv(void* arg, struct tcp_pcb* pcb, struct pbuf *p, err_t err
 	
 	else
 	{
-		wifi_cred.retry_connect = REQEST_FROM_USER;
 		
 		int i_ssid = 0, i_pass = 0;
 		
@@ -97,21 +99,25 @@ err_t wifi_server_recv(void* arg, struct tcp_pcb* pcb, struct pbuf *p, err_t err
 		{
 			if (i > (index_ssid + 4) && i < index_pass)
 			{
-				tem_wifi_cred.ssid[i - (index_ssid + 5)] = buf[i];
+				tcp_wifi_cred.ssid[i - (index_ssid + 5)] = buf[i];
 				i_ssid++;
 			}
 			if (i > (index_pass + 4)) {
-				tem_wifi_cred.pass[i - (index_pass + 5)] = buf[i];
+				tcp_wifi_cred.pass[i - (index_pass + 5)] = buf[i];
 				i_pass++;
 			}
 		}
-		tem_wifi_cred.ssid[i_ssid] = '\0';
-		tem_wifi_cred.pass[i_pass] = '\0'; 
+		
+		tcp_wifi_cred.ssid[i_ssid] = '\0';
+		tcp_wifi_cred.pass[i_pass] = '\0'; 
+		
+		wifi_cred.retry_connect = REQEST_FROM_USER;
+		
+		xSemaphoreGive(xTryConnectWifi);
 		
 		const char *reply = "connecting...\n";
 		tcp_write(pcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
 		
-		xSemaphoreGive(xTryConnectWifi);
 	}
 	
 	tcp_recved(pcb, p->tot_len);
@@ -164,6 +170,8 @@ void loadf_pcb_tcp(void)
 
 err_t loadf_server_accept(void* arg, struct tcp_pcb* pcb, err_t err)
 {
+	hw_timer_enable(false);
+	
 	tcp_recv(pcb, loadf_server_recv);
 	tcp_sent(pcb, loadf_server_sent);
 	
@@ -175,8 +183,10 @@ err_t loadf_server_accept(void* arg, struct tcp_pcb* pcb, err_t err)
 err_t loadf_server_recv(void* arg, struct tcp_pcb* pcb, struct pbuf *p, err_t err)
 {
 	if (p == NULL) {
+		
 		// Client closed connection or tcp_abort(pcb)
 		tcp_close(pcb);
+		hw_timer_enable(true);
 		return ERR_OK;
 	}
 	

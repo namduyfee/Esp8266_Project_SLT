@@ -37,12 +37,13 @@ void app_main(void) {
 	tcpip_adapter_init();
 	
 //	config_espnow();
-//	config_Timer();
 	
 	start_wifi();
 	
 	my_init_tcpip();
 
+	/* init wifi, tcp ... then start timer */
+	config_Timer();
 	
 //	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);
 	
@@ -105,7 +106,44 @@ void esp_recv_inf_wifi()
 				nvs_close(nvs);
 			}
 		}
-		vTaskDelay(pdMS_TO_TICKS(1));
+	}
+}
+
+/*
+ *	Config info and try connect wifi STA
+ **/
+void wifi_sta_task() 
+{
+	xSemaphoreTake(xTryConnectWifi, 0);
+	while (1)
+	{
+		if (xSemaphoreTake(xTryConnectWifi, portMAX_DELAY) == pdTRUE)
+		{
+			if (wifi_cred.retry_connect == MAX_RETRY_CONNECT)
+			{
+				strcpy((char*)tem_wifi_cred.ssid, wifi_cred.ssid);
+				strcpy((char*)tem_wifi_cred.pass, wifi_cred.pass);
+			}
+			
+			if (wifi_cred.retry_connect != MAX_RETRY_CONNECT)
+			{
+				strcpy((char*)tem_wifi_cred.ssid, tcp_wifi_cred.ssid);
+				strcpy((char*)tem_wifi_cred.pass, tcp_wifi_cred.pass);
+			}
+			
+			wifi_config_t sta_cfg = {0};
+			strcpy((char*)sta_cfg.sta.ssid, tem_wifi_cred.ssid);
+			strcpy((char*)sta_cfg.sta.password, tem_wifi_cred.pass);
+			esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
+			wifi_cred.retry_connect = 0;
+			
+			if (wifi_cred.is_connected == true) {
+				esp_wifi_disconnect();
+			}
+			else 
+				esp_wifi_connect();
+
+		}
 	}
 }
 
@@ -155,38 +193,7 @@ void esp_recv_file_bin()
 				close(f);			
 			}
 		}
-		vTaskDelay(pdMS_TO_TICKS(1));
 	}
 }
 
-/*
- *	Config info and try connect wifi STA
- **/
-void wifi_sta_task() 
-{
-	xSemaphoreTake(xTryConnectWifi, 0);
-	while (1)
-	{
-		if (xSemaphoreTake(xTryConnectWifi, portMAX_DELAY) == pdTRUE)
-		{
-			if (wifi_cred.retry_connect == MAX_RETRY_CONNECT)
-			{
-				strcpy((char*)tem_wifi_cred.ssid, wifi_cred.ssid);
-				strcpy((char*)tem_wifi_cred.pass, wifi_cred.pass);
-			}
-			
-			wifi_config_t sta_cfg = {0};
-			strcpy((char*)sta_cfg.sta.ssid, tem_wifi_cred.ssid);
-			strcpy((char*)sta_cfg.sta.password, tem_wifi_cred.pass);
-			esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
-			wifi_cred.retry_connect = 0;
-			if (wifi_cred.is_connected == true) {
-				esp_wifi_disconnect();
-				continue;
-			}
-			esp_wifi_connect();
 
-		}
-		vTaskDelay(pdMS_TO_TICKS(1));
-	}
-}

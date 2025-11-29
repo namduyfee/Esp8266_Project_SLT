@@ -5,7 +5,10 @@ volatile uint32_t cnt1 = 0;
 volatile uint32_t cnt2 = 0;
 void timer_cb(void* arg) {
 	
+	
+//	uint32_t tem_mask = 0;
 	uint32_t tem_mask = GPIO_REG_READ(GPIO_OUT_ADDRESS);
+	uint32_t tmp = tem_mask;
 	
 	g_cnt_pwm = (g_cnt_pwm + 1) % RELOAD_DATA_PWM;
 	
@@ -16,7 +19,8 @@ void timer_cb(void* arg) {
 		else
 			tem_mask &= (~(1 << g_gpio_pwm_channel[i]));
 	}
-	GPIO_REG_WRITE(GPIO_OUT_ADDRESS, tem_mask);
+	if(tem_mask != tmp)
+		GPIO_REG_WRITE(GPIO_OUT_ADDRESS, tem_mask);
 }
 
 
@@ -78,13 +82,15 @@ esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
 	}
     
 	case SYSTEM_EVENT_STA_DISCONNECTED: {
+		
+		wifi_cred.is_connected = false;
 
 		if (wifi_cred.retry_connect  < MAX_RETRY_CONNECT)
 		{
 			esp_wifi_connect(); // reconnect
 			wifi_cred.retry_connect++;
 		}
-		else
+		else if(wifi_cred.retry_connect == MAX_RETRY_CONNECT)
 		{
 				
 			if (wifi_cred.last_available == true)
@@ -92,7 +98,6 @@ esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
 				xSemaphoreGive(xTryConnectWifi);
 			}
 		}
-		wifi_cred.is_connected = false;
 		
 		break;
 	}
