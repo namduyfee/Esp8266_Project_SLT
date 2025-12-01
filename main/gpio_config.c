@@ -19,25 +19,6 @@ void config_input_pullup_gpio(void)
 	*/
 }
 
-void config_GPIO_PWM(void)
-{
-	uint32_t tem_pin_bit_mask = 0;
-	
-	for (uint32_t i = 0; i < g_pwm_channel_len; i++) {
-		tem_pin_bit_mask |= (1UL << g_gpio_pwm_channel[i]);
-	}
-	
-	gpio_config_t io_conf = {
-			
-		.pin_bit_mask = tem_pin_bit_mask,
-		.mode = GPIO_MODE_OUTPUT,
-		.pull_up_en = GPIO_PULLUP_DISABLE,
-		.pull_down_en = GPIO_PULLDOWN_DISABLE,
-		.intr_type = GPIO_INTR_DISABLE
-	};
-	gpio_config(&io_conf);
-}
-
 void config_GPIO_OUT(void)
 {
 	uint32_t tem_pin_bit_mask = 0;

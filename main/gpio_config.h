@@ -18,10 +18,10 @@ void config_GPIO_PWM(void);
  *	GPIO_NUM_9
  *	GPIO_NUM_10
  *	GPIO_NUM_11
- *	GPIO_NUM_12
+ *	GPIO_NUM_12		D6
  *	GPIO_NUM_13		D7
  *	GPIO_NUM_14		D5
- *	GPIO_NUM_15
+ *	GPIO_NUM_15		D8
  *	GPIO_NUM_16
  *	GPIO_NUM_17
  *
@@ -30,7 +30,6 @@ void config_GPIO_PWM(void);
 #define LED_WIFI GPIO_NUM_13
 
 void config_input_pullup_gpio(void);
-void config_GPIO_PWM(void);
 
 void config_GPIO_OUT(void);
 #endif

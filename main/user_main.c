@@ -1,6 +1,7 @@
 #include "my_lib.h"
 
 
+
 void esp_now_task(); 
 void esp_recv_inf_wifi();
 void esp_recv_file_bin();
@@ -30,9 +31,7 @@ void app_main(void) {
 	spiffs_init();
 	config_GPIO_OUT();
 	config_input_pullup_gpio();
-	config_GPIO_PWM();
-	gpio_set_level(GPIO_NUM_2, 0); 
-	gpio_set_level(GPIO_NUM_4, 0);
+
 	
 	tcpip_adapter_init();
 	
@@ -41,9 +40,10 @@ void app_main(void) {
 	start_wifi();
 	
 	my_init_tcpip();
-
+	
+	start_pwm();
+	
 	/* init wifi, tcp ... then start timer */
-	config_Timer();
 	
 //	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);
 	
@@ -52,9 +52,46 @@ void app_main(void) {
 	
 	xTaskCreate(wifi_sta_task, "wifi_sta_task", 1024, NULL, 4, NULL);
 	
+	vTaskDelay(pdMS_TO_TICKS(100));
+	
+	Pwm.duty[0] = 200;
+	Pwm.duty[1] = 300;
+	Pwm.duty[2] = 400;
+	Pwm.duty[3] = 700;
+	Pwm.duty[4] = 600;
+	Pwm.duty[5] = 250;
+	Pwm.duty[6] = 350;
+	Pwm.duty[7] = 450;
+
+	set_duties_pwm();
+	
+//	pwm_set_duty(0, 200);
+//	pwm_set_duty(1, 300);
+//	pwm_set_duty(2, 400);
+//	pwm_set_duty(3, 600);
+//	pwm_set_duty(4, 700);
+//	pwm_set_duty(5, 800);
+//	pwm_set_duty(6, 900);
+//	pwm_set_duty(7, 750);
+//	pwm_start();
+	
+//	vTaskDelay(pdMS_TO_TICKS(1000));
+//	pwm_set_duty(0, 250);
+//	pwm_start();
+//	pwm_set_duty(1, 350);
+//	pwm_start();
+//	pwm_set_duty(2, 450);
+//	pwm_start();
+//	pwm_set_duty(3, 750);
+//	pwm_start();
+
+	
+	
 	while (1)
 	{
-		vTaskDelay(pdMS_TO_TICKS(10));
+
+		vTaskDelay(pdMS_TO_TICKS(1));
+
 	}
 	
 }

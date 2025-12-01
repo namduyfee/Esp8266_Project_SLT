@@ -23,12 +23,13 @@
 #include "esp_http_server.h"
 #include "esp_spiffs.h"
 #include "esp_netif.h"
+#include "driver/pwm.h"
 
 #include "lwip/tcp.h"
 #include "lwip/ip_addr.h"
 #include "lwip/netif.h"
 
-#include "pwm_timer1.h"
+#include "my_pwm.h"
 #include "my_callback.h"
 #include "esp_now_config.h"
 #include "wifi_config.h"

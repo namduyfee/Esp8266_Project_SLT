@@ -3,26 +3,6 @@
 
 volatile uint32_t cnt1 = 0;
 volatile uint32_t cnt2 = 0;
-void timer_cb(void* arg) {
-	
-	
-//	uint32_t tem_mask = 0;
-	uint32_t tem_mask = GPIO_REG_READ(GPIO_OUT_ADDRESS);
-	uint32_t tmp = tem_mask;
-	
-	g_cnt_pwm = (g_cnt_pwm + 1) % RELOAD_DATA_PWM;
-	
-	for (uint32_t i = 0; i < g_pwm_channel_len; i++)
-	{
-		if (g_cnt_pwm < g_dutis[g_gpio_pwm_channel[i]])
-			tem_mask |= (1 << g_gpio_pwm_channel[i]);
-		else
-			tem_mask &= (~(1 << g_gpio_pwm_channel[i]));
-	}
-	if(tem_mask != tmp)
-		GPIO_REG_WRITE(GPIO_OUT_ADDRESS, tem_mask);
-}
-
 
 void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len) 
 {
