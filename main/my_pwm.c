@@ -16,7 +16,7 @@ Pwm_Typedef Pwm = {
 		GPIO_CHANNEL_7
 	},
 	.duty = {0, 0, 0, 0, 0, 0, 0, 0},
-	.num_channel_en = 0
+	.num_channel_en = 0,
 };
 
 void start_pwm(void)
@@ -26,14 +26,15 @@ void start_pwm(void)
 	{
 		if (Pwm.gpio_channel[i] == CHANNEL_NOT_USED)
 			break;
-
-		Pwm.duty[i] = DEFAUL_DUTY;
+		Pwm.duty[i] = DEFAUL_DUTY + 10 * i;
 		Pwm.num_channel_en++;
-		
 	}
 	
 	if (Pwm.num_channel_en != 0)
 	{
+		
+		Pwm.duty[Pwm.num_channel_en - 1] = 1000;
+		
 		pwm_init(PWM_PERIOD, Pwm.duty, Pwm.num_channel_en, Pwm.gpio_channel);
 		pwm_start();
 	}
@@ -50,8 +51,10 @@ void set_duty_pwm(uint32_t channel_num, uint32_t duty)
 	{
 		return;
 	}
+
 	Pwm.duty[channel_num] = duty;
-	pwm_set_duty(channel_num, duty);
+	
+	pwm_set_duty(channel_num, Pwm.duty[channel_num]);
 	pwm_start();
 }
 
@@ -61,14 +64,8 @@ void set_duties_pwm(void)
 		return;
 	else
 	{
-		uint32_t* tem = (uint32_t*)(malloc(sizeof(uint32_t)*Pwm.num_channel_en));
-		for (int i = 0; i < Pwm.num_channel_en; i++)
-		{
-			tem[i] = Pwm.duty[i];
-		}
-		pwm_set_duties(tem);
+		pwm_set_duties(Pwm.duty);
 		pwm_start();
-		free(tem);
 	}
-		
 }
+

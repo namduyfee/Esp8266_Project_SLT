@@ -27,14 +27,15 @@
 
 #define	TOTAL_GPIO_MCU 18
 
-#define DEFAUL_DUTY 500
+#define DEFAUL_DUTY 0
 
 typedef struct pwm_info
 {
 	uint32_t gpio_channel[MAX_NUM_CHANNEL];
 	uint32_t duty[MAX_NUM_CHANNEL];
 	
-	uint8_t num_channel_en;
+	uint8_t num_channel_en;					
+	
 	
 } Pwm_Typedef;
 
@@ -43,7 +44,6 @@ typedef struct pwm_info
 void start_pwm(void);
 void set_duty_pwm(uint32_t channel_num, uint32_t duty);
 void set_duties_pwm(void);
-
 extern Pwm_Typedef Pwm;
 
 #endif
