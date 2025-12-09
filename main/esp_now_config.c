@@ -8,26 +8,12 @@ Peer_Typedef *g_send_list_peer[20][20] = {
 	{NULL}
 };
 
-void wifi_init(void) 
-{
-	tcpip_adapter_init();
-	esp_event_loop_create_default();
-	esp_wifi_set_storage(WIFI_STORAGE_RAM);
-	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-	esp_wifi_init(&cfg);
-	esp_wifi_set_mode(WIFI_MODE_STA);  // STA mode
-	esp_wifi_start();
-	esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0);
-
-}
 
 void config_espnow(void) 
 {
-	nvs_flash_init();
+	esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0);
 	
-	wifi_init();
 	esp_now_init();
-	
 	esp_now_register_recv_cb(on_data_recv);
 	esp_now_register_send_cb(on_data_sent);
 	init_my_esp_now();
