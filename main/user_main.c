@@ -25,7 +25,7 @@ void app_main(void) {
 	xRecvPassWifi = xSemaphoreCreateBinary();
 	xTryConnectWifi = xSemaphoreCreateBinary();
 	
-	xBuffLoadf = xQueueCreate(10, sizeof(BufItem_Typedf));
+	xBuffLoadf = xQueueCreate(10, sizeof(data_t));
 	
 	nvs_flash_init();
 	spiffs_init();
@@ -38,10 +38,9 @@ void app_main(void) {
 //	config_espnow();
 	
 	start_wifi();
-	
-	my_init_tcpip();
-	
-	start_pwm();
+
+	init_server_tpcp(5000, 5); 
+//	start_pwm();
 	
 	
 //	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);
@@ -156,11 +155,9 @@ void esp_recv_file_bin()
 {
 	char tem[3] = {0, 0, 0};
 	
-	BufItem_Typedf tm_buf;
-	
 	while (1)
 	{
-		if (xQueueReceive(xBuffLoadf, &tm_buf, portMAX_DELAY) == pdPASS)
+		if (xQueueReceive(xBuffLoadf, &SLT_server.segment_recv, portMAX_DELAY) == pdPASS)
 		{
 			int fd = open("/spiffs/upload.bin", O_WRONLY | O_CREAT | O_TRUNC, 0666);
 			
@@ -170,8 +167,8 @@ void esp_recv_file_bin()
 			}
 			else 
 			{
-				write(fd, tm_buf.payload, tm_buf.len);
-				free(tm_buf.payload);
+				write(fd, SLT_server.segment_recv.content, SLT_server.segment_recv.len);
+				free(SLT_server.segment_recv.content);
 				close(fd);
 			}
 			int f = open("/spiffs/upload.bin", O_RDONLY, 0666);
@@ -180,7 +177,7 @@ void esp_recv_file_bin()
 				read(f, tem, sizeof(tem));
 		
 				//	spiffs_read_file("/spiffs/hello.bin", tem, sizeof(tem));
-				if (tem[0] == 66 && tem[1] == 66 && tem[2] == 66)
+				if (tem[0] == 65 && tem[1] == 66 && tem[2] == 67)
 				{
 					gpio_set_level(GPIO_NUM_2, 1); 
 					gpio_set_level(GPIO_NUM_4, 1);
