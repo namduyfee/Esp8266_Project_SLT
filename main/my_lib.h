@@ -37,13 +37,6 @@
 #include "spiffs_config.h"
 #include "my_tcpip.h"
 
-extern uint8_t data_esp_now [];
-
-extern uint8_t len_test_data_esp_now;
-
-extern uint8_t data_frame2 [];
-extern uint8_t len_test_data_2; 
-
 
 extern SemaphoreHandle_t xRecvPassWifi;
 extern SemaphoreHandle_t xTryConnectWifi;

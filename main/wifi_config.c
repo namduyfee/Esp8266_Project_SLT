@@ -22,36 +22,36 @@ void init_wifi(void)
 void start_wifi(void)
 {
 	init_wifi();
-	esp_wifi_set_mode(WIFI_MODE_APSTA);
-	
-	nvs_handle nvs;
-	size_t len;
-	esp_err_t err = nvs_open("wifi", NVS_READWRITE, &nvs);
-	if (err == ESP_OK)
-	{
-		len = sizeof(wifi_cred.ssid);
-		if (nvs_get_str(nvs, "ssid", wifi_cred.ssid, &len) == ESP_OK)
-		{
-			len = sizeof(wifi_cred.pass);
-			nvs_get_str(nvs, "pass", wifi_cred.pass, &len);
-		}
-		nvs_close(nvs);
-	}
-	
-	strcpy((char*)tem_wifi_cred.ssid, wifi_cred.ssid);
-	strcpy((char*)tem_wifi_cred.pass, wifi_cred.pass);
-	
-	if (strlen(wifi_cred.ssid) != 0)
-	{
-		wifi_cred.last_available = true;
-		
-		wifi_config_t sta_cfg = {0};
-		strcpy((char*)sta_cfg.sta.ssid, wifi_cred.ssid);
-		strcpy((char*)sta_cfg.sta.password, wifi_cred.pass);
-		esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
-	}	
-	else 
-		wifi_cred.last_available = false;
+//	esp_wifi_set_mode(WIFI_MODE_APSTA);
+	esp_wifi_set_mode(WIFI_MODE_AP);
+//	nvs_handle nvs;
+//	size_t len;
+//	esp_err_t err = nvs_open("wifi", NVS_READWRITE, &nvs);
+//	if (err == ESP_OK)
+//	{
+//		len = sizeof(wifi_cred.ssid);
+//		if (nvs_get_str(nvs, "ssid", wifi_cred.ssid, &len) == ESP_OK)
+//		{
+//			len = sizeof(wifi_cred.pass);
+//			nvs_get_str(nvs, "pass", wifi_cred.pass, &len);
+//		}
+//		nvs_close(nvs);
+//	}
+//	
+//	strcpy((char*)tem_wifi_cred.ssid, wifi_cred.ssid);
+//	strcpy((char*)tem_wifi_cred.pass, wifi_cred.pass);
+//	
+//	if (strlen(wifi_cred.ssid) != 0)
+//	{
+//		wifi_cred.last_available = true;
+//		
+//		wifi_config_t sta_cfg = {0};
+//		strcpy((char*)sta_cfg.sta.ssid, wifi_cred.ssid);
+//		strcpy((char*)sta_cfg.sta.password, wifi_cred.pass);
+//		esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
+//	}	
+//	else 
+//		wifi_cred.last_available = false;
 	
 	wifi_config_t ap_config = {
 		.ap = {
@@ -66,4 +66,6 @@ void start_wifi(void)
 	
 
 	esp_wifi_start();
+	esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0); 
+	
 }

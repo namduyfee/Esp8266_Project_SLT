@@ -11,8 +11,7 @@ Peer_Typedef *g_send_list_peer[20][20] = {
 
 void config_espnow(void) 
 {
-	esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0);
-	
+
 	esp_now_init();
 	esp_now_register_recv_cb(on_data_recv);
 	esp_now_register_send_cb(on_data_sent);
@@ -32,11 +31,6 @@ void init_my_esp_now(void)
 	for (int i = 0; i < ESP_NOW_MAX_LEN; i++)
 		g_my_esp_now.send_frame[i] = NULL;
 	
-	g_my_esp_now.send_frame[0] = data_esp_now;
-	g_my_esp_now.len_send_frame[0] = len_test_data_esp_now;
-	
-	g_my_esp_now.send_frame[1] = data_frame2;
-	g_my_esp_now.len_send_frame[1] = len_test_data_2;
 	
 }
 

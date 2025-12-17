@@ -25,7 +25,7 @@ err_t init_server_tpcp(uint16_t port, uint8_t max_client)
 		return ERR_MEM;
 	}
 	
-	server_listen_tpcb = tcp_listen(server_listen_tpcb);
+	server_listen_tpcb = tcp_listen_with_backlog(server_listen_tpcb, 5);
 	
 	
 	if (!server_listen_tpcb)

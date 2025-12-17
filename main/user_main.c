@@ -1,6 +1,6 @@
 #include "my_lib.h"
 
-
+#define MIN_DELAY 10
 
 void esp_now_task(); 
 void esp_recv_inf_wifi();
@@ -8,11 +8,6 @@ void esp_recv_file_bin();
 
 void wifi_sta_task();
 
-uint8_t data_esp_now[] = "hello from ESP8266";
-uint8_t len_test_data_esp_now = sizeof(data_esp_now) / sizeof(data_esp_now[0]); 
-
-uint8_t data_frame2[] = "i am frame 2025";
-uint8_t len_test_data_2 = sizeof(data_frame2) / sizeof(data_frame2[0]); 
 
 
 SemaphoreHandle_t xRecvPassWifi; 
@@ -38,44 +33,43 @@ void app_main(void) {
 //	config_espnow();
 	
 	start_wifi();
-
-	init_server_tpcp(5000, 5); 
+ 
 //	start_pwm();
 	
+	init_server_tpcp(80, 5);
 	
-//	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);
+//	xTaskCreate(esp_now_task, "esp_now_send_task", 1024, NULL, 4, NULL);
 	
-	xTaskCreate(esp_recv_inf_wifi, "esp_recv_inf_wifi", 1024, NULL, 5, NULL);
-	xTaskCreate(esp_recv_file_bin, "esp_recv_file_bin", 2048, NULL, 4, NULL);
+//	xTaskCreate(esp_recv_inf_wifi, "esp_recv_inf_wifi", 1024, NULL, 5, NULL);
+	xTaskCreate(esp_recv_file_bin, "esp_recv_file_bin", 1024, NULL, 4, NULL);
 	
-	xTaskCreate(wifi_sta_task, "wifi_sta_task", 1024, NULL, 4, NULL);
+//	xTaskCreate(wifi_sta_task, "wifi_sta_task", 1024, NULL, 4, NULL);
+
 
 	while (1)
 	{
-
-		vTaskDelay(pdMS_TO_TICKS(1));
-
+		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
 	}
 	
 }
 
 void esp_now_task() 
 {
-	esp_err_t ret; 
+//	esp_err_t ret; 
 	g_my_esp_now.can_send = true; 
 	while (1)
 	{
-		if (g_my_esp_now.can_send == true)
-		{
-
-			ret = esp_now_send(g_peer_esp8266.inf.peer_addr, data_esp_now, len_test_data_esp_now);
-			while (ret != ESP_OK)
-			{
-				ret = esp_now_send(g_peer_esp8266.inf.peer_addr, data_esp_now, len_test_data_esp_now);
-				vTaskDelay(pdMS_TO_TICKS(10));
-			}
-			g_my_esp_now.can_send = false;
-		}
+//		if (g_my_esp_now.can_send == true)
+//		{
+//
+//			ret = esp_now_send(g_peer_esp8266.inf.peer_addr, data_esp_now, len_test_data_esp_now);
+//			while (ret != ESP_OK)
+//			{
+//				ret = esp_now_send(g_peer_esp8266.inf.peer_addr, data_esp_now, len_test_data_esp_now);
+//				vTaskDelay(pdMS_TO_TICKS(10));
+//			}
+//			g_my_esp_now.can_send = false;
+//		}
 		vTaskDelay(pdMS_TO_TICKS(10));
 	}
 }
@@ -153,7 +147,7 @@ void wifi_sta_task()
  **/
 void esp_recv_file_bin()
 {
-	char tem[3] = {0, 0, 0};
+	
 	
 	while (1)
 	{
@@ -174,19 +168,24 @@ void esp_recv_file_bin()
 			int f = open("/spiffs/upload.bin", O_RDONLY, 0666);
 			if (f >= 0)
 			{
-				read(f, tem, sizeof(tem));
-		
-				//	spiffs_read_file("/spiffs/hello.bin", tem, sizeof(tem));
-				if (tem[0] == 65 && tem[1] == 66 && tem[2] == 67)
+				off_t size = lseek(fd, 0, SEEK_END);
+				lseek(fd, 0, SEEK_SET); 
+				if (size > 500)
 				{
-					gpio_set_level(GPIO_NUM_2, 1); 
-					gpio_set_level(GPIO_NUM_4, 1);
-				}
-				else
-				{
-					gpio_set_level(GPIO_NUM_2, 0); 
-					gpio_set_level(GPIO_NUM_4, 0);				
+					char* tem = (char*)malloc(500);
+				
+					read(f, tem, 500);
+					//	spiffs_read_file("/spiffs/hello.bin", tem, sizeof(tem));
+					if (tem[400] == 65 && tem[401] == 66 && tem[402] == 67)
+					{
+						gpio_set_level(GPIO_NUM_15, 1);
+					}
+					else
+					{
+						gpio_set_level(GPIO_NUM_15, 0);				
 					
+					}
+					free(tem);					
 				}
 				close(f);			
 			}

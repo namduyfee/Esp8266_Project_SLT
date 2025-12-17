@@ -22,7 +22,7 @@ void config_input_pullup_gpio(void)
 void config_GPIO_OUT(void)
 {
 	uint32_t tem_pin_bit_mask = 0;
-	tem_pin_bit_mask = (1UL << LED_WIFI) | (1UL << GPIO_NUM_2) | (1UL << GPIO_NUM_4);
+	tem_pin_bit_mask = (1UL << LED_WIFI) | (1UL << GPIO_NUM_15);
 	
 	gpio_config_t io_conf = {
 			
