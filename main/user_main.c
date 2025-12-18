@@ -151,9 +151,9 @@ void esp_recv_file_bin()
 	
 	while (1)
 	{
-		if (xQueueReceive(xBuffLoadf, &SLT_server.segment_recv, portMAX_DELAY) == pdPASS)
+		if (xQueueReceive(xBuffLoadf, &SLT_server.recv.segment, portMAX_DELAY) == pdPASS)
 		{
-			int fd = open("/spiffs/upload.bin", O_WRONLY | O_CREAT | O_TRUNC, 0666);
+			int fd = open("/spiffs/upload.bin", O_WRONLY | O_CREAT, 0666);
 			
 			if (fd < 0)
 			{
@@ -161,8 +161,22 @@ void esp_recv_file_bin()
 			}
 			else 
 			{
-				write(fd, SLT_server.segment_recv.content, SLT_server.segment_recv.len);
-				free(SLT_server.segment_recv.content);
+				
+				if (SLT_server.recv.segment.pos_in_file == POS_CONTINUE)
+				{
+					lseek(fd, SLT_server.recv.current_pos_file, SEEK_SET);
+				}
+				else
+				{
+					SLT_server.recv.current_pos_file = SLT_server.recv.segment.pos_in_file;
+					lseek(fd, SLT_server.recv.segment.pos_in_file, SEEK_SET);
+					
+				} 
+				
+				write(fd, &((uint8_t*)SLT_server.recv.segment.content)[SLT_server.recv.segment.pos_data], SLT_server.recv.segment.len);
+				SLT_server.recv.current_pos_file += SLT_server.recv.segment.len; 
+				
+				free(SLT_server.recv.segment.content);
 				close(fd);
 			}
 			int f = open("/spiffs/upload.bin", O_RDONLY, 0666);
@@ -176,7 +190,7 @@ void esp_recv_file_bin()
 				
 					read(f, tem, 500);
 					//	spiffs_read_file("/spiffs/hello.bin", tem, sizeof(tem));
-					if (tem[400] == 65 && tem[401] == 66 && tem[402] == 67)
+					if (tem[400-7] == 65 && tem[401-7] == 66 && tem[402-7] == 67)
 					{
 						gpio_set_level(GPIO_NUM_15, 1);
 					}

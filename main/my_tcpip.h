@@ -4,11 +4,14 @@
 
 #include "my_lib.h"
 
+#define POS_CONTINUE -1
 
 typedef struct 
 {
 	void* content;
-	uint16_t len;		
+	uint16_t len;
+	uint16_t pos_data;
+	int32_t pos_in_file;
 		
 } data_t;
 
@@ -17,8 +20,12 @@ typedef struct
 	struct tcp_pcb* tpcb_server;
 	struct tcp_pcb* tpcb;
 	
-	data_t segment_recv;
-	
+	struct
+	{
+		data_t segment; 
+		
+	} recv;
+  
 	void* arg;
 } client_tcp_t;
 
@@ -31,7 +38,14 @@ typedef struct
 	uint16_t count_client; 
 	uint8_t max_client;
 	
-	data_t segment_recv;
+	struct
+	{
+		data_t segment; 
+		uint32_t current_pos_file; 
+		
+	} recv;
+	
+	void* header;
 
 	void* arg;
 } server_tcp_t;
