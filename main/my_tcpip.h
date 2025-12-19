@@ -11,7 +11,7 @@ typedef struct
 	void* content;
 	uint16_t len;
 	uint16_t pos_data;
-	int32_t pos_in_file;
+	int pos_in_file;
 		
 } data_t;
 

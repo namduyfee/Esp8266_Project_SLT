@@ -148,7 +148,6 @@ void wifi_sta_task()
 void esp_recv_file_bin()
 {
 	
-	
 	while (1)
 	{
 		if (xQueueReceive(xBuffLoadf, &SLT_server.recv.segment, portMAX_DELAY) == pdPASS)
@@ -159,45 +158,46 @@ void esp_recv_file_bin()
 			{
 		
 			}
-			else 
+			else
 			{
-				
 				if (SLT_server.recv.segment.pos_in_file == POS_CONTINUE)
 				{
 					lseek(fd, SLT_server.recv.current_pos_file, SEEK_SET);
 				}
 				else
 				{
-					SLT_server.recv.current_pos_file = SLT_server.recv.segment.pos_in_file;
 					lseek(fd, SLT_server.recv.segment.pos_in_file, SEEK_SET);
-					
-				} 
+				}
 				
-				write(fd, &((uint8_t*)SLT_server.recv.segment.content)[SLT_server.recv.segment.pos_data], SLT_server.recv.segment.len);
-				SLT_server.recv.current_pos_file += SLT_server.recv.segment.len; 
-				
-				free(SLT_server.recv.segment.content);
+				if (SLT_server.recv.segment.content != NULL)
+				{
+					write(fd, &((uint8_t*)SLT_server.recv.segment.content)[SLT_server.recv.segment.pos_data], SLT_server.recv.segment.len);
+					SLT_server.recv.current_pos_file = lseek(fd, 0 , SEEK_CUR);
+					free(SLT_server.recv.segment.content); 					
+				}
 				close(fd);
 			}
+			
 			int f = open("/spiffs/upload.bin", O_RDONLY, 0666);
 			if (f >= 0)
 			{
-				off_t size = lseek(fd, 0, SEEK_END);
-				lseek(fd, 0, SEEK_SET); 
-				if (size > 500)
-				{
-					char* tem = (char*)malloc(500);
+				off_t size = lseek(fd, 0, SEEK_END); 
 				
-					read(f, tem, 500);
-					//	spiffs_read_file("/spiffs/hello.bin", tem, sizeof(tem));
-					if (tem[400-7] == 65 && tem[401-7] == 66 && tem[402-7] == 67)
+				if (size > 502 - 7)
+				{
+					char* tem = (char*)malloc(3);
+					
+					lseek(f, 500 - 7, SEEK_SET);
+					
+					read(f, tem, 3);
+					if (tem[0] == 65 && tem[1] == 66 && tem[2] == 67)
 					{
 						gpio_set_level(GPIO_NUM_15, 1);
 					}
 					else
 					{
 						gpio_set_level(GPIO_NUM_15, 0);				
-					
+						
 					}
 					free(tem);					
 				}

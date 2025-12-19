@@ -40,7 +40,7 @@ err_t init_server_tpcp(uint16_t port, uint8_t max_client)
 	SLT_server.port = port;
 	SLT_server.max_client = max_client;
 	SLT_server.count_client = 0; 
-	
+	SLT_server.recv.current_pos_file = 0; 
 	tcp_accept(server_listen_tpcb, server_accept_tcp);
 	
 	tcp_arg(server_listen_tpcb, &SLT_server);
@@ -100,11 +100,9 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 	client->recv.segment.content = malloc(p->tot_len);	
 	if (client->recv.segment.content == NULL)
 	{
-		const char *reply = "RECEIVE ERROR...\n";
-		tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
-		
 		tcp_recved(tpcb, p->tot_len);
 		pbuf_free(p);	
+		client_tcp_close(tpcb, client);
 		return ERR_MEM;
 	}
 	
@@ -118,7 +116,6 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 		client->recv.segment.len -= 7; 
 		client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.content)[6] << 3) | (((uint8_t*)client->recv.segment.content)[5] << 2) | (((uint8_t*)client->recv.segment.content)[4] << 1) 
 																							   | (((uint8_t*)client->recv.segment.content)[3] << 0); 
-		
 	}
 	else
 	{
