@@ -11,7 +11,8 @@ void spiffs_init(void)
 	};
 	esp_err_t ret = esp_vfs_spiffs_register(&conf);
 	
-	if (ret != ESP_OK) {
+	if (ret != ESP_OK)
+	{
 		printf("SPIFFS mount failed: %s\n", esp_err_to_name(ret));
 		if (ret == ESP_ERR_NOT_FOUND)
 		{
@@ -19,12 +20,16 @@ void spiffs_init(void)
 		}
 		else if (ret == ESP_ERR_NO_MEM)
 		{
-
+			
 		}
 		else if (ret == ESP_ERR_INVALID_SIZE)
 		{
-
+		
 		}
+	}
+	else
+	{
+		
 	}
 	
 
