@@ -80,7 +80,7 @@ err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 	
 } 
 
-
+uint8_t start = 0; 
 err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err)
 {
 	client_tcp_t* client = (client_tcp_t*)arg;
@@ -112,10 +112,12 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 	
 	if (((char*)client->recv.segment.content)[0] == 'S' && ((char*)client->recv.segment.content)[1] == 'L'  && ((char*)client->recv.segment.content)[2] == 'T')
 	{
-		client->recv.segment.pos_data = 7; 
-		client->recv.segment.len -= 7; 
+//		client->recv.segment.pos_data = 7; 
+//		client->recv.segment.len -= 7; 
+		
+		client->recv.segment.pos_data = 0; 	
 		client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.content)[6] << 3) | (((uint8_t*)client->recv.segment.content)[5] << 2) | (((uint8_t*)client->recv.segment.content)[4] << 1) 
-																							   | (((uint8_t*)client->recv.segment.content)[3] << 0); 
+																								| (((uint8_t*)client->recv.segment.content)[3] << 0); 
 	}
 	else
 	{

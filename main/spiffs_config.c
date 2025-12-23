@@ -2,7 +2,7 @@
 
 void spiffs_init(void)
 {
-
+//	esp_spiffs_format(NULL);
 	esp_vfs_spiffs_conf_t conf = {
 		.base_path = "/spiffs",
 		.partition_label = NULL,
@@ -32,7 +32,6 @@ void spiffs_init(void)
 		
 	}
 	
-
 }
 
 void spiffs_read_file(const char *path, char *data, uint32_t data_len)

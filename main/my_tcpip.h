@@ -11,7 +11,7 @@ typedef struct
 	void* content;
 	uint16_t len;
 	uint16_t pos_data;
-	int pos_in_file;
+	off_t pos_in_file;
 		
 } data_t;
 
@@ -41,7 +41,7 @@ typedef struct
 	struct
 	{
 		data_t segment; 
-		uint32_t current_pos_file; 
+		off_t current_pos_file; 
 		
 	} recv;
 	

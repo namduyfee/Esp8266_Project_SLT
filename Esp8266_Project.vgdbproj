@@ -212,6 +212,7 @@
           </KeyValue>
           <KeyValue>
             <Key>com.visualgdb.dbgfallback.TargetSelectCmd</Key>
+            <Value />
           </KeyValue>
           <KeyValue>
             <Key>com.visualgdb.dbgfallback.DebugStartCmd</Key>

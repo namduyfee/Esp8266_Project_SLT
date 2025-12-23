@@ -20,7 +20,7 @@ void app_main(void) {
 	xRecvPassWifi = xSemaphoreCreateBinary();
 	xTryConnectWifi = xSemaphoreCreateBinary();
 	
-	xBuffLoadf = xQueueCreate(10, sizeof(data_t));
+	xBuffLoadf = xQueueCreate(30, sizeof(data_t));
 	
 	nvs_flash_init();
 	spiffs_init();
@@ -41,7 +41,7 @@ void app_main(void) {
 //	xTaskCreate(esp_now_task, "esp_now_send_task", 1024, NULL, 4, NULL);
 	
 //	xTaskCreate(esp_recv_inf_wifi, "esp_recv_inf_wifi", 1024, NULL, 5, NULL);
-	xTaskCreate(esp_recv_file_bin, "esp_recv_file_bin", 1024, NULL, 4, NULL);
+	xTaskCreate(esp_recv_file_bin, "esp_recv_file_bin", 2048, NULL, 4, NULL);
 	
 //	xTaskCreate(wifi_sta_task, "wifi_sta_task", 1024, NULL, 4, NULL);
 
@@ -148,167 +148,62 @@ void wifi_sta_task()
 void esp_recv_file_bin()
 {
 	gpio_set_level(GPIO_NUM_15, 0);
+	gpio_set_level(GPIO_NUM_0, 1);
 	
 	while (1)
 	{
 		if (xQueueReceive(xBuffLoadf, &SLT_server.recv.segment, portMAX_DELAY) == pdPASS)
 		{		
+			struct stat st;
+			int ret = stat("/spiffs/data.bin", &st);
 			
-			int fd = open("/spiffs/data.bin", O_RDWR | O_CREAT, 0666);
+			int fd = ret < 0 ?  open("/spiffs/data.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : open("/spiffs/data.bin", O_RDWR | O_CREAT, 0666);
 			
 			if (fd < 0)
 			{
 				if (SLT_server.recv.segment.content != NULL)
 				{
 					free(SLT_server.recv.segment.content); 	
-//					gpio_set_level(GPIO_NUM_15, 1);
+					SLT_server.recv.segment.content = NULL; 
+					gpio_set_level(GPIO_NUM_0, 0);
 				}	
 			}
 			else
 			{	
-				 
-				uint8_t processed = 0;				
+				 				
 				if (SLT_server.recv.segment.content != NULL)
 				{
-					/* code 0
+
 					 
 					if (SLT_server.recv.segment.pos_in_file == POS_CONTINUE)
 					{
-						lseek(fd, (off_t)SLT_server.recv.current_pos_file, SEEK_SET);
+						lseek(fd, SLT_server.recv.current_pos_file, SEEK_SET);
 					}
 					else
 					{
-						lseek(fd, (off_t)SLT_server.recv.segment.pos_in_file, SEEK_SET);
+						lseek(fd, SLT_server.recv.segment.pos_in_file, SEEK_SET);
 					}
 
 					write(fd, &((uint8_t*)SLT_server.recv.segment.content)[SLT_server.recv.segment.pos_data], SLT_server.recv.segment.len);
 					SLT_server.recv.current_pos_file = lseek(fd, 0, SEEK_CUR);
 					free(SLT_server.recv.segment.content); 		
+					SLT_server.recv.segment.content = NULL;
 					
-					*/
-					
-					
-					/* code 1
-					
-
-					free(SLT_server.recv.segment.content); 	
-					uint8_t a = 66; 
-					lseek(fd, 0, SEEK_SET); 
-					write(fd, &a, 1);
-					*/
-
-				
-//					/* code 2
-		
-					
-					int fd_tm = open("/spiffs/tm.bin", O_RDWR | O_CREAT | O_TRUNC, 0666);
-					
-					if (fd_tm < 0) {
-						free(SLT_server.recv.segment.content);
-						continue;
-					}
-					
-					uint32_t pos_write; 
-					
-					if (SLT_server.recv.segment.pos_in_file == POS_CONTINUE)
-					{
-						pos_write = SLT_server.recv.current_pos_file; 
-					}
-					else
-					{
-						pos_write = SLT_server.recv.segment.pos_in_file;
-					}		
-					if (pos_write != 0)
-					{
-						uint8_t* tem = (uint8_t*)(malloc(pos_write < 512 ? pos_write : 512 ));
-						
-						lseek(fd, 0, SEEK_SET);
-						lseek(fd_tm, 0, SEEK_SET);
-						
-						uint32_t remaining = pos_write; 
-						
-						while (remaining > 0)
-						{
-							uint32_t read_num = read(fd, tem, remaining < 512 ? remaining : 512);
-							if (read_num > 0)
-							{
-								write(fd_tm, tem, read_num);
-								remaining = remaining - read_num; 
-							}
-							else 
-								break; 
-						}
-						free(tem); 
-						
-					}
-					
-					lseek(fd_tm, pos_write, SEEK_SET);	
-					write(fd_tm, &((uint8_t*)SLT_server.recv.segment.content)[SLT_server.recv.segment.pos_data], SLT_server.recv.segment.len);
-					
-					SLT_server.recv.current_pos_file = lseek(fd_tm, 0, SEEK_CUR); 
-					
-					pos_write = lseek(fd_tm, 0, SEEK_CUR); 
-					
-					off_t file_size = lseek(fd, 0, SEEK_END);
-					
-					if (pos_write < file_size)
-					{
-						uint8_t* tem = (uint8_t*)(malloc(file_size - pos_write < 512 ? file_size - pos_write : 512));
-						
-						lseek(fd, pos_write, SEEK_SET);
-						lseek(fd_tm, pos_write, SEEK_SET);
-						
-						uint32_t remaining = file_size - pos_write; 
-						
-						while (remaining > 0)
-						{
-							uint32_t read_num = read(fd, tem, remaining < 512 ? remaining : 512);
-							
-							if (read_num > 0)
-							{
-								write(fd_tm, tem, read_num);
-								remaining = remaining - read_num; 
-							}
-							else 
-								break; 
-						}
-						free(tem);						
-					}
-					
-					free(SLT_server.recv.segment.content); 
-					
-					close(fd_tm);
-					close(fd);
-					
-					unlink("/spiffs/data.bin"); 
-					
-					int ret = rename("/spiffs/tm.bin", "/spiffs/data.bin");
-					
-					if (ret == 0) {
-						// complete
-						
-					}
-					else {
-						
-					}
-					processed = 1; 
-//					*/
 				}	
-				if (processed == 0)
-					close(fd);
-//				close(fd);
+				close(fd);
 			}
+			
 			int f = open("/spiffs/data.bin", O_RDONLY);
 			if (f >= 0)
 			{
 				
 				off_t size = lseek(f, 0, SEEK_END); 
 				
-				if (size > 2502 - 7)
+				if (size > 23032)
 				{
 					char* tem = (char*)malloc(3);
 					
-					lseek(f, 2500 - 7, SEEK_SET);
+					lseek(f, 23030, SEEK_SET);
 					
 					read(f, tem, 3);
 					if (tem[0] == 65 && tem[1] == 66 && tem[2] == 67)
