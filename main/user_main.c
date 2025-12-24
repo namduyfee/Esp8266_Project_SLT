@@ -2,11 +2,11 @@
 
 #define MIN_DELAY 10
 
-void esp_now_task(); 
+void task_esp_now(); 
 void esp_recv_inf_wifi();
-void esp_recv_file_bin();
+void task_tcp_file_bin(); 
 
-void wifi_sta_task();
+void task_wifi_sta(); 
 
 
 
@@ -41,9 +41,10 @@ void app_main(void) {
 //	xTaskCreate(esp_now_task, "esp_now_send_task", 1024, NULL, 4, NULL);
 	
 //	xTaskCreate(esp_recv_inf_wifi, "esp_recv_inf_wifi", 1024, NULL, 5, NULL);
-	xTaskCreate(esp_recv_file_bin, "esp_recv_file_bin", 2048, NULL, 4, NULL);
 	
-//	xTaskCreate(wifi_sta_task, "wifi_sta_task", 1024, NULL, 4, NULL);
+	xTaskCreate(task_tcp_file_bin, "esp_recv_file_bin", 2048, NULL, 4, NULL);
+	
+//	xTaskCreate(task_wifi_sta, "wifi_sta_task", 1024, NULL, 4, NULL);
 
 
 	while (1)
@@ -53,7 +54,7 @@ void app_main(void) {
 	
 }
 
-void esp_now_task() 
+void task_esp_now() 
 {
 //	esp_err_t ret; 
 	g_my_esp_now.can_send = true; 
@@ -106,7 +107,7 @@ void esp_recv_inf_wifi()
 /*
  *	Config info and try connect wifi STA
  **/
-void wifi_sta_task() 
+void task_wifi_sta() 
 {
 	xSemaphoreTake(xTryConnectWifi, 0);
 	while (1)
@@ -141,11 +142,21 @@ void wifi_sta_task()
 	}
 }
 
-/*
- *	write file.bin from tcp use spiffs
+/**
+ *	@brief	x? lý yêu c?u nh?n ???c ? tcp v?i file
  *	
- **/
-void esp_recv_file_bin()
+ *	@detail	
+ *		d?a vào v? trí offset cung c?p t? segment tcp ?? xác ??nh v? trí c?n ghi trong file
+ *		n?u offset là POS_CONTINUE thì ghi vào v? trí k?t thúc c?a segment tr??c
+ *		sau khi ghi free segment (???c c?p heap t? tr??c trong tcp recv handler)
+ *		
+ *	@note
+ *		stack ???c c?p cho task ph?i ?? l?n
+ *		n?u file ch?a t?n t?i thì t?o file v?i mode O_TRUNC ?? ??m b?o không l?i
+ *		n?u file t?n t?i thì không O_TRUNC tránh xóa n?i dung trong file tr??c ?ó
+ */
+
+void task_tcp_file_bin()
 {
 	gpio_set_level(GPIO_NUM_15, 0);
 	gpio_set_level(GPIO_NUM_0, 1);
@@ -199,11 +210,11 @@ void esp_recv_file_bin()
 				
 				off_t size = lseek(f, 0, SEEK_END); 
 				
-				if (size > 23032)
+				if (size > 45558)
 				{
 					char* tem = (char*)malloc(3);
 					
-					lseek(f, 23030, SEEK_SET);
+					lseek(f, 45556, SEEK_SET);
 					
 					read(f, tem, 3);
 					if (tem[0] == 65 && tem[1] == 66 && tem[2] == 67)

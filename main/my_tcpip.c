@@ -125,10 +125,18 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 		client->recv.segment.pos_in_file = POS_CONTINUE;
 	}
 
-	xQueueSendToBack(xBuffLoadf, &client->recv.segment, 0);
+	xQueueSendToBack(xBuffLoadf, &client->recv.segment, portMAX_DELAY);
+	if (((char*)client->recv.segment.content)[0] == 'E' && ((char*)client->recv.segment.content)[1] == 'N'  && ((char*)client->recv.segment.content)[2] == 'D')
+	{
+		const char *reply = "END...\n";
+		tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
+	}
+	else
+	{
+		const char *reply = "RECEIVED...\n";
+		tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);		
+	}
 	
-	const char *reply = "RECEIVED...\n";
-	tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
 	tcp_recved(tpcb, p->tot_len);
 	pbuf_free(p);
 	return ERR_OK;
