@@ -22,6 +22,7 @@ void app_main(void) {
 	
 	xBuffLoadf = xQueueCreate(30, sizeof(data_t));
 	
+	
 	nvs_flash_init();
 	spiffs_init();
 	config_GPIO_OUT();
