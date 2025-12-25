@@ -162,78 +162,108 @@ void task_tcp_file_bin()
 	gpio_set_level(GPIO_NUM_15, 0);
 	gpio_set_level(GPIO_NUM_0, 1);
 	
+	int fd = -100; 
+	
 	while (1)
 	{
 		if (xQueueReceive(xBuffLoadf, &SLT_server.recv.segment, portMAX_DELAY) == pdPASS)
 		{		
-			struct stat st;
-			int ret = stat("/spiffs/data.bin", &st);
-			
-			int fd = ret < 0 ?  open("/spiffs/data.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : open("/spiffs/data.bin", O_RDWR | O_CREAT, 0666);
-			
-			if (fd < 0)
+
+			if (SLT_server.recv.segment.command == 'D' || SLT_server.recv.segment.command == 'd')
 			{
-				if (SLT_server.recv.segment.content != NULL)
+				if (SLT_server.recv.segment.content != NULL) 
 				{
-					free(SLT_server.recv.segment.content); 	
-					SLT_server.recv.segment.content = NULL; 
-					gpio_set_level(GPIO_NUM_0, 0);
-				}	
+					free(SLT_server.recv.segment.content);
+					SLT_server.recv.segment.content = NULL;
+				}
+
+				if (fd >= 0) 
+				{
+					close(fd);
+					fd = -100;
+				}
+				unlink("/spiffs/data.bin");
+
 			}
-			else
-			{	
-				 				
-				if (SLT_server.recv.segment.content != NULL)
+			
+			else if (SLT_server.recv.segment.command == 'R' || SLT_server.recv.segment.command == 'r')
+			{
+				int f = open("/spiffs/data.bin", O_RDONLY);
+				if (f >= 0)
 				{
+				
+					off_t size = lseek(f, 0, SEEK_END); 
+				
+					if (size > 45558)
+					{
+						char* tem = (char*)malloc(3);
+					
+						lseek(f, 45556, SEEK_SET);
+					
+						read(f, tem, 3);
+						if (tem[0] == 65 && tem[1] == 66 && tem[2] == 67)
+						{
+							gpio_set_level(GPIO_NUM_15, 1);
+						}
+						else
+						{
+							gpio_set_level(GPIO_NUM_15, 0);				
+						
+						}
+						free(tem);					
+					}
+					close(f);			
+				}
+			}
+			else if (SLT_server.recv.segment.command == 'W' || SLT_server.recv.segment.command == 'w')
+			{
+				
+				if (fd < 0)
+				{
+					struct stat st;
+					int ret = stat("/spiffs/data.bin", &st);
+					fd = ret < 0 ?  open("/spiffs/data.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : open("/spiffs/data.bin", O_RDWR | O_CREAT, 0666);
+					
+				}
+				
+				if (fd < 0)
+				{
+					if (SLT_server.recv.segment.content != NULL)
+					{
+						free(SLT_server.recv.segment.content); 	
+						SLT_server.recv.segment.content = NULL; 
+						gpio_set_level(GPIO_NUM_0, 0);
+					}	
+				}
+				else
+				{	
+				 				
+					if (SLT_server.recv.segment.content != NULL)
+					{
 
 					 
-					if (SLT_server.recv.segment.pos_in_file == POS_CONTINUE)
-					{
-						lseek(fd, SLT_server.recv.current_pos_file, SEEK_SET);
-					}
-					else
-					{
-						lseek(fd, SLT_server.recv.segment.pos_in_file, SEEK_SET);
-					}
+						if (SLT_server.recv.segment.pos_in_file == POS_CONTINUE)
+						{
+							lseek(fd, SLT_server.recv.current_pos_file, SEEK_SET);
+						}
+						else
+						{
+							lseek(fd, SLT_server.recv.segment.pos_in_file, SEEK_SET);
+						}
 
-					write(fd, &((uint8_t*)SLT_server.recv.segment.content)[SLT_server.recv.segment.pos_data], SLT_server.recv.segment.len);
-					SLT_server.recv.current_pos_file = lseek(fd, 0, SEEK_CUR);
-					free(SLT_server.recv.segment.content); 		
-					SLT_server.recv.segment.content = NULL;
+						write(fd, &((uint8_t*)SLT_server.recv.segment.content)[SLT_server.recv.segment.pos_data], SLT_server.recv.segment.len);
+						SLT_server.recv.current_pos_file = lseek(fd, 0, SEEK_CUR);
+						free(SLT_server.recv.segment.content); 		
+						SLT_server.recv.segment.content = NULL;
 					
-				}	
-				close(fd);
-			}
-			
-			int f = open("/spiffs/data.bin", O_RDONLY);
-			if (f >= 0)
-			{
-				
-				off_t size = lseek(f, 0, SEEK_END); 
-				
-				if (size > 45558)
-				{
-					char* tem = (char*)malloc(3);
-					
-					lseek(f, 45556, SEEK_SET);
-					
-					read(f, tem, 3);
-					if (tem[0] == 65 && tem[1] == 66 && tem[2] == 67)
-					{
-						gpio_set_level(GPIO_NUM_15, 1);
 					}
-					else
-					{
-						gpio_set_level(GPIO_NUM_15, 0);				
-						
-					}
-					free(tem);					
-				}
-				close(f);			
+					close(fd);
+					fd = -100; 
+				}				
 			}
 			
 			
-				
+			
 		}
 	}
 }

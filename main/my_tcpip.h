@@ -9,10 +9,12 @@
 typedef struct 
 {
 	void* content;
-	uint16_t len;
+	uint32_t len;
 	uint16_t pos_data;
 	off_t pos_in_file;
-		
+	
+	uint8_t command;
+	
 } data_t;
 
 typedef struct
