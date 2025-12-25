@@ -196,6 +196,7 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 
 err_t server_sent_tcp(void* arg, struct tcp_pcb* tpcb, uint16_t len)
 {
+	
 	return ERR_OK; 
 }
 err_t client_tcp_close(struct tcp_pcb *cl_tpcb, client_tcp_t* client)

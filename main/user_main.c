@@ -242,6 +242,7 @@ void task_tcp_file_bin()
 			
 			else if (SLT_server.recv.segment.command == READ)
 			{
+				
 				int f = open("/spiffs/data.bin", O_RDONLY);
 				if (f >= 0)
 				{

@@ -39,8 +39,13 @@ typedef struct
 		data_t segment; 
 		
 	} recv;
+	
+	struct
+	{
+			
+	} send;
   
-	void* arg;
+void* arg;
 } client_tcp_t;
 
 typedef struct
@@ -58,6 +63,11 @@ typedef struct
 		off_t current_pos_file; 
 		
 	} recv;
+	
+	struct
+	{
+		
+	} send;
 	
 	void* header;
 
