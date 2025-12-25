@@ -80,6 +80,13 @@ err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 	
 } 
 
+
+/**
+ *	@brief	hàm x? lý segment tcp recv
+ *	
+ *	@details
+ *
+ */
 err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err)
 {
 	client_tcp_t* client = (client_tcp_t*)arg;
@@ -111,15 +118,37 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 	{
 		client->recv.segment.command = ((char*)client->recv.segment.content)[3];
 		
+		if (client->recv.segment.command == FORMAT)
+		{
+			free(client->recv.segment.content);
+			client->recv.segment.content = NULL; 
+			const char *reply = "F RECEIVED...\n";
+			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
+		}
+		
+		else if (client->recv.segment.command == OPEN)
+		{
+			free(client->recv.segment.content);
+			client->recv.segment.content = NULL; 
+			const char *reply = "O RECEIVED...\n";
+			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
+		}
+		else if (client->recv.segment.command == CLOSE)
+		{
+			free(client->recv.segment.content);
+			client->recv.segment.content = NULL; 	
+			const char *reply = "C RECEIVED...\n";
+			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
+		}
 
-		if (client->recv.segment.command == 'D' || client->recv.segment.command == 'd')
+		else if (client->recv.segment.command == DELETE)
 		{
 			free(client->recv.segment.content);
 			client->recv.segment.content = NULL; 	
 			const char *reply = "D RECEIVED...\n";
 			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);	
 		}		
-		else if (client->recv.segment.command == 'R' || client->recv.segment.command == 'r')
+		else if (client->recv.segment.command == READ)
 		{
 			client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.content)[7] << 3) | (((uint8_t*)client->recv.segment.content)[6] << 2) | (((uint8_t*)client->recv.segment.content)[5] << 1) 
 																									| (((uint8_t*)client->recv.segment.content)[4] << 0);
@@ -132,7 +161,7 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 			const char *reply = "R RECEIVED...\n";
 			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);	
 		}
-		else if (client->recv.segment.command == 'W' || client->recv.segment.command == 'w')
+		else if (client->recv.segment.command == WRITE)
 		{
 			
 			client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.content)[7] << 3) | (((uint8_t*)client->recv.segment.content)[6] << 2) | (((uint8_t*)client->recv.segment.content)[5] << 1) 
@@ -149,7 +178,7 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 	}
 	else
 	{
-		client->recv.segment.command = 'W';
+		client->recv.segment.command = WRITE;
 		client->recv.segment.pos_data = 0;
 		client->recv.segment.len = p->tot_len;
 		client->recv.segment.pos_in_file = POS_CONTINUE;
@@ -159,8 +188,6 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 	}
 
 	xQueueSendToBack(xBuffLoadf, &client->recv.segment, portMAX_DELAY);
-
-	
 
 	tcp_recved(tpcb, p->tot_len);
 	pbuf_free(p);

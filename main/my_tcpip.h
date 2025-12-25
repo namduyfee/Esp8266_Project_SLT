@@ -6,6 +6,18 @@
 
 #define POS_CONTINUE -1
 
+typedef enum
+{
+	OPEN	= 0,
+	CLOSE	= 1,
+	DELETE	= 2, 
+	READ	= 3,
+	WRITE	= 4, 
+	FORMAT  = 5
+	
+} command_file_t; 
+
+
 typedef struct 
 {
 	void* content;

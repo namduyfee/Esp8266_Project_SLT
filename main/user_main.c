@@ -144,17 +144,21 @@ void task_wifi_sta()
 }
 
 /**
- *	@brief	x? lý yêu c?u nh?n ???c ? tcp v?i file
+ *	@brief	x? lý yêu c?u c?a tcp v?i file
  *	
- *	@detail	
- *		d?a vào v? trí offset cung c?p t? segment tcp ?? xác ??nh v? trí c?n ghi trong file
- *		n?u offset là POS_CONTINUE thì ghi vào v? trí k?t thúc c?a segment tr??c
- *		sau khi ghi free segment (???c c?p heap t? tr??c trong tcp recv handler)
+ *	@details	
+ *		- format
+ *		- open
+ *		- close
+ *		- delete
+ *		- read
+ *		- write
  *		
  *	@note
- *		stack ???c c?p cho task ph?i ?? l?n
- *		n?u file ch?a t?n t?i thì t?o file v?i mode O_TRUNC ?? ??m b?o không l?i
- *		n?u file t?n t?i thì không O_TRUNC tránh xóa n?i dung trong file tr??c ?ó
+ *		stack ph?i ?? l?n ?? ch?y task này
+ *		n?u file ch?a t?n t?i thì m? file v?i mode O_TRUNC tránh l?i
+ *		n?u file t?n t?i thì không O_TRUNC tránh xóa file
+ *		
  */
 
 void task_tcp_file_bin()
@@ -167,9 +171,59 @@ void task_tcp_file_bin()
 	while (1)
 	{
 		if (xQueueReceive(xBuffLoadf, &SLT_server.recv.segment, portMAX_DELAY) == pdPASS)
-		{		
+		{	
+			if (SLT_server.recv.segment.command == FORMAT)
+			{
+				if (SLT_server.recv.segment.content != NULL) 
+				{
+					free(SLT_server.recv.segment.content);
+					SLT_server.recv.segment.content = NULL;
+				}
+				
+				if (fd >= 0)
+				{
+					close(fd);
+					fd = -100;					
+				}
+				
+				esp_spiffs_format(NULL);
+				spiffs_init(); 
+			}
+			
+			else if (SLT_server.recv.segment.command == OPEN)
+			{
+				
+				if (SLT_server.recv.segment.content != NULL) 
+				{
+					free(SLT_server.recv.segment.content);
+					SLT_server.recv.segment.content = NULL;
+				}
+				
+				if (fd < 0)
+				{
+					struct stat st;
+					int ret = stat("/spiffs/data.bin", &st);
+					fd = ret < 0 ?  open("/spiffs/data.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : open("/spiffs/data.bin", O_RDWR | O_CREAT, 0666);
+					
+				}
+				
 
-			if (SLT_server.recv.segment.command == 'D' || SLT_server.recv.segment.command == 'd')
+			}
+			else if (SLT_server.recv.segment.command == CLOSE)
+			{
+				if (SLT_server.recv.segment.content != NULL) 
+				{
+					free(SLT_server.recv.segment.content);
+					SLT_server.recv.segment.content = NULL;
+				}
+				if (fd >= 0)
+				{
+					close(fd);
+					fd = -100;					
+				}
+
+			}			
+			else if (SLT_server.recv.segment.command == DELETE)
 			{
 				if (SLT_server.recv.segment.content != NULL) 
 				{
@@ -186,7 +240,7 @@ void task_tcp_file_bin()
 
 			}
 			
-			else if (SLT_server.recv.segment.command == 'R' || SLT_server.recv.segment.command == 'r')
+			else if (SLT_server.recv.segment.command == READ)
 			{
 				int f = open("/spiffs/data.bin", O_RDONLY);
 				if (f >= 0)
@@ -199,7 +253,7 @@ void task_tcp_file_bin()
 						char* tem = (char*)malloc(3);
 					
 						lseek(f, 45556, SEEK_SET);
-					
+				
 						read(f, tem, 3);
 						if (tem[0] == 65 && tem[1] == 66 && tem[2] == 67)
 						{
@@ -215,16 +269,8 @@ void task_tcp_file_bin()
 					close(f);			
 				}
 			}
-			else if (SLT_server.recv.segment.command == 'W' || SLT_server.recv.segment.command == 'w')
+			else if (SLT_server.recv.segment.command == WRITE)
 			{
-				
-				if (fd < 0)
-				{
-					struct stat st;
-					int ret = stat("/spiffs/data.bin", &st);
-					fd = ret < 0 ?  open("/spiffs/data.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : open("/spiffs/data.bin", O_RDWR | O_CREAT, 0666);
-					
-				}
 				
 				if (fd < 0)
 				{
@@ -237,7 +283,7 @@ void task_tcp_file_bin()
 				}
 				else
 				{	
-				 				
+					gpio_set_level(GPIO_NUM_0, 1);			
 					if (SLT_server.recv.segment.content != NULL)
 					{
 
@@ -257,8 +303,7 @@ void task_tcp_file_bin()
 						SLT_server.recv.segment.content = NULL;
 					
 					}
-					close(fd);
-					fd = -100; 
+
 				}				
 			}
 			
