@@ -17,17 +17,21 @@ typedef enum
 	
 } command_file_t; 
 
-
-typedef struct 
+typedef struct
 {
 	void* content;
 	uint32_t len;
+	
+} data_t; 
+
+typedef struct 
+{
+	data_t data;
 	uint16_t pos_data;
 	off_t pos_in_file;
-	
 	uint8_t command;
 	
-} data_t;
+} recv_buf_t;
 
 typedef struct
 {
@@ -36,13 +40,15 @@ typedef struct
 	
 	struct
 	{
-		data_t segment; 
+		recv_buf_t segment; 
 		
 	} recv;
 	
 	struct
 	{
-			
+		data_t data;
+		bool request; 
+		
 	} send;
   
 void* arg;
@@ -59,13 +65,14 @@ typedef struct
 	
 	struct
 	{
-		data_t segment; 
+		recv_buf_t segment; 
 		off_t current_pos_file; 
 		
 	} recv;
 	
 	struct
 	{
+		data_t data; 
 		
 	} send;
 	

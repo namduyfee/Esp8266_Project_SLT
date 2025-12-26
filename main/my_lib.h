@@ -43,5 +43,7 @@ extern SemaphoreHandle_t xTryConnectWifi;
 
 extern QueueHandle_t xBuffLoadf;
 
+extern QueueHandle_t xBuffSendf;
+
 #endif
 

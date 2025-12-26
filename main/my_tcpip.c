@@ -64,7 +64,7 @@ err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 	{
 		newclient->tpcb = newpcb; 
 		newclient->tpcb_server = server->tpcb;
-
+		newclient->send.request = false;
 		
 		tcp_recv(newpcb, server_recv_tcp);
 		tcp_sent(newpcb, server_sent_tcp);		
@@ -103,8 +103,8 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 	}
 	
 	
-	client->recv.segment.content = malloc(p->tot_len);	
-	if (client->recv.segment.content == NULL)
+	client->recv.segment.data.content = malloc(p->tot_len);	
+	if (client->recv.segment.data.content == NULL)
 	{
 		tcp_recved(tpcb, p->tot_len);
 		pbuf_free(p);	
@@ -112,66 +112,69 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 		return ERR_MEM;
 	}
 	
-	pbuf_copy_partial(p, client->recv.segment.content, p->tot_len, 0);
+	pbuf_copy_partial(p, client->recv.segment.data.content, p->tot_len, 0);
 	
-	if (((char*)client->recv.segment.content)[0] == 'S' && ((char*)client->recv.segment.content)[1] == 'L'  && ((char*)client->recv.segment.content)[2] == 'T')
+	if (((char*)client->recv.segment.data.content)[0] == 'S' && ((char*)client->recv.segment.data.content)[1] == 'L'  && ((char*)client->recv.segment.data.content)[2] == 'T')
 	{
-		client->recv.segment.command = ((char*)client->recv.segment.content)[3];
+		client->recv.segment.command = ((char*)client->recv.segment.data.content)[3];
 		
 		if (client->recv.segment.command == FORMAT)
 		{
-			free(client->recv.segment.content);
-			client->recv.segment.content = NULL; 
-			const char *reply = "F RECEIVED...\n";
+			free(client->recv.segment.data.content);
+			client->recv.segment.data.content = NULL; 
+			const char *reply = "FORMAT RECEIVED...\n";
 			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
 		}
 		
 		else if (client->recv.segment.command == OPEN)
 		{
-			free(client->recv.segment.content);
-			client->recv.segment.content = NULL; 
-			const char *reply = "O RECEIVED...\n";
+			free(client->recv.segment.data.content);
+			client->recv.segment.data.content = NULL; 
+			const char *reply = "OPEN RECEIVED...\n";
 			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
 		}
 		else if (client->recv.segment.command == CLOSE)
 		{
-			free(client->recv.segment.content);
-			client->recv.segment.content = NULL; 	
-			const char *reply = "C RECEIVED...\n";
+			free(client->recv.segment.data.content);
+			client->recv.segment.data.content = NULL; 	
+			const char *reply = "CLOSE RECEIVED...\n";
 			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
 		}
 
 		else if (client->recv.segment.command == DELETE)
 		{
-			free(client->recv.segment.content);
-			client->recv.segment.content = NULL; 	
-			const char *reply = "D RECEIVED...\n";
+			free(client->recv.segment.data.content);
+			client->recv.segment.data.content = NULL; 	
+			const char *reply = "DELETE RECEIVED...\n";
 			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);	
 		}		
 		else if (client->recv.segment.command == READ)
 		{
-			client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.content)[7] << 3) | (((uint8_t*)client->recv.segment.content)[6] << 2) | (((uint8_t*)client->recv.segment.content)[5] << 1) 
-																									| (((uint8_t*)client->recv.segment.content)[4] << 0);
+			client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.data.content)[7] << 24) | (((uint8_t*)client->recv.segment.data.content)[6] << 16) | 
+											   (((uint8_t*)client->recv.segment.data.content)[5] << 8)  | (((uint8_t*)client->recv.segment.data.content)[4] << 0);
 			
-			client->recv.segment.len = (((uint8_t*)client->recv.segment.content)[11] << 3) | (((uint8_t*)client->recv.segment.content)[10] << 2) | (((uint8_t*)client->recv.segment.content)[9] << 1) 
-																									| (((uint8_t*)client->recv.segment.content)[8] << 0);			
 			
-			free(client->recv.segment.content);
-			client->recv.segment.content = NULL;
-			const char *reply = "R RECEIVED...\n";
+			client->recv.segment.data.len = (((uint8_t*)client->recv.segment.data.content)[11] << 24) | (((uint8_t*)client->recv.segment.data.content)[10] << 16) | 
+											(((uint8_t*)client->recv.segment.data.content)[9] << 8)   | (((uint8_t*)client->recv.segment.data.content)[8] << 0);	
+			
+			client->send.request = true;
+			
+			free(client->recv.segment.data.content);
+			client->recv.segment.data.content = NULL;
+			
+			const char *reply = "SLT";
 			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);	
 		}
 		else if (client->recv.segment.command == WRITE)
 		{
 			
-			client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.content)[7] << 3) | (((uint8_t*)client->recv.segment.content)[6] << 2) | (((uint8_t*)client->recv.segment.content)[5] << 1) 
-																									| (((uint8_t*)client->recv.segment.content)[4] << 0);	
+			client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.data.content)[7] << 24) | (((uint8_t*)client->recv.segment.data.content)[6] << 16) | 
+											   (((uint8_t*)client->recv.segment.data.content)[5] << 8)  | (((uint8_t*)client->recv.segment.data.content)[4] << 0);	
 			
-//			client->recv.segment.pos_data = 8;
-//			client->recv.segment.len = p->tot_len - 8;
-			client->recv.segment.pos_data = 0;
-			client->recv.segment.len = p->tot_len;	
-			const char *reply = "W RECEIVED...\n";
+			client->recv.segment.pos_data = 8;
+			client->recv.segment.data.len = p->tot_len - 8;
+					
+			const char *reply = "WRITE RECEIVED...\n";
 			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);	
 		}
 		
@@ -180,10 +183,10 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 	{
 		client->recv.segment.command = WRITE;
 		client->recv.segment.pos_data = 0;
-		client->recv.segment.len = p->tot_len;
+		client->recv.segment.data.len = p->tot_len;
 		client->recv.segment.pos_in_file = POS_CONTINUE;
-		const char *reply = "W RECEIVED...\n";
 		
+		const char *reply = "WRITE RECEIVED...\n";
 		tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);	
 	}
 
@@ -196,7 +199,23 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 
 err_t server_sent_tcp(void* arg, struct tcp_pcb* tpcb, uint16_t len)
 {
+	client_tcp_t* client = (client_tcp_t*)arg;
 	
+	if (client->send.request == true)
+	{
+		if (xQueueReceive(xBuffSendf, &client->send, portMAX_DELAY) == pdPASS)
+		{
+			if (client->send.data.content == NULL)
+			{
+				client->send.request = false;
+			}
+			else
+			{
+				tcp_write(tpcb, client->send.data.content, client->send.data.len, TCP_WRITE_FLAG_COPY);	 
+				free(client->send.data.content);		
+			}
+		}
+	}
 	return ERR_OK; 
 }
 err_t client_tcp_close(struct tcp_pcb *cl_tpcb, client_tcp_t* client)

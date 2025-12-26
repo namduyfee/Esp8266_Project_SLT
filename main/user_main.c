@@ -14,14 +14,15 @@ SemaphoreHandle_t xRecvPassWifi;
 SemaphoreHandle_t xTryConnectWifi; 
 
 QueueHandle_t xBuffLoadf;
-
+QueueHandle_t xBuffSendf;
 void app_main(void) {
 	
 	xRecvPassWifi = xSemaphoreCreateBinary();
 	xTryConnectWifi = xSemaphoreCreateBinary();
 	
-	xBuffLoadf = xQueueCreate(30, sizeof(data_t));
+	xBuffLoadf = xQueueCreate(30, sizeof(recv_buf_t));
 	
+	xBuffSendf = xQueueCreate(10, sizeof(data_t)); 
 	
 	nvs_flash_init();
 	spiffs_init();
@@ -167,17 +168,16 @@ void task_tcp_file_bin()
 	gpio_set_level(GPIO_NUM_0, 1);
 	
 	int fd = -100; 
-	
 	while (1)
 	{
 		if (xQueueReceive(xBuffLoadf, &SLT_server.recv.segment, portMAX_DELAY) == pdPASS)
 		{	
 			if (SLT_server.recv.segment.command == FORMAT)
 			{
-				if (SLT_server.recv.segment.content != NULL) 
+				if (SLT_server.recv.segment.data.content != NULL) 
 				{
-					free(SLT_server.recv.segment.content);
-					SLT_server.recv.segment.content = NULL;
+					free(SLT_server.recv.segment.data.content);
+					SLT_server.recv.segment.data.content = NULL;
 				}
 				
 				if (fd >= 0)
@@ -193,10 +193,10 @@ void task_tcp_file_bin()
 			else if (SLT_server.recv.segment.command == OPEN)
 			{
 				
-				if (SLT_server.recv.segment.content != NULL) 
+				if (SLT_server.recv.segment.data.content != NULL) 
 				{
-					free(SLT_server.recv.segment.content);
-					SLT_server.recv.segment.content = NULL;
+					free(SLT_server.recv.segment.data.content);
+					SLT_server.recv.segment.data.content = NULL;
 				}
 				
 				if (fd < 0)
@@ -211,10 +211,10 @@ void task_tcp_file_bin()
 			}
 			else if (SLT_server.recv.segment.command == CLOSE)
 			{
-				if (SLT_server.recv.segment.content != NULL) 
+				if (SLT_server.recv.segment.data.content != NULL) 
 				{
-					free(SLT_server.recv.segment.content);
-					SLT_server.recv.segment.content = NULL;
+					free(SLT_server.recv.segment.data.content);
+					SLT_server.recv.segment.data.content = NULL;
 				}
 				if (fd >= 0)
 				{
@@ -225,10 +225,10 @@ void task_tcp_file_bin()
 			}			
 			else if (SLT_server.recv.segment.command == DELETE)
 			{
-				if (SLT_server.recv.segment.content != NULL) 
+				if (SLT_server.recv.segment.data.content != NULL) 
 				{
-					free(SLT_server.recv.segment.content);
-					SLT_server.recv.segment.content = NULL;
+					free(SLT_server.recv.segment.data.content);
+					SLT_server.recv.segment.data.content = NULL;
 				}
 
 				if (fd >= 0) 
@@ -242,6 +242,88 @@ void task_tcp_file_bin()
 			
 			else if (SLT_server.recv.segment.command == READ)
 			{
+				if (fd < 0)
+				{
+					if (SLT_server.recv.segment.data.content != NULL) 
+					{
+						free(SLT_server.recv.segment.data.content);
+						SLT_server.recv.segment.data.content = NULL;
+					}		
+					gpio_set_level(GPIO_NUM_0, 0);
+				}
+				else
+				{
+					gpio_set_level(GPIO_NUM_0, 1);
+					
+					lseek(fd, SLT_server.recv.segment.pos_in_file, SEEK_SET); 
+					uint32_t remaining = SLT_server.recv.segment.data.len;
+					
+					
+					while (remaining > 0)
+					{
+						SLT_server.send.data.len = remaining <= 512 ? remaining : 512; 
+						SLT_server.send.data.content = malloc(SLT_server.send.data.len); 
+						
+						if (SLT_server.send.data.content != NULL)
+						{
+							read(fd, SLT_server.send.data.content, SLT_server.send.data.len);
+						
+							xQueueSendToBack(xBuffSendf, &SLT_server.send, portMAX_DELAY);
+							remaining = remaining - SLT_server.send.data.len;						
+						}
+						else
+						{
+							break;
+						}
+					}
+					
+					if (SLT_server.recv.segment.data.content != NULL) 
+					{
+						free(SLT_server.recv.segment.data.content);
+						SLT_server.recv.segment.data.content = NULL;
+					}
+				}
+				
+				SLT_server.send.data.content = NULL;
+				SLT_server.send.data.len = 0; 
+				xQueueSendToBack(xBuffSendf, &SLT_server.send, portMAX_DELAY);
+			}
+			else if (SLT_server.recv.segment.command == WRITE)
+			{
+				
+				if (fd < 0)
+				{
+					if (SLT_server.recv.segment.data.content != NULL)
+					{
+						free(SLT_server.recv.segment.data.content); 	
+						SLT_server.recv.segment.data.content = NULL; 
+					}	
+					gpio_set_level(GPIO_NUM_0, 0);
+				}
+				else
+				{	
+					gpio_set_level(GPIO_NUM_0, 1);			
+					if (SLT_server.recv.segment.data.content != NULL)
+					{
+
+					 
+						if (SLT_server.recv.segment.pos_in_file == POS_CONTINUE)
+						{
+							lseek(fd, SLT_server.recv.current_pos_file, SEEK_SET);
+						}
+						else
+						{
+							lseek(fd, SLT_server.recv.segment.pos_in_file, SEEK_SET);
+						}
+
+						write(fd, &((uint8_t*)SLT_server.recv.segment.data.content)[SLT_server.recv.segment.pos_data], SLT_server.recv.segment.data.len);
+						SLT_server.recv.current_pos_file = lseek(fd, 0, SEEK_CUR);
+						free(SLT_server.recv.segment.data.content); 		
+						SLT_server.recv.segment.data.content = NULL;
+					
+					}
+
+				}
 				
 				int f = open("/spiffs/data.bin", O_RDONLY);
 				if (f >= 0)
@@ -249,11 +331,11 @@ void task_tcp_file_bin()
 				
 					off_t size = lseek(f, 0, SEEK_END); 
 				
-					if (size > 45558)
+					if (size > 45558 - 8)
 					{
 						char* tem = (char*)malloc(3);
 					
-						lseek(f, 45556, SEEK_SET);
+						lseek(f, 45556 - 8, SEEK_SET);
 				
 						read(f, tem, 3);
 						if (tem[0] == 65 && tem[1] == 66 && tem[2] == 67)
@@ -270,44 +352,14 @@ void task_tcp_file_bin()
 					close(f);			
 				}
 			}
-			else if (SLT_server.recv.segment.command == WRITE)
+			else
 			{
-				
-				if (fd < 0)
+				if (SLT_server.recv.segment.data.content != NULL) 
 				{
-					if (SLT_server.recv.segment.content != NULL)
-					{
-						free(SLT_server.recv.segment.content); 	
-						SLT_server.recv.segment.content = NULL; 
-						gpio_set_level(GPIO_NUM_0, 0);
-					}	
-				}
-				else
-				{	
-					gpio_set_level(GPIO_NUM_0, 1);			
-					if (SLT_server.recv.segment.content != NULL)
-					{
-
-					 
-						if (SLT_server.recv.segment.pos_in_file == POS_CONTINUE)
-						{
-							lseek(fd, SLT_server.recv.current_pos_file, SEEK_SET);
-						}
-						else
-						{
-							lseek(fd, SLT_server.recv.segment.pos_in_file, SEEK_SET);
-						}
-
-						write(fd, &((uint8_t*)SLT_server.recv.segment.content)[SLT_server.recv.segment.pos_data], SLT_server.recv.segment.len);
-						SLT_server.recv.current_pos_file = lseek(fd, 0, SEEK_CUR);
-						free(SLT_server.recv.segment.content); 		
-						SLT_server.recv.segment.content = NULL;
-					
-					}
-
+					free(SLT_server.recv.segment.data.content);
+					SLT_server.recv.segment.data.content = NULL;
 				}				
 			}
-			
 			
 			
 		}
