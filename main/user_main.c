@@ -1,4 +1,5 @@
 #include "my_lib.h"
+#include "string.h"
 
 #define MIN_DELAY 10
 
@@ -8,7 +9,8 @@ void task_tcp_file_bin();
 
 void task_wifi_sta(); 
 
-
+uint8_t data_esp_now[] = "SLT hello"; 
+uint32_t len_test_data_esp_now = sizeof(data_esp_now)/sizeof(data_esp_now[0]);
 
 SemaphoreHandle_t xRecvPassWifi; 
 SemaphoreHandle_t xTryConnectWifi; 
@@ -37,7 +39,7 @@ void app_main(void) {
 	start_pwm();
 	init_server_tpcp(80, 5);
 	
-//	xTaskCreate(esp_now_task, "esp_now_send_task", 1024, NULL, 4, NULL);
+	xTaskCreate(task_esp_now, "esp_now_task", 1024, NULL, 4, NULL);
 	
 //	xTaskCreate(esp_recv_inf_wifi, "esp_recv_inf_wifi", 1024, NULL, 5, NULL);
 	
@@ -55,22 +57,25 @@ void app_main(void) {
 
 void task_esp_now() 
 {
-//	esp_err_t ret; 
+	esp_err_t ret; 
 	g_my_esp_now.can_send = true; 
 	while (1)
 	{
-//		if (g_my_esp_now.can_send == true)
-//		{
-//
-//			ret = esp_now_send(g_peer_esp8266.inf.peer_addr, data_esp_now, len_test_data_esp_now);
-//			while (ret != ESP_OK)
-//			{
-//				ret = esp_now_send(g_peer_esp8266.inf.peer_addr, data_esp_now, len_test_data_esp_now);
-//				vTaskDelay(pdMS_TO_TICKS(10));
-//			}
-//			g_my_esp_now.can_send = false;
-//		}
-		vTaskDelay(pdMS_TO_TICKS(10));
+		
+		if (g_my_esp_now.can_send == true)
+		{
+
+			ret = esp_now_send(g_peer_esp8266.inf_sta.peer_addr, data_esp_now, len_test_data_esp_now);
+			while (ret != ESP_OK)
+			{
+				ret = esp_now_send(g_peer_esp8266.inf_sta.peer_addr, data_esp_now, len_test_data_esp_now);
+				vTaskDelay(pdMS_TO_TICKS(10));
+			}
+			set_duty_pwm(1, 705); 
+			g_my_esp_now.can_send = false;
+		}
+		
+		vTaskDelay(pdMS_TO_TICKS(100));
 	}
 }
 
