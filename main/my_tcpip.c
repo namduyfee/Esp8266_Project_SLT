@@ -50,18 +50,25 @@ err_t init_server_tpcp(uint16_t port, uint8_t max_client)
 err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 {
 	
+	pwm_stop(0);
+	
 	server_tcp_t* server = (server_tcp_t*)arg;
 	if (server->count_client >= server->max_client)
 	{
 		tcp_close(newpcb);
+		
+		pwm_start();  
+		
 		return ERR_MEM;
 	}
 	
 	client_tcp_t* newclient = 0; 
 	newclient = malloc(sizeof(server_tcp_t));
 	
+	
 	if (newclient)
 	{
+		 
 		newclient->tpcb = newpcb; 
 		newclient->tpcb_server = server->tpcb;
 		newclient->send.request = false;
@@ -74,7 +81,9 @@ err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 			SLT_server.count_client++;
 		return ERR_OK;
 	}
-
+	
+	pwm_start();
+	
 	tcp_close(newpcb);
 	return ERR_MEM;
 	
@@ -233,6 +242,9 @@ err_t client_tcp_close(struct tcp_pcb *cl_tpcb, client_tcp_t* client)
 		if (tcp_close(cl_tpcb) == ERR_OK) {
 			if (SLT_server.count_client > 0)
 				SLT_server.count_client--;
+			if (SLT_server.count_client <= 0)
+				pwm_start(); 
+			
 			return ERR_OK;
 		}
 	}

@@ -12,7 +12,7 @@
 
 #define CONFIG_ESPNOW_CHANNEL 1
 
-void config_espnow(void);
+void init_espnow(void); 
 
 void init_all_peer(void);
 void init_my_esp_now(void);
@@ -22,7 +22,9 @@ void send_esp_now(void);
 
 typedef struct Peer
 {
-	esp_now_peer_info_t inf;
+	esp_now_peer_info_t inf_sta;
+	esp_now_peer_info_t inf_ap;
+	
 	uint8_t *buffer_receive[ESP_NOW_MAX_LEN];
 	uint8_t len_buffer_receive[ESP_NOW_MAX_LEN];
 	

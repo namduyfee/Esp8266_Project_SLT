@@ -27,7 +27,7 @@
 
 #define	TOTAL_GPIO_MCU 18
 
-#define DEFAUL_DUTY 0
+#define DEFAUL_DUTY 40
 
 typedef struct pwm_info
 {

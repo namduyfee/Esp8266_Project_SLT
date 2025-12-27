@@ -29,15 +29,12 @@ void app_main(void) {
 	config_GPIO_OUT();
 	config_input_pullup_gpio();
 
-	
 	tcpip_adapter_init();
-	
-//	config_espnow();
-	
 	start_wifi();
- 
-//	start_pwm();
 	
+	
+	init_espnow();
+	start_pwm();
 	init_server_tpcp(80, 5);
 	
 //	xTaskCreate(esp_now_task, "esp_now_send_task", 1024, NULL, 4, NULL);
@@ -249,11 +246,11 @@ void task_tcp_file_bin()
 						free(SLT_server.recv.segment.data.content);
 						SLT_server.recv.segment.data.content = NULL;
 					}		
-					gpio_set_level(GPIO_NUM_0, 0);
+	//				gpio_set_level(GPIO_NUM_0, 0);
 				}
 				else
 				{
-					gpio_set_level(GPIO_NUM_0, 1);
+	//				gpio_set_level(GPIO_NUM_0, 1);
 					
 					lseek(fd, SLT_server.recv.segment.pos_in_file, SEEK_SET); 
 					uint32_t remaining = SLT_server.recv.segment.data.len;
@@ -298,11 +295,11 @@ void task_tcp_file_bin()
 						free(SLT_server.recv.segment.data.content); 	
 						SLT_server.recv.segment.data.content = NULL; 
 					}	
-					gpio_set_level(GPIO_NUM_0, 0);
+//					gpio_set_level(GPIO_NUM_0, 0);
 				}
 				else
 				{	
-					gpio_set_level(GPIO_NUM_0, 1);			
+//					gpio_set_level(GPIO_NUM_0, 1);			
 					if (SLT_server.recv.segment.data.content != NULL)
 					{
 
@@ -340,11 +337,11 @@ void task_tcp_file_bin()
 						read(f, tem, 3);
 						if (tem[0] == 65 && tem[1] == 66 && tem[2] == 67)
 						{
-							gpio_set_level(GPIO_NUM_15, 1);
+	//						gpio_set_level(GPIO_NUM_15, 1);
 						}
 						else
 						{
-							gpio_set_level(GPIO_NUM_15, 0);				
+	//						gpio_set_level(GPIO_NUM_15, 0);				
 						
 						}
 						free(tem);					

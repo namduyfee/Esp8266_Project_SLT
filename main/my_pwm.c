@@ -26,7 +26,7 @@ void start_pwm(void)
 	{
 		if (Pwm.gpio_channel[i] == CHANNEL_NOT_USED)
 			break;
-		Pwm.duty[i] = DEFAUL_DUTY + 10 * i;
+		Pwm.duty[i] = DEFAUL_DUTY + 100 * i;
 		Pwm.num_channel_en++;
 	}
 	
