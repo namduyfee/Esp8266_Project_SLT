@@ -3,13 +3,6 @@
 
 #include "my_lib.h"
 
-
-#define ESP_NOW_MAX_LEN 255
-
-#define PEER_NOT_REQUEST 0
-
-#define TOTAL_REQUEST ((*g_peer[i]).total_request)
-
 #define CONFIG_ESPNOW_CHANNEL 1
 
 void init_espnow(void); 
@@ -18,28 +11,38 @@ void init_all_peer(void);
 void init_my_esp_now(void);
 bool is_same_macadrr(const uint8_t *mac_addr1, const uint8_t *mac_addr2); 
 
-void send_esp_now(void); 
+typedef struct
+{
+	void* content;
+	uint32_t len;		/**< total byte */
+	
+} data_espnow_t;
 
 typedef struct Peer
 {
-	esp_now_peer_info_t inf_sta;
-	esp_now_peer_info_t inf_ap;
+	union
+	{
+		esp_now_peer_info_t sta;
+		esp_now_peer_info_t ap; 	
+	} inf;
 	
-	uint8_t *buffer_receive[ESP_NOW_MAX_LEN];
-	uint8_t len_buffer_receive[ESP_NOW_MAX_LEN];
+	struct
+	{
+		data_espnow_t data; 
+	} send;
+	
+	struct
+	{
+		data_espnow_t data;
+	} recv;
 	
 } Peer_Typedef;
 
 typedef struct My_Esp_Now
 {
 	uint8_t addr[6];
-	uint8_t *send_frame[ESP_NOW_MAX_LEN];
-	
-	uint8_t len_send_frame[ESP_NOW_MAX_LEN];
-	
 	volatile bool can_send; 
 	
-	volatile uint8_t start;
 } My_Esp_Now_Typedef;
 
 

@@ -21,9 +21,11 @@ void init_wifi(void)
 
 void start_wifi(void)
 {
+	
 	init_wifi();
-//	esp_wifi_set_mode(WIFI_MODE_APSTA);
-	esp_wifi_set_mode(WIFI_MODE_AP);
+	
+	esp_wifi_set_mode(WIFI_MODE_APSTA);
+
 //	nvs_handle nvs;
 //	size_t len;
 //	esp_err_t err = nvs_open("wifi", NVS_READWRITE, &nvs);
@@ -53,20 +55,19 @@ void start_wifi(void)
 //	else 
 //		wifi_cred.last_available = false;
 	
+	
 	wifi_config_t ap_config = {
 		.ap = {
 			.ssid = "ESP_SLT",
 			.ssid_len = 0,
 			.max_connection = 4,
 			.password = "12345678",
+			.channel = CONFIG_ESPNOW_CHANNEL, 
 			.authmode = WIFI_AUTH_WPA_WPA2_PSK		
 		}	
 	};
-	esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);
-	
+	esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);	
 
 	esp_wifi_start();
-	
-	esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0); 
 	
 }

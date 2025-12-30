@@ -1,7 +1,7 @@
 #include "my_tcpip.h"
 
 
-server_tcp_t SLT_server;
+tcp_server_t SLT_server;
 
 
 err_t init_server_tpcp(uint16_t port, uint8_t max_client)
@@ -52,7 +52,7 @@ err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 	
 	pwm_stop(0);
 	
-	server_tcp_t* server = (server_tcp_t*)arg;
+	tcp_server_t* server = (tcp_server_t*)arg;
 	if (server->count_client >= server->max_client)
 	{
 		tcp_close(newpcb);
@@ -62,8 +62,8 @@ err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 		return ERR_MEM;
 	}
 	
-	client_tcp_t* newclient = 0; 
-	newclient = malloc(sizeof(server_tcp_t));
+	tcp_client_t* newclient = 0; 
+	newclient = malloc(sizeof(tcp_server_t));
 	
 	
 	if (newclient)
@@ -98,7 +98,7 @@ err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
  */
 err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err)
 {
-	client_tcp_t* client = (client_tcp_t*)arg;
+	tcp_client_t* client = (tcp_client_t*)arg;
 	
 	if ((err != ERR_OK) || (p == NULL) || (client == NULL)) {
 		if (p != NULL) {
@@ -208,7 +208,7 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 
 err_t server_sent_tcp(void* arg, struct tcp_pcb* tpcb, uint16_t len)
 {
-	client_tcp_t* client = (client_tcp_t*)arg;
+	tcp_client_t* client = (tcp_client_t*)arg;
 	
 	if (client->send.request == true)
 	{
@@ -227,7 +227,7 @@ err_t server_sent_tcp(void* arg, struct tcp_pcb* tpcb, uint16_t len)
 	}
 	return ERR_OK; 
 }
-err_t client_tcp_close(struct tcp_pcb *cl_tpcb, client_tcp_t* client)
+err_t client_tcp_close(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 {
 	if (client != NULL)
 	{

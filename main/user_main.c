@@ -17,14 +17,16 @@ SemaphoreHandle_t xTryConnectWifi;
 
 QueueHandle_t xBuffLoadf;
 QueueHandle_t xBuffSendf;
+
+
 void app_main(void) {
 	
 	xRecvPassWifi = xSemaphoreCreateBinary();
 	xTryConnectWifi = xSemaphoreCreateBinary();
 	
-	xBuffLoadf = xQueueCreate(30, sizeof(recv_buf_t));
+	xBuffLoadf = xQueueCreate(30, sizeof(tcp_recv_t));
 	
-	xBuffSendf = xQueueCreate(10, sizeof(data_t)); 
+	xBuffSendf = xQueueCreate(10, sizeof(tcp_data_t)); 
 	
 	nvs_flash_init();
 	spiffs_init();
@@ -33,11 +35,10 @@ void app_main(void) {
 
 	tcpip_adapter_init();
 	start_wifi();
-	
-	
+	init_server_tpcp(80, 5);
 	init_espnow();
 	start_pwm();
-	init_server_tpcp(80, 5);
+	
 	
 	xTaskCreate(task_esp_now, "esp_now_task", 1024, NULL, 4, NULL);
 	
@@ -47,10 +48,12 @@ void app_main(void) {
 	
 //	xTaskCreate(task_wifi_sta, "wifi_sta_task", 1024, NULL, 4, NULL);
 
-
+	 
+	
 	while (1)
 	{
-		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
+
+		vTaskDelay(pdMS_TO_TICKS(1000));
 	}
 	
 }
@@ -59,23 +62,29 @@ void task_esp_now()
 {
 	esp_err_t ret; 
 	g_my_esp_now.can_send = true; 
+	
+	uint8_t channel = 0;
 	while (1)
 	{
+		esp_wifi_get_channel(&channel, 0); 
+		if (channel == 1)
+		{
+			set_duty_pwm(3, 800);
+		}
 		
 		if (g_my_esp_now.can_send == true)
 		{
-
-			ret = esp_now_send(g_peer_esp8266.inf_sta.peer_addr, data_esp_now, len_test_data_esp_now);
-			while (ret != ESP_OK)
-			{
-				ret = esp_now_send(g_peer_esp8266.inf_sta.peer_addr, data_esp_now, len_test_data_esp_now);
-				vTaskDelay(pdMS_TO_TICKS(10));
-			}
-			set_duty_pwm(1, 705); 
 			g_my_esp_now.can_send = false;
+			ret = esp_now_send(g_peer_esp8266.inf.sta.peer_addr, data_esp_now, len_test_data_esp_now);
+			
+			if (ret != ESP_OK)
+			{
+				g_my_esp_now.can_send = true;
+				set_duty_pwm(3, 500);
+			}
+
 		}
-		
-		vTaskDelay(pdMS_TO_TICKS(100));
+		vTaskDelay(pdMS_TO_TICKS(500));
 	}
 }
 
