@@ -2,7 +2,21 @@
 
 #define ESP_TCPIP
 
-#include "my_lib.h"
+#include <fcntl.h>
+#include <math.h>
+#include <stdbool.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
+#include "esp_event_loop.h"
+#include "esp_event.h"
+#include "esp_log.h"
+
+#include "tcpip_adapter.h"
+#include "lwip/tcp.h"
+#include "lwip/ip_addr.h"
+#include "lwip/netif.h"
 
 #define POS_CONTINUE -1
 

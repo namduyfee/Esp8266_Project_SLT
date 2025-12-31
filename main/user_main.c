@@ -9,8 +9,40 @@ void task_tcp_file_bin();
 
 void task_wifi_sta(); 
 
-uint8_t data_esp_now[] = "SLT hello"; 
+Object SLT = {
+	.Pwm = {
+		.gpio_channel = {
+		GPIO_CHANNEL_0,
+		GPIO_CHANNEL_1,
+		GPIO_CHANNEL_2,
+		GPIO_CHANNEL_3,
+		GPIO_CHANNEL_4,
+		GPIO_CHANNEL_5,
+		GPIO_CHANNEL_6,
+		GPIO_CHANNEL_7
+		},
+		.duty = {0, 0, 0, 0, 0, 0, 0, 0},
+		.num_channel_en = 0
+	},
+	
+	.is_gateway = false,
+	
+	.gateway_addr = {0x84, 0xF3, 0xEB, 0xA6, 0xD8, 0x4F},
+
+	.espnow = {
+		.can_send	= true,
+		.p_peer		= NULL,
+		.sent		= false,
+		.gateway_added = false,
+		.tot_peer   = 0
+		
+	}
+};
+
+uint8_t data_esp_now[] = "SLT1"; 
 uint32_t len_test_data_esp_now = sizeof(data_esp_now)/sizeof(data_esp_now[0]);
+uint8_t data_esp_now2 [] = "SLT2"; 
+uint32_t len_test_data_esp_now2 = sizeof(data_esp_now) / sizeof(data_esp_now[0]);
 
 SemaphoreHandle_t xRecvPassWifi; 
 SemaphoreHandle_t xTryConnectWifi; 
@@ -18,8 +50,29 @@ SemaphoreHandle_t xTryConnectWifi;
 QueueHandle_t xBuffLoadf;
 QueueHandle_t xBuffSendf;
 
+void my_init_project(void)
+{
+	
+	nvs_flash_init();
+	spiffs_init();
+	config_GPIO_OUT();
+	config_input_pullup_gpio();
+	
+	my_pwm_start(&SLT.Pwm); 
+	
+	tcpip_adapter_init();
+	my_start_wifi();
+	
+	init_server_tpcp(80, 5);
+	init_espnow();
+}
+
 
 void app_main(void) {
+	
+	
+	my_init_project();
+	
 	
 	xRecvPassWifi = xSemaphoreCreateBinary();
 	xTryConnectWifi = xSemaphoreCreateBinary();
@@ -27,17 +80,6 @@ void app_main(void) {
 	xBuffLoadf = xQueueCreate(30, sizeof(tcp_recv_t));
 	
 	xBuffSendf = xQueueCreate(10, sizeof(tcp_data_t)); 
-	
-	nvs_flash_init();
-	spiffs_init();
-	config_GPIO_OUT();
-	config_input_pullup_gpio();
-
-	tcpip_adapter_init();
-	start_wifi();
-	init_server_tpcp(80, 5);
-	init_espnow();
-	start_pwm();
 	
 	
 	xTaskCreate(task_esp_now, "esp_now_task", 1024, NULL, 4, NULL);
@@ -61,29 +103,70 @@ void app_main(void) {
 void task_esp_now() 
 {
 	esp_err_t ret; 
-	g_my_esp_now.can_send = true; 
+	SLT.espnow.can_send = true; 
+	SLT.espnow.sent = false;
 	
-	uint8_t channel = 0;
+	void* data = data_esp_now;
+	uint32_t len = len_test_data_esp_now;
+	
 	while (1)
 	{
-		esp_wifi_get_channel(&channel, 0); 
-		if (channel == 1)
+		if (SLT.is_gateway == false && SLT.espnow.gateway_added == false)
 		{
-			set_duty_pwm(3, 800);
+			uint8_t request_add[10] = {'S', 'L', 'T', ADD_PEER}; 
+			memcpy((uint8_t*)&request_add[4], SLT.espnow.my_addr, 6); 
+			if (SLT.espnow.can_send  == true)
+			{
+				SLT.espnow.can_send  = false;
+				ret = esp_now_send(SLT.gateway_addr, (uint8_t*)request_add, 10);
+			
+				if (ret != ESP_OK)
+				{
+					SLT.espnow.can_send  = true;
+				}
+			}
 		}
 		
-		if (g_my_esp_now.can_send == true)
+		else
 		{
-			g_my_esp_now.can_send = false;
-			ret = esp_now_send(g_peer_esp8266.inf.sta.peer_addr, data_esp_now, len_test_data_esp_now);
-			
-			if (ret != ESP_OK)
+			if (SLT.is_gateway == false || (SLT.is_gateway == true && SLT.espnow.tot_peer > 0))
 			{
-				g_my_esp_now.can_send = true;
-				set_duty_pwm(3, 500);
-			}
+				if (SLT.espnow.can_send  == true)
+				{
+			
+					if (SLT.espnow.sent == false)
+					{
+						/* retry send the last buffer */
+					}
+					else
+					{
+						/* send the next buffer */
+						if (data != data_esp_now)
+						{
+							data = data_esp_now; 
+							len = len_test_data_esp_now;
+						}
+						else
+						{
+							data = data_esp_now2; 
+							len = len_test_data_esp_now2;
+						}
+						SLT.espnow.sent = false; 
 
+					}
+					SLT.espnow.can_send  = false;
+					ret = esp_now_send(SLT.espnow.p_peer->info.peer_addr, (uint8_t*)data, len);
+			
+					if (ret != ESP_OK)
+					{
+						SLT.espnow.can_send  = true;
+					}
+				}				
+				
+			}
+			
 		}
+
 		vTaskDelay(pdMS_TO_TICKS(500));
 	}
 }

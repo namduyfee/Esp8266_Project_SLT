@@ -1,7 +1,18 @@
 #ifndef GPIO_CONFIG
 #define	GPIO_CONFIG
 
-#include "my_lib.h"
+#include <fcntl.h>
+#include <math.h>
+#include <stdbool.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
+#include "esp_event_loop.h"
+#include "esp_event.h"
+#include "esp_log.h"
+
+#include "driver/gpio.h"
 
 void config_input_pullup_gpio(void);
 void config_GPIO_PWM(void);

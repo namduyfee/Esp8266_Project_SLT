@@ -2,8 +2,19 @@
 #ifndef TIMER_CONFIG
 #define TIMER_CONFIG
 
-#include "my_lib.h"
+#include <fcntl.h>
+#include <math.h>
+#include <stdbool.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
+#include "esp_event_loop.h"
+#include "esp_event.h"
+#include "esp_log.h"
 
+
+#include "driver/pwm.h"
 
 /*
  * To make a GPIOx to PWM only assign PWM_GPIO_X into any position in array g_gpio_pwm_channel[] (this array in file pwm-timer1.c)
@@ -41,9 +52,8 @@ typedef struct pwm_info
 
 /********* prototype ***********/
 
-void start_pwm(void);
-void set_duty_pwm(uint32_t channel_num, uint32_t duty);
-void set_duties_pwm(void);
-extern Pwm_Typedef Pwm;
+void my_pwm_start(Pwm_Typedef* Pwm); 
+void set_duty_pwm(Pwm_Typedef* Pwm, uint32_t channel_num, uint32_t duty); 
+void set_duties_pwm(Pwm_Typedef* Pwm, uint32_t duty);
 
 #endif
