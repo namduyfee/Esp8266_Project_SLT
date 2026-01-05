@@ -35,10 +35,5 @@ void init_wifi(void);
 
 void my_start_wifi(void); 
 
-extern wifi_cred_t wifi_cred;
-extern wifi_cred_t tem_wifi_cred;
-
-extern wifi_cred_t tcp_wifi_cred;
-
 #endif
 

@@ -17,7 +17,6 @@ static err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err);
 static err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err);
 static err_t server_sent_tcp(void* arg, struct tcp_pcb* tpcb, uint16_t len);
 static err_t client_tcp_close(struct tcp_pcb *cl_tpcb, tcp_client_t* client); 
-static void wifi_handler(void* buff, uint16_t len);
 
 
 err_t init_server_tpcp(uint16_t port, uint8_t max_client)
@@ -265,54 +264,4 @@ static err_t client_tcp_close(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 		}
 	}
 	return ERR_OK;
-}
-
-static void wifi_handler(void* buff, uint16_t len)
-{
-	char* buf = (char*)buff;
-	
-	int16_t index_ssid = -1, index_pass = -1;
-	
-	for (int16_t i = 0; i < len - 4; i++)
-	{
-		if (buf[i] == 's' && buf[i + 1] == 's' && buf[i + 2] == 'i' && 
-		buf[i + 3] == 'd' && buf[i + 4] == '=')
-			index_ssid = i;
-		
-		if (buf[i] == 'p' && buf[i + 1] == 'a' && buf[i + 2] == 's' && 
-		buf[i + 3] == 's' && buf[i + 4] == '=')
-			index_pass = i;
-	}
-	
-	if (index_pass == -1 || index_ssid == -1)
-	{
-		return;
-	}
-	
-	else
-	{
-		
-		int i_ssid = 0, i_pass = 0;
-		
-		for (int i = 0; i < len; i++)
-		{
-			if (i > (index_ssid + 4) && i < index_pass)
-			{
-				tcp_wifi_cred.ssid[i - (index_ssid + 5)] = buf[i];
-				i_ssid++;
-			}
-			if (i > (index_pass + 4)) {
-				tcp_wifi_cred.pass[i - (index_pass + 5)] = buf[i];
-				i_pass++;
-			}
-		}
-		
-		tcp_wifi_cred.ssid[i_ssid] = '\0';
-		tcp_wifi_cred.pass[i_pass] = '\0'; 
-		
-		wifi_cred.retry_connect = REQEST_FROM_USER;
-		
-		xSemaphoreGive(xTryConnectWifi);
-
-	}
 }

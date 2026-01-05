@@ -20,6 +20,10 @@ static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status);
 
 static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len) 
 {
+	if (mac_addr == NULL || data == NULL || len <= 0) {
+		return;
+	}
+	
 	if (data[0] == 'S' && data[1] == 'L' && data[2] == 'T')
 	{
 		if (data[3] == ADD_PEER)
@@ -76,22 +80,13 @@ void init_espnow(void)
 
 static void init_my_esp_now(void)
 {	
-	esp_wifi_get_mac(ESP_IF_WIFI_STA, SLT.espnow.my_addr); 
-	if (SLT.is_gateway == false)
-	{
-		SLT.espnow.p_peer = (Peer_Typedef*)malloc(sizeof(Peer_Typedef));
-		
-		if (SLT.espnow.p_peer != NULL)
-		{
-			memcpy(SLT.espnow.p_peer->info.peer_addr, SLT.gateway_addr, MAC_ADDR_LEN);
-			SLT.espnow.p_peer->info.channel = CONFIG_ESPNOW_CHANNEL;
-			SLT.espnow.p_peer->info.encrypt = false;
-			SLT.espnow.p_peer->info.ifidx = ESP_IF_WIFI_STA;
-			SLT.espnow.tot_peer++;
-			esp_now_add_peer(&SLT.espnow.p_peer->info);			
-		}
-
-	}
+	esp_now_peer_info_t peer = {0};
+	uint8_t broadcard[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; 	
+	memcpy(peer.peer_addr, broadcard, ESP_NOW_ETH_ALEN);
+	peer.channel = CONFIG_ESPNOW_CHANNEL;
+	peer.ifidx = WIFI_IF_STA;
+	peer.encrypt = false;
+	esp_now_add_peer(&peer); 
 }
 
 void espnow_add_peer(uint8_t* peer_addr)

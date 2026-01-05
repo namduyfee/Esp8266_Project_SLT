@@ -17,7 +17,7 @@
 void config_input_pullup_gpio(void);
 void config_GPIO_PWM(void);
 
-/*	GPIO_NUM_0
+/*	GPIO_NUM_0		D3
  *	GPIO_NUM_1 
  *	GPIO_NUM_2		D4
  *	GPIO_NUM_3
@@ -38,8 +38,9 @@ void config_GPIO_PWM(void);
  *
  **/
 
-#define LED_WIFI GPIO_NUM_13
+#define BUT_SEL_MASTER GPIO_NUM_4
 
+#define PRES_SEL_MASTER 0
 void config_input_pullup_gpio(void);
 
 void config_GPIO_OUT(void);

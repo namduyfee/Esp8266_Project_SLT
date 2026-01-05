@@ -3,9 +3,9 @@
 
 void config_input_pullup_gpio(void)
 {
-	/*
+	
 	uint32_t tem_pin_bit_mask = 0;
-	tem_pin_bit_mask = (1UL << );
+	tem_pin_bit_mask = (1UL << BUT_SEL_MASTER);
 	
 	gpio_config_t io_conf = {
 			
@@ -16,7 +16,6 @@ void config_input_pullup_gpio(void)
 		.intr_type = GPIO_INTR_DISABLE
 	};
 	gpio_config(&io_conf);	
-	*/
 }
 
 void config_GPIO_OUT(void)

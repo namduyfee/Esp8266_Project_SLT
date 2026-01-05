@@ -24,9 +24,6 @@ typedef struct
 
 extern Object SLT; 
 
-extern SemaphoreHandle_t xRecvPassWifi;
-extern SemaphoreHandle_t xTryConnectWifi;
-
 extern QueueHandle_t xBuffLoadf;
 
 extern QueueHandle_t xBuffSendf;
