@@ -25,16 +25,20 @@ void init_wifi(void)
 
 void my_start_wifi(void)
 {
-	
 	init_wifi();
 	
-	
-	uint8_t tm_addr[6]; 
-	esp_wifi_get_mac(ESP_IF_WIFI_STA, tm_addr); 
+	uint8_t my_addr[6]; 
+	esp_wifi_get_mac(ESP_IF_WIFI_STA, my_addr); 
 	SLT.is_gateway = false; 
 	
+	uint8_t tm_addr[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; 
 	
-	if (is_same_macadrr(SLT.gateway_addr, tm_addr))
+	if (is_same_macadrr(tm_addr, SLT.gateway_addr) == 1)
+	{
+		memcpy(SLT.gateway_addr, my_addr, 6); 
+	}
+
+	if (is_same_macadrr(SLT.gateway_addr, my_addr))
 	{
 		SLT.is_gateway = true; 
 

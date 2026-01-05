@@ -13,6 +13,7 @@
 typedef struct 
 {
 	Pwm_Typedef Pwm;
+	tcp_server_t server;
 	
 	uint8_t gateway_addr[6]; 
 	bool is_gateway;

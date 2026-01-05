@@ -1,7 +1,23 @@
 #include "my_tcpip.h"
 #include "my_lib.h"
 
-tcp_server_t SLT_server;
+/*!
+ *	@brief	tcp handler
+ *	
+ *	@details
+ *		use dynamic memory and queue to transport data between tcp handler and task_tcp_file_bin in main
+ *		Frame with command: SLT + CMD + OFSET (CMD = READ, WRITE) + SIZE (CMD = READ) + DATA (CMD = WRITE)	
+ *		Frame not with command: DATA (write DATA to the last endpoint)
+ *		
+ *	@note
+ *		only one client at a time
+ */
+
+static err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err);
+static err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err);
+static err_t server_sent_tcp(void* arg, struct tcp_pcb* tpcb, uint16_t len);
+static err_t client_tcp_close(struct tcp_pcb *cl_tpcb, tcp_client_t* client); 
+static void wifi_handler(void* buff, uint16_t len);
 
 
 err_t init_server_tpcp(uint16_t port, uint8_t max_client)
@@ -31,23 +47,23 @@ err_t init_server_tpcp(uint16_t port, uint8_t max_client)
 	if (!server_listen_tpcb)
 	{
 		tcp_close(server_listen_tpcb);
-		SLT_server.tpcb = 0;
+		SLT.server.tpcb = 0;
 		printf("Error listen!\r\n");
 		return ERR_MEM;
 	}
 	
-	SLT_server.tpcb = server_listen_tpcb;
-	SLT_server.port = port;
-	SLT_server.max_client = max_client;
-	SLT_server.count_client = 0; 
-	SLT_server.recv.current_pos_file = 0; 
+	SLT.server.tpcb = server_listen_tpcb;
+	SLT.server.port = port;
+	SLT.server.max_client = max_client;
+	SLT.server.count_client = 0; 
+	SLT.server.recv.current_pos_file = 0; 
 	tcp_accept(server_listen_tpcb, server_accept_tcp);
 	
-	tcp_arg(server_listen_tpcb, &SLT_server);
+	tcp_arg(server_listen_tpcb, &SLT.server);
 	return ERR_OK;
 }
 
-err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
+static err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 {
 	
 	pwm_stop(0);
@@ -77,8 +93,8 @@ err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 		tcp_sent(newpcb, server_sent_tcp);		
 		tcp_arg(newpcb, newclient);
 		tcp_err(newpcb, NULL);
-		if(SLT_server.count_client < SLT_server.max_client)
-			SLT_server.count_client++;
+		if(SLT.server.count_client < SLT.server.max_client)
+			SLT.server.count_client++;
 		return ERR_OK;
 	}
 	
@@ -96,7 +112,7 @@ err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
  *	@details
  *
  */
-err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err)
+static err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err)
 {
 	tcp_client_t* client = (tcp_client_t*)arg;
 	
@@ -206,7 +222,7 @@ err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err
 	return ERR_OK;
 }
 
-err_t server_sent_tcp(void* arg, struct tcp_pcb* tpcb, uint16_t len)
+static err_t server_sent_tcp(void* arg, struct tcp_pcb* tpcb, uint16_t len)
 {
 	tcp_client_t* client = (tcp_client_t*)arg;
 	
@@ -227,7 +243,7 @@ err_t server_sent_tcp(void* arg, struct tcp_pcb* tpcb, uint16_t len)
 	}
 	return ERR_OK; 
 }
-err_t client_tcp_close(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
+static err_t client_tcp_close(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 {
 	if (client != NULL)
 	{
@@ -240,9 +256,9 @@ err_t client_tcp_close(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 		tcp_sent(cl_tpcb, NULL);
 		tcp_recv(cl_tpcb, NULL);
 		if (tcp_close(cl_tpcb) == ERR_OK) {
-			if (SLT_server.count_client > 0)
-				SLT_server.count_client--;
-			if (SLT_server.count_client <= 0)
+			if (SLT.server.count_client > 0)
+				SLT.server.count_client--;
+			if (SLT.server.count_client <= 0)
 				pwm_start(); 
 			
 			return ERR_OK;
@@ -251,7 +267,7 @@ err_t client_tcp_close(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 	return ERR_OK;
 }
 
-void wifi_handler(void* buff, uint16_t len)
+static void wifi_handler(void* buff, uint16_t len)
 {
 	char* buf = (char*)buff;
 	

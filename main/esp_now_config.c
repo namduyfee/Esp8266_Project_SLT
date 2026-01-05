@@ -6,17 +6,65 @@
  * @brief
  * 
  * @details
- *	frame : "SLT" + command + data_1 + ... data_n 
+ *	frame with command	 : SLT + command + data_1 + ... data_n 
  *		ADD_PEER		 : data = the address of this device
  *		GET_PEER		 : not need data
  *		ESPNOW_READ		 : 
- *		ESPNOW_WRITE	 :
+ *		ESPNOW_WRITE	 :	
+ *	frame not with command : 
  */
 
+static void init_my_esp_now(void);
+static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len);
+static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status);
 
-extern void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len);
-extern void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status);
+static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len) 
+{
+	if (data[0] == 'S' && data[1] == 'L' && data[2] == 'T')
+	{
+		if (data[3] == ADD_PEER)
+		{
+			espnow_add_peer((uint8_t*)&data[4]); 
+		}
+		
+		else if (data[3] == ESPNOW_WRITE)
+		{
+			if (data[4] == 'a')
+			{
+				set_duty_pwm(&SLT.Pwm, 0, 300);
+			}	
+			else if (data[4] == 'b')
+			{
+				set_duty_pwm(&SLT.Pwm, 0, 800);
+			}
+		}
+	}
+}
 
+static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status) 
+{
+	
+	if (status == ESP_NOW_SEND_SUCCESS) {
+		
+		if (SLT.espnow.gateway_added == false && is_same_macadrr(mac_addr, SLT.gateway_addr))
+		{
+			SLT.espnow.gateway_added = true;
+		}
+		else {
+			SLT.espnow.sent = true; 
+			set_duty_pwm(&SLT.Pwm, 1, 450);
+		}
+		
+	}
+	/*
+	if (is_same_macadrr(mac_addr, g_peer_esp32.inf.peer_addr) == true)
+	{
+			
+	}
+	*/
+	
+	SLT.espnow.can_send = true;
+}
 
 void init_espnow(void) 
 {
@@ -26,7 +74,7 @@ void init_espnow(void)
 	init_my_esp_now();
 }
 
-void init_my_esp_now(void)
+static void init_my_esp_now(void)
 {	
 	esp_wifi_get_mac(ESP_IF_WIFI_STA, SLT.espnow.my_addr); 
 	if (SLT.is_gateway == false)

@@ -97,14 +97,5 @@ typedef struct
 
 
 err_t init_server_tpcp(uint16_t port, uint8_t max_client);  
-err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err);
-err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err);
-err_t server_sent_tcp(void* arg, struct tcp_pcb* tpcb, uint16_t len);
 
-err_t client_tcp_close(struct tcp_pcb *cl_tpcb, tcp_client_t* client); 
-
-void wifi_handler(void* buff, uint16_t len);
-
-
-extern tcp_server_t SLT_server;
 #endif
