@@ -18,20 +18,24 @@
 
 #define MAC_ADDR_LEN 6
 #define CONFIG_ESPNOW_CHANNEL 1
+#define LEN_HEADER_ESPNOW 3
+#define LEN_CRC_ESPNOW 2
 typedef enum
 {
 		
 	ADD_PEER           = 0,
 	GET_PEER		   = 1,
 	ESPNOW_READ        = 2,
-	ESPNOW_WRITE	   = 3
-		
+	ESPNOW_WRITE	   = 3,
+	BROADCAST          = 4	
 } command_espnow_t; 
 
 
 void init_espnow(void); 
 void espnow_add_peer(uint8_t* peer_addr); 
 bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);  
+
+uint16_t crc16_modbus(uint8_t *buf, uint32_t len); 
 
 typedef struct
 {

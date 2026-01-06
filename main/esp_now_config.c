@@ -6,12 +6,11 @@
  * @brief
  * 
  * @details
- *	frame with command	 : SLT + command + data_1 + ... data_n 
+ *	frame				 : SLT + CMD + SIZE (W) + DATA_1, DATA_2, ... DATA_N + CHECKSUM 
  *		ADD_PEER		 : data = the address of this device
  *		GET_PEER		 : not need data
  *		ESPNOW_READ		 : 
  *		ESPNOW_WRITE	 :	
- *	frame not with command : 
  */
 
 static void init_my_esp_now(void);
@@ -26,22 +25,27 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 	
 	if (data[0] == 'S' && data[1] == 'L' && data[2] == 'T')
 	{
-		if (data[3] == ADD_PEER)
+		if ( ( (data[len - 1] << 8) | data[len - 2]) == 
+		    crc16_modbus((uint8_t*)&data[3], len - LEN_HEADER_ESPNOW - LEN_CRC_ESPNOW))
 		{
-			espnow_add_peer((uint8_t*)&data[4]); 
-		}
-		
-		else if (data[3] == ESPNOW_WRITE)
-		{
-			if (data[4] == 'a')
+			if (data[3] == BROADCAST)
 			{
-				set_duty_pwm(&SLT.Pwm, 0, 300);
-			}	
-			else if (data[4] == 'b')
-			{
-				set_duty_pwm(&SLT.Pwm, 0, 800);
+				espnow_add_peer((uint8_t*)mac_addr); 
 			}
+		
+			else if (data[3] == ESPNOW_WRITE)
+			{
+				if (data[4] == 'a')
+				{
+					set_duty_pwm(&SLT.Pwm, 0, 650);
+				}	
+				else if (data[4] == 'b')
+				{
+					set_duty_pwm(&SLT.Pwm, 0, 800);
+				}
+			}			
 		}
+
 	}
 }
 
@@ -49,16 +53,15 @@ static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
 	
 	if (status == ESP_NOW_SEND_SUCCESS) {
-		
-		if (SLT.espnow.gateway_added == false && is_same_macadrr(mac_addr, SLT.gateway_addr))
+		uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+		if (is_same_macadrr(mac_addr, broadcast))
 		{
-			SLT.espnow.gateway_added = true;
-		}
-		else {
-			SLT.espnow.sent = true; 
 			set_duty_pwm(&SLT.Pwm, 1, 450);
+			SLT.espnow.can_send = true;
+			return;
 		}
 		
+		SLT.espnow.sent = true;
 	}
 	/*
 	if (is_same_macadrr(mac_addr, g_peer_esp32.inf.peer_addr) == true)
@@ -80,20 +83,35 @@ void init_espnow(void)
 
 static void init_my_esp_now(void)
 {	
+	
+	esp_wifi_get_mac(ESP_IF_WIFI_STA, SLT.espnow.my_addr);
+	
+	/* add peer broadcast */
 	esp_now_peer_info_t peer = {0};
-	uint8_t broadcard[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; 	
-	memcpy(peer.peer_addr, broadcard, ESP_NOW_ETH_ALEN);
+	uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; 	
+	memcpy(peer.peer_addr, broadcast, ESP_NOW_ETH_ALEN);
 	peer.channel = CONFIG_ESPNOW_CHANNEL;
 	peer.ifidx = WIFI_IF_STA;
 	peer.encrypt = false;
 	esp_now_add_peer(&peer); 
+	
 }
 
 void espnow_add_peer(uint8_t* peer_addr)
 {
 	Peer_Typedef *tmp;
-
-	tmp = realloc(SLT.espnow.p_peer, (SLT.espnow.tot_peer + 1) * sizeof(Peer_Typedef));
+	if (SLT.espnow.tot_peer == 0)
+		tmp = malloc(sizeof(Peer_Typedef));
+	else {
+		for (int i = 0; i < SLT.espnow.tot_peer; i++)
+		{
+			if (is_same_macadrr(peer_addr, (SLT.espnow.p_peer + i)->info.peer_addr))
+			{
+				return;
+			}
+		}
+		tmp = realloc(SLT.espnow.p_peer, (SLT.espnow.tot_peer + 1) * sizeof(Peer_Typedef));
+	}
 
 	if (tmp == NULL)
 	{
@@ -118,4 +136,24 @@ bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2)
 	}
 
 	return memcmp(mac1, mac2, MAC_ADDR_LEN) == 0;
+}
+
+uint16_t crc16_modbus(uint8_t *buf, uint32_t len)
+{
+	uint16_t crc = 0xffff;
+	
+	for (uint32_t i = 0; i < len; i++)
+	{
+		
+		crc ^= buf[i];
+		for (int j = 0; j < 8; j++)
+		{
+			
+			if (crc & 1)
+				crc = (crc >> 1) ^ 0xA001; 
+			else 
+				crc >>= 1;
+		}
+	}
+	return crc;
 }

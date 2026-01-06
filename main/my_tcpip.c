@@ -6,8 +6,8 @@
  *	
  *	@details
  *		use dynamic memory and queue to transport data between tcp handler and task_tcp_file_bin in main
- *		Frame with command: SLT + CMD + OFSET (CMD = READ, WRITE) + SIZE (CMD = READ) + DATA (CMD = WRITE)	
- *		Frame not with command: DATA (write DATA to the last endpoint)
+ *		
+ *		Frame : "SLT" + CMD + OFSET (CMD = R, W) + SIZE (CMD = R, W) + DATA (CMD = W)	
  *		
  *	@note
  *		only one client at a time
@@ -56,6 +56,8 @@ err_t init_server_tpcp(uint16_t port, uint8_t max_client)
 	SLT.server.max_client = max_client;
 	SLT.server.count_client = 0; 
 	SLT.server.recv.current_pos_file = 0; 
+	SLT.server.recv.tot_len = 0;
+	
 	tcp_accept(server_listen_tpcb, server_accept_tcp);
 	
 	tcp_arg(server_listen_tpcb, &SLT.server);
@@ -146,31 +148,23 @@ static err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, er
 		{
 			free(client->recv.segment.data.content);
 			client->recv.segment.data.content = NULL; 
-			const char *reply = "FORMAT RECEIVED...\n";
-			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
 		}
 		
 		else if (client->recv.segment.command == OPEN)
 		{
 			free(client->recv.segment.data.content);
 			client->recv.segment.data.content = NULL; 
-			const char *reply = "OPEN RECEIVED...\n";
-			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
 		}
 		else if (client->recv.segment.command == CLOSE)
 		{
 			free(client->recv.segment.data.content);
 			client->recv.segment.data.content = NULL; 	
-			const char *reply = "CLOSE RECEIVED...\n";
-			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);
 		}
 
 		else if (client->recv.segment.command == DELETE)
 		{
 			free(client->recv.segment.data.content);
 			client->recv.segment.data.content = NULL; 	
-			const char *reply = "DELETE RECEIVED...\n";
-			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);	
 		}		
 		else if (client->recv.segment.command == READ)
 		{
@@ -195,11 +189,12 @@ static err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, er
 			client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.data.content)[7] << 24) | (((uint8_t*)client->recv.segment.data.content)[6] << 16) | 
 											   (((uint8_t*)client->recv.segment.data.content)[5] << 8)  | (((uint8_t*)client->recv.segment.data.content)[4] << 0);	
 			
-			client->recv.segment.pos_data = 8;
-			client->recv.segment.data.len = p->tot_len - 8;
+			client->recv.segment.tot_len = (((uint8_t*)client->recv.segment.data.content)[11] << 24) | (((uint8_t*)client->recv.segment.data.content)[10] << 16) | 
+										   (((uint8_t*)client->recv.segment.data.content)[9] << 8)   | (((uint8_t*)client->recv.segment.data.content)[8] << 0);
+			
+			client->recv.segment.pos_data = 12;
+			client->recv.segment.data.len = p->tot_len - 12;
 					
-			const char *reply = "WRITE RECEIVED...\n";
-			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);	
 		}
 		
 	}
@@ -210,8 +205,8 @@ static err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, er
 		client->recv.segment.data.len = p->tot_len;
 		client->recv.segment.pos_in_file = POS_CONTINUE;
 		
-		const char *reply = "WRITE RECEIVED...\n";
-		tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);	
+		client->recv.segment.tot_len = REMAINING; 
+
 	}
 
 	xQueueSendToBack(xBuffLoadf, &client->recv.segment, portMAX_DELAY);

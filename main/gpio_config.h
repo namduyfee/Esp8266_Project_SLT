@@ -15,7 +15,7 @@
 #include "driver/gpio.h"
 
 void config_input_pullup_gpio(void);
-void config_GPIO_PWM(void);
+void config_GPIO_OUT(void);
 
 /*	GPIO_NUM_0		D3
  *	GPIO_NUM_1 
@@ -38,11 +38,9 @@ void config_GPIO_PWM(void);
  *
  **/
 
-#define BUT_SEL_MASTER GPIO_NUM_4
+#define BUT_SEL_MASTER GPIO_NUM_2
 
 #define PRES_SEL_MASTER 0
-void config_input_pullup_gpio(void);
 
-void config_GPIO_OUT(void);
 #endif
 

@@ -19,6 +19,7 @@ typedef struct
 	bool is_gateway;
 	
 	My_Esp_Now_Typedef espnow; 
+	bool select_master; 
 	
 } Object;
 

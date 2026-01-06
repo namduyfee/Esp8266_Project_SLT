@@ -30,12 +30,13 @@ Object SLT = {
 		.p_peer		= NULL,
 		.sent		= false,
 		.tot_peer   = 0
-	}
-		
+	},
+	.select_master = false,
 };
 
 QueueHandle_t xBuffLoadf;
 QueueHandle_t xBuffSendf;
+SemaphoreHandle_t xSendEspNow;
 
 void my_init_project(void)
 {
@@ -64,6 +65,7 @@ void app_main(void) {
 	
 	xBuffSendf = xQueueCreate(10, sizeof(tcp_data_t)); 
 	
+	xSendEspNow = xSemaphoreCreateBinary(); 
 	
 	xTaskCreate(task_esp_now, "esp_now_task", 1024, NULL, 4, NULL);
 	
@@ -86,80 +88,129 @@ void task_select_master()
 		if(gpio_get_level(BUT_SEL_MASTER) == PRES_SEL_MASTER)   
 		{
 			int count = 0;
-
+			
 			while (gpio_get_level(BUT_SEL_MASTER) == PRES_SEL_MASTER)
 			{
-				vTaskDelay(pdMS_TO_TICKS(10));
+				vTaskDelay(pdMS_TO_TICKS(20));
 				count++;
 
 				if (count >= 100)   
 					break;
 			}
-
+			
 			if (count >= 100)
 			{
 				/* handler when button is pressed */
-				
+				// phát broadcast trong bao nhiêu 1 phút
+					
+				SLT.select_master = true; 
 			}
 		}		
 		
+		vTaskDelay(pdMS_TO_TICKS(1));
 	}
-	
-	
 }
 /**
  *	@brief	
  */
 void task_esp_now() 
 {
-	uint8_t data_esp_now[5] = {'S', 'L', 'T'}; data_esp_now[3] = ESPNOW_WRITE; data_esp_now[4] = 'a'; 
-	uint32_t len_test_data_esp_now = sizeof(data_esp_now) / sizeof(data_esp_now[0]);
-
-	uint8_t data_esp_now2[5] = {'S', 'L', 'T'}; data_esp_now2[3] = ESPNOW_WRITE; data_esp_now2[4] = 'b';
-	uint32_t len_test_data_esp_now2 = sizeof(data_esp_now2) / sizeof(data_esp_now2[0]);
+	uint16_t crc;
+	/* send broadcast ; master signal */
+	uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+	
+	uint8_t data_broadcast[6] = {'S', 'L', 'T', BROADCAST};  
+	crc = crc16_modbus((uint8_t*)&data_broadcast[3], sizeof(data_broadcast) - 3 - 2); 
+	data_broadcast[4] = crc & 0xFF; 
+	data_broadcast[5] = (crc>>8) & 0xFF;
+	
+	uint8_t data_esp_now[7] = {'S', 'L', 'T', ESPNOW_WRITE}; data_esp_now[4] = 'a'; 
+	
+	uint32_t len_test_data_esp_now = sizeof(data_esp_now);
+	crc = crc16_modbus((uint8_t*)&data_esp_now[3], 
+	                   sizeof(data_esp_now) - LEN_HEADER_ESPNOW - LEN_CRC_ESPNOW);
+	data_esp_now[5] = crc & 0xFF; 
+	data_esp_now[6] = (crc >> 8) & 0xFF;
+	
+	uint8_t data_esp_now2[7] = {'S', 'L', 'T', ESPNOW_WRITE}; data_esp_now2[4] = 'b';
+	
+	uint32_t len_test_data_esp_now2 = sizeof(data_esp_now2);
+	crc = crc16_modbus((uint8_t*)&data_esp_now2[3], 
+	                   sizeof(data_esp_now2) - LEN_HEADER_ESPNOW - LEN_CRC_ESPNOW);
+	data_esp_now2[5] = crc & 0xFF; 
+	data_esp_now2[6] = (crc >> 8) & 0xFF;
 	
 	esp_err_t ret; 
+	void* data = data_esp_now;
+	uint32_t len = len_test_data_esp_now;
+	
 	SLT.espnow.can_send = true; 
 	SLT.espnow.sent = false;
 	
-	void* data = data_esp_now;
-	uint32_t len = len_test_data_esp_now;
-	uint8_t broadcard[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; 
 	while (1)
 	{
 
-		if (SLT.espnow.can_send  == true)
+		if (SLT.select_master == true)
+		{	
+			for (int i = 0; i < 10; i++)
+			{
+				if (SLT.espnow.can_send == true)
+				{
+					SLT.espnow.can_send = false; 
+					
+					ret = esp_now_send(broadcast,
+						(uint8_t*)data_broadcast,
+						sizeof(data_broadcast));
+				
+					if (ret != ESP_OK)
+					{
+						SLT.espnow.can_send  = true;
+					}					
+				}
+				vTaskDelay(pdMS_TO_TICKS(500));
+			}
+			SLT.select_master = false;
+			
+		}
+		else
 		{
-			
-			if (SLT.espnow.sent == false)
+			if (SLT.espnow.can_send == true)
 			{
-				/* retry send the last buffer */
-			}
-			else
-			{
-				/* send the next buffer */
-				if (data != data_esp_now)
+				if (SLT.espnow.tot_peer > 0)
 				{
-					data = data_esp_now; 
-					len = len_test_data_esp_now;
-				}
-				else
-				{
-					data = data_esp_now2; 
-					len = len_test_data_esp_now2;
-				}
-				SLT.espnow.sent = false; 
+					if (SLT.espnow.sent == false)
+					{
+						/* retry send the last buffer */
+					}
+					else
+					{
+						/* send the next buffer */
+						if (data != data_esp_now)
+						{
+							data = data_esp_now; 
+							len = len_test_data_esp_now;
+						}
+						else
+						{
+							data = data_esp_now2; 
+							len = len_test_data_esp_now2;
+						}
+						SLT.espnow.sent = false; 
 
-			}
-			SLT.espnow.can_send  = false;
+					}
+					SLT.espnow.can_send  = false;
 			
-			ret = esp_now_send(broadcard, (uint8_t*)data, len);
-			if (ret != ESP_OK)
-			{
-				SLT.espnow.can_send  = true;
+					ret = esp_now_send(SLT.espnow.p_peer->info.peer_addr, (uint8_t*)data, len);
+					if (ret != ESP_OK)
+					{
+						SLT.espnow.can_send  = true;
+					}				
+				}			
 			}
-		}				
-		vTaskDelay(pdMS_TO_TICKS(500));
+			vTaskDelay(pdMS_TO_TICKS(500));
+		}
+			
+		
 	}
 }
 
@@ -317,19 +368,34 @@ void task_tcp_file_bin()
 				{				
 					if (SLT.server.recv.segment.data.content != NULL)
 					{
-
-					 
-						if (SLT.server.recv.segment.pos_in_file == POS_CONTINUE)
+						if (SLT.server.recv.segment.tot_len != REMAINING)
 						{
-							lseek(fd, SLT.server.recv.current_pos_file, SEEK_SET);
+							SLT.server.recv.tot_len = SLT.server.recv.segment.tot_len; 
 						}
-						else
+						if (SLT.server.recv.tot_len > 0)
 						{
-							lseek(fd, SLT.server.recv.segment.pos_in_file, SEEK_SET);
+							if (SLT.server.recv.segment.pos_in_file == POS_CONTINUE)
+							{
+								lseek(fd, SLT.server.recv.current_pos_file, SEEK_SET);
+							}
+							else
+							{
+								lseek(fd, SLT.server.recv.segment.pos_in_file, SEEK_SET);
+							}
+							
+							ssize_t to_write = SLT.server.recv.tot_len <= SLT.server.recv.segment.data.len ?
+												SLT.server.recv.tot_len : SLT.server.recv.segment.data.len;
+							
+							ssize_t written = write(fd,
+								&((uint8_t*)SLT.server.recv.segment.data.content)[SLT.server.recv.segment.pos_data], 
+								to_write);
+							
+							if (written > 0)
+								SLT.server.recv.tot_len = SLT.server.recv.tot_len - written; 
+							
+							SLT.server.recv.current_pos_file = lseek(fd, 0, SEEK_CUR);							
 						}
-
-						write(fd, &((uint8_t*)SLT.server.recv.segment.data.content)[SLT.server.recv.segment.pos_data], SLT.server.recv.segment.data.len);
-						SLT.server.recv.current_pos_file = lseek(fd, 0, SEEK_CUR);
+						
 						free(SLT.server.recv.segment.data.content); 		
 						SLT.server.recv.segment.data.content = NULL;
 					

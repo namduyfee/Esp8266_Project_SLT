@@ -19,7 +19,7 @@
 #include "lwip/netif.h"
 
 #define POS_CONTINUE -1
-
+#define REMAINING -1
 typedef enum
 {
 	OPEN	= 0,
@@ -40,17 +40,18 @@ typedef struct
 
 typedef struct 
 {
-	tcp_data_t data;
-	uint16_t pos_data;
-	off_t pos_in_file;
-	uint8_t command;
+	tcp_data_t data;			/**< store content and len */
+	uint16_t pos_data;			/**< start position of data to save in buffer */
+	off_t pos_in_file;			/**< position in file to save */
+	uint8_t command;			/**< command with file */
+	int tot_len;				/**< total length message */
 	
 } tcp_recv_t;
 
 typedef struct
 {
 	struct tcp_pcb* tpcb_server;
-	struct tcp_pcb* tpcb;
+	struct tcp_pcb* tpcb;				/**< tcp client is creat */
 	
 	struct
 	{
@@ -61,7 +62,7 @@ typedef struct
 	struct
 	{
 		tcp_data_t data;
-		bool request; 
+		bool request;					/**< flag to read file and send */
 		
 	} send;
   
@@ -80,8 +81,8 @@ typedef struct
 	struct
 	{
 		tcp_recv_t segment; 
-		off_t current_pos_file; 
-		
+		off_t current_pos_file;
+		int tot_len;				/**< total length message */
 	} recv;
 	
 	struct
