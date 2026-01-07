@@ -1,7 +1,7 @@
 #include "my_lib.h"
 #include "string.h"
 
-#define MIN_DELAY 10
+#define MIN_DELAY 10 /*!< if delay task is short chip will be reset */
 
 void task_esp_now(); 
 void esp_recv_inf_wifi();
@@ -20,22 +20,27 @@ Object SLT = {
 		GPIO_CHANNEL_5,
 		GPIO_CHANNEL_6,
 		GPIO_CHANNEL_7
-		},
+	},
 		.duty = {0, 0, 0, 0, 0, 0, 0, 0},
 		.num_channel_en = 0
 	},
 	
 	.espnow = {
-		.can_send	= true,
-		.p_peer		= NULL,
-		.sent		= false,
-		.tot_peer   = 0
+		.can_send = true,
+		.p_peer = NULL,
+		.sent = false,
+		.tot_peer = 0,
+		.gateway_added = false,
+		.mode_send = NONE_ESPNOW
 	},
-	.select_master = false,
+	
+	.gateway_addr = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 };
 
 QueueHandle_t xBuffLoadf;
 QueueHandle_t xBuffSendf;
+SemaphoreHandle_t xSendEspNow;
+
 SemaphoreHandle_t xSendEspNow;
 
 void my_init_project(void)
@@ -66,6 +71,7 @@ void app_main(void) {
 	xBuffSendf = xQueueCreate(10, sizeof(tcp_data_t)); 
 	
 	xSendEspNow = xSemaphoreCreateBinary(); 
+	xSemaphoreGive(xSendEspNow);
 	
 	xTaskCreate(task_esp_now, "esp_now_task", 1024, NULL, 4, NULL);
 	
@@ -73,10 +79,6 @@ void app_main(void) {
 	
 	xTaskCreate(task_select_master, "task_select_master", 1024, NULL, 4, NULL);
 		 
-	while (1)
-	{
-		vTaskDelay(pdMS_TO_TICKS(1000));
-	}
 	
 }
 
@@ -101,13 +103,36 @@ void task_select_master()
 			if (count >= 100)
 			{
 				/* handler when button is pressed */
-				// phát broadcast trong bao nhiêu 1 phút
+				
+				if (xSemaphoreTake(xSendEspNow, portMAX_DELAY) == pdPASS)
+				{
 					
-				SLT.select_master = true; 
+					wifi_mode_t mode;
+					esp_wifi_get_mode(&mode);
+					if (mode != WIFI_MODE_APSTA)
+					{
+						esp_wifi_stop();
+						esp_wifi_set_mode(WIFI_MODE_APSTA);
+						wifi_config_t ap_config = {
+							.ap = {
+							.ssid = "ESP_SLT",
+							.ssid_len = 0,
+							.max_connection = 4,
+							.password = "12345678",
+							.channel = CONFIG_ESPNOW_CHANNEL, 
+							.authmode = WIFI_AUTH_WPA_WPA2_PSK		
+							}	
+						};
+						esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);		
+						esp_wifi_start();
+					}
+					
+					SLT.espnow.mode_send = BROADCAST;
+					xSemaphoreGive(xSendEspNow);
+				}
 			}
 		}		
-		
-		vTaskDelay(pdMS_TO_TICKS(1));
+		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
 	}
 }
 /**
@@ -119,22 +144,30 @@ void task_esp_now()
 	/* send broadcast ; master signal */
 	uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	
-	uint8_t data_broadcast[6] = {'S', 'L', 'T', BROADCAST};  
-	crc = crc16_modbus((uint8_t*)&data_broadcast[3], sizeof(data_broadcast) - 3 - 2); 
-	data_broadcast[4] = crc & 0xFF; 
-	data_broadcast[5] = (crc>>8) & 0xFF;
+	uint8_t data_broadcast[7] = {'S', 'L', 'T', BROADCAST, 0};  
+	crc = crc16_modbus((uint8_t*)&data_broadcast[3], 
+	                   sizeof(data_broadcast) - LEN_HEADER_ESPNOW - LEN_CRC_ESPNOW); 
+	data_broadcast[5] = crc & 0xFF; 
+	data_broadcast[6] = (crc>>8) & 0xFF;
+	/* send request add peer after listened broadcast */
+	uint8_t data_add_peer[7] = {'S', 'L', 'T', ADD_PEER, 2};
+	crc = crc16_modbus((uint8_t*)&data_add_peer[3], 
+		sizeof(data_add_peer) - LEN_HEADER_ESPNOW - LEN_CRC_ESPNOW);	
+	data_add_peer[5] = crc & 0xFF; 
+	data_add_peer[6] = (crc >> 8) & 0xFF;
 	
-	uint8_t data_esp_now[7] = {'S', 'L', 'T', ESPNOW_WRITE}; data_esp_now[4] = 'a'; 
-	
+	/* data1 test */
+	uint8_t data_esp_now[7] = {'S', 'L', 'T', ESPNOW_WRITE, 'a'};
 	uint32_t len_test_data_esp_now = sizeof(data_esp_now);
+	
 	crc = crc16_modbus((uint8_t*)&data_esp_now[3], 
 	                   sizeof(data_esp_now) - LEN_HEADER_ESPNOW - LEN_CRC_ESPNOW);
 	data_esp_now[5] = crc & 0xFF; 
 	data_esp_now[6] = (crc >> 8) & 0xFF;
-	
-	uint8_t data_esp_now2[7] = {'S', 'L', 'T', ESPNOW_WRITE}; data_esp_now2[4] = 'b';
-	
+	/* data2 test */
+	uint8_t data_esp_now2[7] = {'S', 'L', 'T', ESPNOW_WRITE, 'b'};
 	uint32_t len_test_data_esp_now2 = sizeof(data_esp_now2);
+	
 	crc = crc16_modbus((uint8_t*)&data_esp_now2[3], 
 	                   sizeof(data_esp_now2) - LEN_HEADER_ESPNOW - LEN_CRC_ESPNOW);
 	data_esp_now2[5] = crc & 0xFF; 
@@ -144,73 +177,119 @@ void task_esp_now()
 	void* data = data_esp_now;
 	uint32_t len = len_test_data_esp_now;
 	
-	SLT.espnow.can_send = true; 
+	SLT.espnow.can_send = true;
 	SLT.espnow.sent = false;
+	
+	uint8_t broadcast_cnt = 0;
+	
 	
 	while (1)
 	{
+		
+		if (xSemaphoreTake(xSendEspNow, portMAX_DELAY) == pdPASS)
+		{
+			if (SLT.espnow.mode_send == BROADCAST)
+			{
+				broadcast_cnt = (broadcast_cnt + 1) % MAX_BROADCAST_CNT; 
+				
+				if (broadcast_cnt < MAX_BROADCAST_CNT - 1)
+				{
+					if (SLT.espnow.can_send == true)
+					{
+						SLT.espnow.can_send = false; 
+					
+						ret = esp_now_send(broadcast,
+							(uint8_t*)data_broadcast,
+							sizeof(data_broadcast));
+				
+						if (ret != ESP_OK)
+						{
+							SLT.espnow.can_send  = true;
+						}					
+					}					
+				}
+				else
+				{
+					SLT.espnow.mode_send = NONE_ESPNOW;
+				}
+				xSemaphoreGive(xSendEspNow);
+				vTaskDelay(pdMS_TO_TICKS(200));
 
-		if (SLT.select_master == true)
-		{	
-			for (int i = 0; i < 10; i++)
+			}
+			else if (SLT.espnow.mode_send == ADD_PEER)
+			{
+
+				if (SLT.espnow.gateway_added == false)
+				{
+					if (SLT.espnow.can_send == true)
+					{
+						SLT.espnow.can_send = false; 
+					
+						ret = esp_now_send(SLT.gateway_addr,
+							(uint8_t*)data_add_peer,
+							sizeof(data_add_peer));
+				
+						if (ret != ESP_OK)
+						{
+							SLT.espnow.can_send  = true;
+						}
+						if(ret == ESP_OK)
+							set_duty_pwm(&SLT.Pwm, 3, 450);
+					}					
+				}
+				else
+				{
+					SLT.espnow.mode_send = NONE_ESPNOW;
+				}
+				xSemaphoreGive(xSendEspNow);
+				vTaskDelay(pdMS_TO_TICKS(100));
+				
+			}
+			else if (SLT.espnow.mode_send == ESPNOW_READ || 
+			         SLT.espnow.mode_send == ESPNOW_WRITE)
 			{
 				if (SLT.espnow.can_send == true)
 				{
-					SLT.espnow.can_send = false; 
-					
-					ret = esp_now_send(broadcast,
-						(uint8_t*)data_broadcast,
-						sizeof(data_broadcast));
-				
-					if (ret != ESP_OK)
+					if (SLT.espnow.tot_peer > 0)
 					{
-						SLT.espnow.can_send  = true;
-					}					
-				}
-				vTaskDelay(pdMS_TO_TICKS(500));
-			}
-			SLT.select_master = false;
-			
-		}
-		else
-		{
-			if (SLT.espnow.can_send == true)
-			{
-				if (SLT.espnow.tot_peer > 0)
-				{
-					if (SLT.espnow.sent == false)
-					{
-						/* retry send the last buffer */
-					}
-					else
-					{
-						/* send the next buffer */
-						if (data != data_esp_now)
+						if (SLT.espnow.sent == false)
 						{
-							data = data_esp_now; 
-							len = len_test_data_esp_now;
+							/* retry send the last buffer */
 						}
 						else
 						{
-							data = data_esp_now2; 
-							len = len_test_data_esp_now2;
-						}
-						SLT.espnow.sent = false; 
+							/* send the next buffer */
+							if (data != data_esp_now)
+							{
+								data = data_esp_now; 
+								len = len_test_data_esp_now;
+							}
+							else
+							{
+								data = data_esp_now2; 
+								len = len_test_data_esp_now2;
+							}
+							SLT.espnow.sent = false; 
 
-					}
-					SLT.espnow.can_send  = false;
+						}
+						SLT.espnow.can_send  = false;
 			
-					ret = esp_now_send(SLT.espnow.p_peer->info.peer_addr, (uint8_t*)data, len);
-					if (ret != ESP_OK)
-					{
-						SLT.espnow.can_send  = true;
-					}				
-				}			
+						ret = esp_now_send(SLT.espnow.p_peer->info.peer_addr, (uint8_t*)data, len);
+						if (ret != ESP_OK)
+						{
+							SLT.espnow.can_send  = true;
+						}				
+					}			
+				}
+				xSemaphoreGive(xSendEspNow);
+				vTaskDelay(pdMS_TO_TICKS(100));
 			}
-			vTaskDelay(pdMS_TO_TICKS(500));
+			else
+			{
+				xSemaphoreGive(xSendEspNow);
+				vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
+			}
 		}
-			
-		
 	}
 }
 
@@ -270,7 +349,8 @@ void task_tcp_file_bin()
 				{
 					struct stat st;
 					int ret = stat("/spiffs/data.bin", &st);
-					fd = ret < 0 ?  open("/spiffs/data.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : open("/spiffs/data.bin", O_RDWR | O_CREAT, 0666);
+					fd = ret < 0 ?  open("/spiffs/data.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : 
+									open("/spiffs/data.bin", O_RDWR | O_CREAT, 0666);
 					
 				}
 				

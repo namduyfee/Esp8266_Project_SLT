@@ -12,44 +12,53 @@ void init_wifi(void)
 	esp_wifi_init(&cfg);
 }
 
-
 void my_start_wifi(void)
 {
 	init_wifi();
 	
 	uint8_t my_addr[6]; 
 	esp_wifi_get_mac(ESP_IF_WIFI_STA, my_addr); 
-	SLT.is_gateway = false; 
 	
-	uint8_t tm_addr[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; 
+	struct stat st;
+	int ret = stat("/spiffs/gateway.bin", &st);
+	int fd = ret < 0 ?  open("/spiffs/gateway.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : 
+						open("/spiffs/gateway.bin", O_RDWR | O_CREAT, 0666);
+	if (fd >= 0)
+	{
+		uint32_t len = lseek(fd, 0, SEEK_END);
 	
-	if (is_same_macadrr(tm_addr, SLT.gateway_addr) == 1)
-	{
-		memcpy(SLT.gateway_addr, my_addr, 6); 
-	}
+		if (len >= POS_ADDR_GATEWAY + 6)
+		{
+			lseek(fd, POS_ADDR_GATEWAY, SEEK_SET);
+			read(fd, SLT.gateway_addr, 6);
+			
+			if (is_same_macadrr(SLT.gateway_addr, my_addr))
+			{
+				SLT.is_gateway = true; 
 
-	if (is_same_macadrr(SLT.gateway_addr, my_addr))
-	{
-		SLT.is_gateway = true; 
-
-		esp_wifi_set_mode(WIFI_MODE_APSTA);
-		wifi_config_t ap_config = {
-			.ap = {
-			.ssid = "ESP_SLT",
-			.ssid_len = 0,
-			.max_connection = 4,
-			.password = "12345678",
-			.channel = CONFIG_ESPNOW_CHANNEL, 
-			.authmode = WIFI_AUTH_WPA_WPA2_PSK		
-			}	
-		};
-		esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);		
-		esp_wifi_start();
+				esp_wifi_set_mode(WIFI_MODE_APSTA);
+				wifi_config_t ap_config = {
+					.ap = {
+					.ssid = "ESP_SLT",
+					.ssid_len = 0,
+					.max_connection = 4,
+					.password = "12345678",
+					.channel = CONFIG_ESPNOW_CHANNEL, 
+					.authmode = WIFI_AUTH_WPA_WPA2_PSK		
+					}	
+				};
+				esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);		
+				esp_wifi_start();
+				close(fd);
+				return;
+			}
+		}
+		close(fd);
 	}
-	else
-	{
-		esp_wifi_set_mode(WIFI_MODE_STA);
-		esp_wifi_start();
-		esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0);
-	}
+	
+	SLT.is_gateway = false;
+	esp_wifi_set_mode(WIFI_MODE_STA);
+	esp_wifi_start();
+	esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0);
+	
 }

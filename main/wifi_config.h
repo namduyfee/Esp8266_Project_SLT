@@ -19,7 +19,7 @@
 
 #define MAX_RETRY_CONNECT 7
 #define REQEST_FROM_USER 100
-
+#define POS_ADDR_GATEWAY 0
 typedef struct
 {
 	char ssid[32];

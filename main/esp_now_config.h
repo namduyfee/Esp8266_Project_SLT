@@ -20,19 +20,24 @@
 #define CONFIG_ESPNOW_CHANNEL 1
 #define LEN_HEADER_ESPNOW 3
 #define LEN_CRC_ESPNOW 2
+#define MAX_BROADCAST_CNT 21
+
+#define INDEX_CMD 3
+#define INDEX_POS (INDEX_CMD + 1)
 typedef enum
 {
-		
+	NONE_ESPNOW		   = -1,	
 	ADD_PEER           = 0,
 	GET_PEER		   = 1,
 	ESPNOW_READ        = 2,
 	ESPNOW_WRITE	   = 3,
 	BROADCAST          = 4	
+		
 } command_espnow_t; 
 
 
 void init_espnow(void); 
-void espnow_add_peer(uint8_t* peer_addr); 
+uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position);   
 bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);  
 
 uint16_t crc16_modbus(uint8_t *buf, uint32_t len); 
@@ -57,6 +62,8 @@ typedef struct Peer
 		data_espnow_t data;
 	} recv;
 	
+	uint8_t position;				/**< position of peer in system */
+	
 } Peer_Typedef;
 
 typedef struct My_Esp_Now
@@ -72,6 +79,8 @@ typedef struct My_Esp_Now
 	Peer_Typedef* p_peer; 
 	
 	uint32_t tot_peer; 
+	
+	int8_t mode_send;
 	
 } My_Esp_Now_Typedef;
 
