@@ -20,20 +20,17 @@
 #define MAX_RETRY_CONNECT 7
 #define REQEST_FROM_USER 100
 #define POS_ADDR_GATEWAY 0
-typedef struct
+typedef struct wifi
 {
-	char ssid[32];
-	char pass[64];
-	volatile bool is_connected;
-	volatile bool last_available;
-	volatile uint32_t retry_connect;
+	uint8_t sta_macaddr[6];
+	uint8_t gateway_addr[6]; 
+	bool is_gateway;
 	
-} wifi_cred_t;
-
+} wifi_t;
 
 void init_wifi(void);
 
-void my_start_wifi(void); 
+void my_start_wifi(wifi_t* wifi);  
 
 #endif
 

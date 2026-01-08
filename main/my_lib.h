@@ -14,12 +14,8 @@ typedef struct
 {
 	Pwm_Typedef Pwm;
 	tcp_server_t server;
-	
-	uint8_t gateway_addr[6]; 
-	bool is_gateway;
-	
 	My_Esp_Now_Typedef espnow; 
-	 
+	wifi_t wifi;
 	
 } Object;
 
@@ -28,6 +24,8 @@ extern Object SLT;
 extern QueueHandle_t xBuffLoadf;
 
 extern QueueHandle_t xBuffSendf;
+
+extern QueueHandle_t xEspNowRecv;
 
 extern SemaphoreHandle_t xSendEspNow;
 

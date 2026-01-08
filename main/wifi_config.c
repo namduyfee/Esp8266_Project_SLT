@@ -12,12 +12,11 @@ void init_wifi(void)
 	esp_wifi_init(&cfg);
 }
 
-void my_start_wifi(void)
+void my_start_wifi(wifi_t* wifi)
 {
 	init_wifi();
 	
-	uint8_t my_addr[6]; 
-	esp_wifi_get_mac(ESP_IF_WIFI_STA, my_addr); 
+	esp_wifi_get_mac(ESP_IF_WIFI_STA, wifi->sta_macaddr); 
 	
 	struct stat st;
 	int ret = stat("/spiffs/gateway.bin", &st);
@@ -30,11 +29,11 @@ void my_start_wifi(void)
 		if (len >= POS_ADDR_GATEWAY + 6)
 		{
 			lseek(fd, POS_ADDR_GATEWAY, SEEK_SET);
-			read(fd, SLT.gateway_addr, 6);
+			read(fd, wifi->gateway_addr, 6);
 			
-			if (is_same_macadrr(SLT.gateway_addr, my_addr))
+			if (is_same_macadrr(wifi->gateway_addr, wifi->sta_macaddr))
 			{
-				SLT.is_gateway = true; 
+				wifi->is_gateway = true; 
 
 				esp_wifi_set_mode(WIFI_MODE_APSTA);
 				wifi_config_t ap_config = {
@@ -56,7 +55,7 @@ void my_start_wifi(void)
 		close(fd);
 	}
 	
-	SLT.is_gateway = false;
+	wifi->is_gateway = false;
 	esp_wifi_set_mode(WIFI_MODE_STA);
 	esp_wifi_start();
 	esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0);
