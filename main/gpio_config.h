@@ -38,7 +38,7 @@ void config_GPIO_OUT(void);
  *
  **/
 
-#define BUT_SEL_MASTER GPIO_NUM_2
+#define BUT_SEL_MASTER GPIO_NUM_0
 
 #define PRES_SEL_MASTER 0
 

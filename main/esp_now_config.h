@@ -15,7 +15,7 @@
 #include "esp_wifi.h"
 #include "esp_now.h"
 
-#define MAX_BROADCAST_CNT 21
+#define MAX_BROADCAST_CNT 30
 #define MAC_ADDR_LEN 6
 #define CONFIG_ESPNOW_CHANNEL 1
 
@@ -46,18 +46,11 @@ typedef enum
 	GET_PEER		   = 1,
 	ESPNOW_READ        = 2,
 	ESPNOW_WRITE	   = 3,
-	BROADCAST          = 4	
+	BROADCAST          = 4,
+	FB_BROADCST		   = 5				/**< feedback broadcast */
 		
 } command_espnow_t; 
 
-
-void init_espnow(void); 
-uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position);   
-bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);  
-void clear_all_peer(void);
-uint16_t crc16_modbus(uint8_t *buf, uint32_t len); 
-void* espnow_make_segment(void* buf, uint8_t cmd, uint32_t len); 
-void espnow_free_segment(void* buf);
 typedef struct
 {
 	void* data;
@@ -92,9 +85,11 @@ typedef struct My_Esp_Now
 	
 	Peer_Typedef* p_peer; 
 	
-	uint32_t tot_peer; 
+	uint32_t tot_pos_added;				/**< total position added */ 
 	
 	int8_t mode_send;
+	
+	uint8_t my_pos;
 	
 	uint8_t broadcast_cnt;
 	struct
@@ -104,5 +99,18 @@ typedef struct My_Esp_Now
 	} recv;
 	
 } My_Esp_Now_Typedef;
+
+
+
+
+void init_espnow(void); 
+uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position);   
+bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);  
+void clear_all_peer(void);
+uint16_t crc16_modbus(uint8_t *buf, uint32_t len); 
+
+buf_espnow_t* espnow_make_segment(void* buf, uint8_t cmd, uint32_t len);
+void espnow_free_segment(buf_espnow_t* buf);
+
 
 #endif

@@ -28,24 +28,31 @@ void my_start_wifi(wifi_t* wifi)
 	
 		if (len >= POS_ADDR_GATEWAY + 6)
 		{
+			SLT.espnow.gateway_added = true; 
+			
 			lseek(fd, POS_ADDR_GATEWAY, SEEK_SET);
 			read(fd, wifi->gateway_addr, 6);
-			
+			set_duty_pwm(&SLT.Pwm, 1, 650);
 			if (is_same_macadrr(wifi->gateway_addr, wifi->sta_macaddr))
 			{
 				wifi->is_gateway = true; 
 
 				esp_wifi_set_mode(WIFI_MODE_APSTA);
+				
+				char result[32];
+				snprintf(result, sizeof(result), "SLT_ESP%d", SLT.espnow.my_pos);
+				
 				wifi_config_t ap_config = {
 					.ap = {
-					.ssid = "ESP_SLT",
-					.ssid_len = 0,
 					.max_connection = 4,
 					.password = "12345678",
 					.channel = CONFIG_ESPNOW_CHANNEL, 
 					.authmode = WIFI_AUTH_WPA_WPA2_PSK		
 					}	
 				};
+				memcpy(ap_config.ap.ssid, result, strlen(result));
+				ap_config.ap.ssid_len = strlen(result);
+				
 				esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);		
 				esp_wifi_start();
 				close(fd);
@@ -54,10 +61,11 @@ void my_start_wifi(wifi_t* wifi)
 		}
 		close(fd);
 	}
-	
 	wifi->is_gateway = false;
 	esp_wifi_set_mode(WIFI_MODE_STA);
 	esp_wifi_start();
 	esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0);
 	
+	if (SLT.espnow.gateway_added == true)
+		SLT.espnow.mode_send = ESPNOW_WRITE;
 }
