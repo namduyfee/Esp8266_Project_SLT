@@ -8,7 +8,6 @@ void task_esp_now_recv();
 void task_tcp_file_bin(); 
 void task_select_master(); 
 
-
 Object SLT = {
 	.Pwm = {
 		.gpio_channel = {
@@ -32,7 +31,7 @@ Object SLT = {
 		.tot_pos_added = 0,
 		.gateway_added = false,
 		.broadcast_cnt = 0,
-		.my_pos = 11,
+		.my_pos = 1,
 		.mode_send = NONE_ESPNOW
 	},
 	.wifi = {
@@ -44,6 +43,8 @@ Object SLT = {
 
 QueueHandle_t xBuffLoadf;
 QueueHandle_t xBuffSendf;
+
+QueueHandle_t xEspNowf;
 
 QueueHandle_t xEspNowRecv;
 
@@ -86,13 +87,14 @@ void app_main(void) {
 	
 	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
 	
-	xTaskCreate(task_tcp_file_bin, "esp_recv_file_bin", MIN_SIZE_OP_FILE, NULL, 4, NULL);
+	xTaskCreate(task_tcp_file_bin, "task_tcp_file_bin", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 	xTaskCreate(task_select_master, "task_select_master", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 		 
 	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 }
+
 
 void task_select_master()
 {
@@ -139,7 +141,7 @@ void task_select_master()
 						
 						wifi_mode_t mode;
 						esp_wifi_get_mode(&mode);
-					
+						
 						esp_now_deinit();
 						clear_all_peer();
 					
@@ -195,7 +197,6 @@ void task_esp_now_recv()
 			{
 				if (data[0] == 'S' && data[1] == 'L' && data[2] == 'T')
 				{
-
 					if (data[ESPNOW_INDEX_CMD] == BROADCAST)
 					{
 						esp_now_deinit();
@@ -236,8 +237,9 @@ void task_esp_now_recv()
 							
 							close(fd);
 						}
-						
+
 						espnow_add_peer((uint8_t*)&data[ESPNOW_INDEX_ADDR], data[ESPNOW_INDEX_POS]);		/**< add gateway into list peer */
+						
 				
 					}
 					
@@ -256,8 +258,8 @@ void task_esp_now_recv()
 						{
 							set_duty_pwm(&SLT.Pwm, 0, 800);
 						}
-					}			
-
+					}
+					xSemaphoreGive(xSendEspNow);
 				}
 				
 				free(SLT.espnow.recv.buf.data);				

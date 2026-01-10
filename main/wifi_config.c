@@ -32,9 +32,12 @@ void my_start_wifi(wifi_t* wifi)
 			
 			lseek(fd, POS_ADDR_GATEWAY, SEEK_SET);
 			read(fd, wifi->gateway_addr, 6);
-			set_duty_pwm(&SLT.Pwm, 1, 650);
+			
+			
 			if (is_same_macadrr(wifi->gateway_addr, wifi->sta_macaddr))
 			{
+				set_duty_pwm(&SLT.Pwm, 1, 650);
+				
 				wifi->is_gateway = true; 
 
 				esp_wifi_set_mode(WIFI_MODE_APSTA);

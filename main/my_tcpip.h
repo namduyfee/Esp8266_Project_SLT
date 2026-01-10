@@ -43,7 +43,7 @@ typedef struct
 	tcp_data_t data;			/**< store content and len */
 	uint16_t pos_data;			/**< start position of data to save in buffer */
 	off_t pos_in_file;			/**< position in file to save */
-	uint8_t command;			/**< command with file */
+	command_file_t command;			/**< command with file */
 	int tot_len;				/**< total length message */
 	
 } tcp_recv_t;

@@ -14,8 +14,10 @@
 
 #include "esp_wifi.h"
 #include "esp_now.h"
+#include "my_tcpip.h"
 
-#define MAX_BROADCAST_CNT 30
+
+#define MAX_BROADCAST_CNT 50
 #define MAC_ADDR_LEN 6
 #define CONFIG_ESPNOW_CHANNEL 1
 
@@ -99,8 +101,6 @@ typedef struct My_Esp_Now
 	} recv;
 	
 } My_Esp_Now_Typedef;
-
-
 
 
 void init_espnow(void); 

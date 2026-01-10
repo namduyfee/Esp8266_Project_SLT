@@ -140,7 +140,8 @@ static err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, er
 	
 	pbuf_copy_partial(p, client->recv.segment.data.content, p->tot_len, 0);
 	
-	if (((char*)client->recv.segment.data.content)[0] == 'S' && ((char*)client->recv.segment.data.content)[1] == 'L'  && ((char*)client->recv.segment.data.content)[2] == 'T')
+	if (((char*)client->recv.segment.data.content)[0] == 'S' && ((char*)client->recv.segment.data.content)[1] == 'L'  && 
+	    ((char*)client->recv.segment.data.content)[2] == 'T')
 	{
 		client->recv.segment.command = ((char*)client->recv.segment.data.content)[3];
 		
