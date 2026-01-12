@@ -24,7 +24,7 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 		return;
 	}
 	
-	if (((data[len - 1] << 8) | data[len - 2]) == 
+	if (( (uint16_t)(data[len - 1] << 8) | data[len - 2]) == 
 	crc16_modbus((uint8_t*)&data[ESPNOW_INDEX_CMD], len - ESPNOW_LEN_HEADER - ESPNOW_LEN_CRC))
 	{
 		buf_espnow_t tm;
@@ -92,8 +92,12 @@ static void init_my_esp_now(void)
 	
 	struct stat st;
 	int ret = stat("/spiffs/gateway.bin", &st);
-	int fd = ret < 0 ?  open("/spiffs/gateway.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : 
-						open("/spiffs/gateway.bin", O_RDWR | O_CREAT, 0666);
+	int fd = -1;
+	
+	if (ret >= 0)
+	{
+		fd = open("/spiffs/gateway.bin", O_RDONLY | O_CREAT, 0666);
+	}
 	
 	if (fd >= 0)
 	{
@@ -110,7 +114,7 @@ static void init_my_esp_now(void)
 				{
 					lseek(fd, current_f, SEEK_SET);
 					read(fd, tm_info, 1 + 6);
-					espnow_add_peer(&tm_info[1], tm_info[0]);
+					espnow_add_peer(&tm_info[1], tm_info[0], false);
 					current_f = lseek(fd, 0, SEEK_CUR);
 				}
 				set_duty_pwm(&SLT.Pwm, 0, 550);
@@ -131,7 +135,7 @@ void clear_all_peer(void)
 	if (SLT.espnow.tot_pos_added > 0)
 		SLT.espnow.tot_pos_added = 0;
 }
-uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position)
+uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 {
 	Peer_Typedef *tmp = NULL;
 	if (SLT.espnow.tot_pos_added == 0)
@@ -152,62 +156,76 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position)
 				{
 					return 0;
 				}
-					
-				struct stat st;
-				int ret2 = stat("/spiffs/gateway.bin", &st);
-				int fd = ret2 < 0 ?  open("/spiffs/gateway.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : 
-									open("/spiffs/gateway.bin", O_RDWR | O_CREAT, 0666);
+				
+				if (save == true)
+				{
+					struct stat st;
+					int ret2 = stat("/spiffs/gateway.bin", &st);
+					int fd = ret2 < 0 ?  open("/spiffs/gateway.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : 
+										open("/spiffs/gateway.bin", O_RDWR | O_CREAT, 0666);
 	
-				if (fd < 0)
-				{
-					return 0;
-				}
-				
-				memcpy((SLT.espnow.p_peer + i)->info.peer_addr, peer_addr, MAC_ADDR_LEN); 
-				(SLT.espnow.p_peer + i)->info.channel = CONFIG_ESPNOW_CHANNEL;
-				(SLT.espnow.p_peer + i)->info.encrypt = false;
-				(SLT.espnow.p_peer + i)->info.ifidx = ESP_IF_WIFI_STA;
-				esp_now_add_peer(&(SLT.espnow.p_peer + i)->info);
-				
-				off_t current_f = lseek(fd, 6, SEEK_SET); 
-				uint32_t len_f  = lseek(fd, 0, SEEK_END); 
-				uint8_t* tm_info = (uint8_t*)malloc(1 + 6);						
-				bool same_pos = false;
-
-				if (tm_info == NULL)
-				{
-					close(fd);
-					return 0;		
-				}
-				
-				while (current_f + 7 <= len_f)
-				{
-					lseek(fd, current_f, SEEK_SET); 
-					read(fd, tm_info, 7);
-					if (tm_info[0] == position)
+					if (fd < 0)
 					{
-						same_pos = true;
-						break;
+						return 0;
 					}
-					current_f = lseek(fd, 0, SEEK_CUR);
-				}
-				if (same_pos == true)
-				{
-					lseek(fd, current_f - 7, SEEK_SET);
-					write(fd, &position, 1);
-					write(fd, peer_addr, 6);
+					memcpy((SLT.espnow.p_peer + i)->info.peer_addr, peer_addr, MAC_ADDR_LEN); 
+					(SLT.espnow.p_peer + i)->info.channel = CONFIG_ESPNOW_CHANNEL;
+					(SLT.espnow.p_peer + i)->info.encrypt = false;
+					(SLT.espnow.p_peer + i)->info.ifidx = ESP_IF_WIFI_STA;
+					esp_now_add_peer(&(SLT.espnow.p_peer + i)->info);
+				
+					off_t current_f = lseek(fd, 6, SEEK_SET); 
+					uint32_t len_f  = lseek(fd, 0, SEEK_END); 
+					uint8_t* tm_info = (uint8_t*)malloc(1 + 6);						
+					bool same_pos = false;
+
+					if (tm_info == NULL)
+					{
+						close(fd);
+						return 0;		
+					}
+				
+					while (current_f + 7 <= len_f)
+					{
+						lseek(fd, current_f, SEEK_SET); 
+						read(fd, tm_info, 7);
+						if (tm_info[0] == position)
+						{
+							same_pos = true;
+							break;
+						}
+						current_f = lseek(fd, 0, SEEK_CUR);
+					}
+					if (same_pos == true)
+					{
+						lseek(fd, current_f - 7, SEEK_SET);
+						write(fd, &position, 1);
+						write(fd, peer_addr, 6);
+					}
+					else
+					{
+						if (len_f >= 6)
+							lseek(fd, 0, SEEK_END);
+						else 
+							lseek(fd, 6, SEEK_SET);
+						
+						write(fd, &position, 1);
+						write(fd, peer_addr, 6);			
+					}	
+							
+					free(tm_info);
+					close(fd);
+					return 1;
 				}
 				else
 				{
-					lseek(fd, 0, SEEK_END);
-					write(fd, &position, 1);
-					write(fd, peer_addr, 6);			
-				}	
-							
-				free(tm_info);
-				close(fd);
-				return 1;
-
+					memcpy((SLT.espnow.p_peer + i)->info.peer_addr, peer_addr, MAC_ADDR_LEN); 
+					(SLT.espnow.p_peer + i)->info.channel = CONFIG_ESPNOW_CHANNEL;
+					(SLT.espnow.p_peer + i)->info.encrypt = false;
+					(SLT.espnow.p_peer + i)->info.ifidx = ESP_IF_WIFI_STA;
+					esp_now_add_peer(&(SLT.espnow.p_peer + i)->info);	
+					return 1;
+				}
 			}
 		}
 		tmp = realloc(SLT.espnow.p_peer, (SLT.espnow.tot_pos_added + 1) * sizeof(Peer_Typedef));
@@ -232,21 +250,28 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position)
 		esp_now_add_peer(&(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info);  
 		
 	}
-	
-	struct stat st;
-	int ret = stat("/spiffs/gateway.bin", &st);
-	int fd = ret < 0 ?  open("/spiffs/gateway.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : 
-						open("/spiffs/gateway.bin", O_RDWR | O_CREAT, 0666);
-	
-	if (fd >= 0)
+	if (save == true)
 	{
-		lseek(fd, 0, SEEK_END);
-		write(fd, &position, 1);
-		write(fd, peer_addr, 6);
-		close(fd);
+		struct stat st;
+		int ret = stat("/spiffs/gateway.bin", &st);
+		int fd = ret < 0 ?  open("/spiffs/gateway.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : 
+							open("/spiffs/gateway.bin", O_RDWR | O_CREAT, 0666);
+	
+		if (fd >= 0)
+		{
+			lseek(fd, 0, SEEK_END);
+			write(fd, &position, 1);
+			write(fd, peer_addr, 6);
+			close(fd);
 		
+			return 1;
+		}	
+	}
+	else
+	{
 		return 1;
 	}
+	
 	return 0;
 }
 

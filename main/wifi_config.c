@@ -15,17 +15,22 @@ void init_wifi(void)
 void my_start_wifi(wifi_t* wifi)
 {
 	init_wifi();
-	
 	esp_wifi_get_mac(ESP_IF_WIFI_STA, wifi->sta_macaddr); 
+	set_duty_pwm(&SLT.Pwm, 1, 450);
 	
 	struct stat st;
 	int ret = stat("/spiffs/gateway.bin", &st);
-	int fd = ret < 0 ?  open("/spiffs/gateway.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : 
-						open("/spiffs/gateway.bin", O_RDWR | O_CREAT, 0666);
+	int fd = -1;
+	
+	if (ret >= 0)
+	{
+		fd = open("/spiffs/gateway.bin", O_RDONLY | O_CREAT, 0666);
+	}
+	
 	if (fd >= 0)
 	{
 		uint32_t len = lseek(fd, 0, SEEK_END);
-	
+		
 		if (len >= POS_ADDR_GATEWAY + 6)
 		{
 			SLT.espnow.gateway_added = true; 
@@ -33,7 +38,7 @@ void my_start_wifi(wifi_t* wifi)
 			lseek(fd, POS_ADDR_GATEWAY, SEEK_SET);
 			read(fd, wifi->gateway_addr, 6);
 			
-			
+			set_duty_pwm(&SLT.Pwm, 1, 550);
 			if (is_same_macadrr(wifi->gateway_addr, wifi->sta_macaddr))
 			{
 				set_duty_pwm(&SLT.Pwm, 1, 650);
@@ -58,6 +63,7 @@ void my_start_wifi(wifi_t* wifi)
 				
 				esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);		
 				esp_wifi_start();
+				SLT.espnow.mode_send = ESPNOW_WRITE;
 				close(fd);
 				return;
 			}

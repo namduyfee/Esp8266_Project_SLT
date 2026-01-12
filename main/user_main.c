@@ -8,6 +8,7 @@ void task_esp_now_recv();
 void task_tcp_file_bin(); 
 void task_select_master(); 
 
+
 Object SLT = {
 	.Pwm = {
 		.gpio_channel = {
@@ -50,7 +51,6 @@ QueueHandle_t xEspNowRecv;
 
 SemaphoreHandle_t xSendEspNow;
 
-
 void my_init_project(void)
 {
 	
@@ -85,6 +85,9 @@ void app_main(void) {
 	xSendEspNow = xSemaphoreCreateBinary(); 
 	xSemaphoreGive(xSendEspNow);
 	
+	xEspNowf = xSemaphoreCreateBinary(); 
+	xSemaphoreGive(xEspNowf); 
+		
 	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
 	
 	xTaskCreate(task_tcp_file_bin, "task_tcp_file_bin", MIN_SIZE_OP_FILE, NULL, 4, NULL);
@@ -118,9 +121,15 @@ void task_select_master()
 			{
 				/* handler when button is pressed */
 				
-				if (xSemaphoreTake(xSendEspNow, portMAX_DELAY) == pdPASS)
-				{
 
+				if (xSemaphoreTake(xEspNowf, portMAX_DELAY) == pdPASS)
+				{	
+					
+					struct stat st;
+					int ret = stat("/spiffs/gateway.bin", &st);
+					if(ret >= 0)
+						unlink("/spiffs/data.bin");
+					
 					int fd = open("/spiffs/gateway.bin", O_RDWR | O_CREAT | O_TRUNC, 0666);
 					
 					if (fd >= 0)
@@ -132,9 +141,13 @@ void task_select_master()
 						write(fd, SLT.wifi.gateway_addr, MAC_ADDR_LEN);
 						close(fd);
 					}
-					
+					xSemaphoreGive(xEspNowf);
+				}	
+				
 
-					if (SLT.wifi.is_gateway == true)
+				if (SLT.wifi.is_gateway == true)
+				{
+					if (xSemaphoreTake(xSendEspNow, portMAX_DELAY) == pdPASS)
 					{
 						SLT.espnow.mode_send = BROADCAST;
 						SLT.espnow.broadcast_cnt = 0;
@@ -159,7 +172,7 @@ void task_select_master()
 								.password = "12345678",
 								.channel = CONFIG_ESPNOW_CHANNEL, 
 								.authmode = WIFI_AUTH_WPA_WPA2_PSK		
-								}	
+							}	
 							};
 							memcpy(ap_config.ap.ssid, result, strlen(result));
 							ap_config.ap.ssid_len = strlen(result);
@@ -168,12 +181,10 @@ void task_select_master()
 							esp_wifi_start();				
 					
 						}
-						init_espnow();						
+						init_espnow();	
+						xSemaphoreGive(xSendEspNow);
 					}
-					
-					xSemaphoreGive(xSendEspNow);
 				}
-				
 			}
 		}		
 		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
@@ -215,17 +226,34 @@ void task_esp_now_recv()
 						init_espnow();
 						
 						
-						/** store gateway macaddr */				
-
-						int fd = open("/spiffs/gateway.bin", O_RDWR | O_CREAT | O_TRUNC, 0666);			/**< open and trunc file */
+						/** store gateway macaddr */	
+						bool saved = false;
 						
-						if (fd >= 0)
+						if (xSemaphoreTake(xEspNowf, portMAX_DELAY) == pdPASS)
 						{
-							memcpy(SLT.wifi.gateway_addr, &data[ESPNOW_INDEX_ADDR], MAC_ADDR_LEN);
-							lseek(fd, POS_ADDR_GATEWAY, SEEK_SET);
-							write(fd, SLT.wifi.gateway_addr, 6);
-							SLT.wifi.is_gateway = false;
+							
+							struct stat st;
+							int ret = stat("/spiffs/gateway.bin", &st);
+							if (ret >= 0)
+								unlink("/spiffs/data.bin");
+						
+							int fd = open("/spiffs/gateway.bin", O_RDWR | O_CREAT | O_TRUNC, 0666);			/**< open and trunc file */
+						
+							if (fd >= 0)
+							{
+								memcpy(SLT.wifi.gateway_addr, &data[ESPNOW_INDEX_ADDR], MAC_ADDR_LEN);
+								lseek(fd, POS_ADDR_GATEWAY, SEEK_SET);
+								write(fd, SLT.wifi.gateway_addr, 6);
+								SLT.wifi.is_gateway = false;
+								close(fd);
 								
+								espnow_add_peer((uint8_t*)&data[ESPNOW_INDEX_ADDR], data[ESPNOW_INDEX_POS], true);		/**< add gateway into list peer */
+								saved = true;
+							}
+							xSemaphoreGive(xEspNowf);
+						}
+						if (saved == true)
+						{
 							/** after add peer gateway; send request add this peer to gateway */
 							if (xSemaphoreTake(xSendEspNow, portMAX_DELAY) == pdPASS)
 							{
@@ -233,19 +261,17 @@ void task_esp_now_recv()
 								SLT.espnow.gateway_added = false;
 								set_duty_pwm(&SLT.Pwm, 3, 740);
 								xSemaphoreGive(xSendEspNow);
-							}	
-							
-							close(fd);
+							}
 						}
-
-						espnow_add_peer((uint8_t*)&data[ESPNOW_INDEX_ADDR], data[ESPNOW_INDEX_POS]);		/**< add gateway into list peer */
-						
-				
 					}
 					
 					else if (data[ESPNOW_INDEX_CMD] == ADD_PEER)
 					{
-						espnow_add_peer((uint8_t*)&data[ESPNOW_INDEX_ADDR], data[ESPNOW_INDEX_POS]); 
+						if (xSemaphoreTake(xEspNowf, portMAX_DELAY) == pdPASS)
+						{
+							espnow_add_peer((uint8_t*)&data[ESPNOW_INDEX_ADDR], data[ESPNOW_INDEX_POS], true); 
+							xSemaphoreGive(xEspNowf);
+						}
 						set_duty_pwm(&SLT.Pwm, 3, 780);
 					}
 					else if (data[ESPNOW_INDEX_CMD] == ESPNOW_WRITE)
@@ -259,10 +285,9 @@ void task_esp_now_recv()
 							set_duty_pwm(&SLT.Pwm, 0, 800);
 						}
 					}
-					xSemaphoreGive(xSendEspNow);
 				}
-				
-				free(SLT.espnow.recv.buf.data);				
+				if (SLT.espnow.recv.buf.data != NULL)
+					free(SLT.espnow.recv.buf.data);				
 			}
 
 		}

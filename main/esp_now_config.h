@@ -104,7 +104,7 @@ typedef struct My_Esp_Now
 
 
 void init_espnow(void); 
-uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position);   
+uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save);   
 bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);  
 void clear_all_peer(void);
 uint16_t crc16_modbus(uint8_t *buf, uint32_t len); 
