@@ -11,7 +11,7 @@
  *		ADD_PEER		 : SLT + ADD_PEER (CMD) + SIZE + POSTION TO ADD + ADDRESS TO ADD + CHECKSUM
  *		GET_PEER		 : SLT + GET_PEER (CMD) + SIZE + POSTION TO GET + CHECKSUM (IF POSTION = 0xFF THEN GET ALL PEER) + CHECKSUM
  *		ESPNOW_READ		 : 
- *		ESPNOW_WRITE	 : SLT + ESPNOW_WRITE (CMD) + SIZE + DATA1, .. DATAN + CHECKSUM	
+ *		ESPNOW_WRITE	 : SLT + ESPNOW_WRITE (CMD) + SIZE + SEQUENCE NUMBER + DATA1, .. DATAN + CHECKSUM	
  */
 
 static void init_my_esp_now(void);
@@ -47,7 +47,6 @@ static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status)
 		{
 			if (SLT.espnow.mode_send == BROADCAST)
 			{
-				set_duty_pwm(&SLT.Pwm, 3, 600);
 				
 			}
 			else if (SLT.espnow.mode_send == ADD_PEER)
@@ -117,7 +116,6 @@ static void init_my_esp_now(void)
 					espnow_add_peer(&tm_info[1], tm_info[0], false);
 					current_f = lseek(fd, 0, SEEK_CUR);
 				}
-				set_duty_pwm(&SLT.Pwm, 0, 550);
 				free(tm_info);
 			}
 		}

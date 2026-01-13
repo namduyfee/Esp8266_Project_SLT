@@ -177,12 +177,23 @@ static err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, er
 											(((uint8_t*)client->recv.segment.data.content)[9] << 8)   | (((uint8_t*)client->recv.segment.data.content)[8] << 0);	
 			
 			client->send.request = true;
+						
+			uint8_t header [12] = {'S', 'L', 'T'}; header[3] = WRITE;
+			/* offset */
+			header[4] = ((uint8_t*)client->recv.segment.data.content)[4]; 
+			header[5] = ((uint8_t*)client->recv.segment.data.content)[5]; 
+			header[6] = ((uint8_t*)client->recv.segment.data.content)[6]; 
+			header[7] = ((uint8_t*)client->recv.segment.data.content)[7]; 
+			/* size */
+			header[8]  = ((uint8_t*)client->recv.segment.data.content)[8]; 
+			header[9]  = ((uint8_t*)client->recv.segment.data.content)[9]; 
+			header[10] = ((uint8_t*)client->recv.segment.data.content)[10]; 
+			header[11] = ((uint8_t*)client->recv.segment.data.content)[11];			
+			
+			tcp_write(tpcb, header, sizeof(header), TCP_WRITE_FLAG_COPY);	
 			
 			free(client->recv.segment.data.content);
 			client->recv.segment.data.content = NULL;
-			
-			const char *reply = "SLT";
-			tcp_write(tpcb, reply, strlen(reply), TCP_WRITE_FLAG_COPY);	
 		}
 		else if (client->recv.segment.command == WRITE)
 		{
@@ -209,6 +220,11 @@ static err_t server_recv_tcp(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, er
 		client->recv.segment.tot_len = REMAINING; 
 
 	}
+	if (client->recv.segment.command != READ)
+	{
+		const char* rely = " ack\n";
+		tcp_write(tpcb, rely, strlen(rely), TCP_WRITE_FLAG_COPY);
+	}
 
 	xQueueSendToBack(xBuffLoadf, &client->recv.segment, portMAX_DELAY);
 
@@ -232,7 +248,8 @@ static err_t server_sent_tcp(void* arg, struct tcp_pcb* tpcb, uint16_t len)
 			else
 			{
 				tcp_write(tpcb, client->send.data.content, client->send.data.len, TCP_WRITE_FLAG_COPY);	 
-				free(client->send.data.content);		
+				if (client->send.data.content != NULL)
+					free(client->send.data.content);		
 			}
 		}
 	}

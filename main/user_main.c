@@ -32,7 +32,7 @@ Object SLT = {
 		.tot_pos_added = 0,
 		.gateway_added = false,
 		.broadcast_cnt = 0,
-		.my_pos = 1,
+		.my_pos = 10,
 		.mode_send = NONE_ESPNOW
 	},
 	.wifi = {
@@ -42,13 +42,12 @@ Object SLT = {
 	
 };
 
-QueueHandle_t xBuffLoadf;
-QueueHandle_t xBuffSendf;
+QueueHandle_t xBuffLoadf;					/**< get data from tcp recv callback */
+QueueHandle_t xBuffSendf;					/**< get data from task then send tcp */
+QueueHandle_t xEspNowRecv;					/**< get data from espnow recv callback */
 
-QueueHandle_t xEspNowf;
 
-QueueHandle_t xEspNowRecv;
-
+SemaphoreHandle_t xEspNowf;
 SemaphoreHandle_t xSendEspNow;
 
 void my_init_project(void)
@@ -98,7 +97,18 @@ void app_main(void) {
 	
 }
 
-
+/**
+ * @brief	task handler select master
+ * 
+ * @details	
+ *	- press button to become master
+ *	- erase and init file that store info gateway and peers
+ *	- switch from sta mode to apsta mode
+ *	- broadcast
+ * @note
+ *	- semaphore
+ *	
+ */
 void task_select_master()
 {
 	
@@ -119,12 +129,12 @@ void task_select_master()
 			
 			if (count >= 100)
 			{
-				/* handler when button is pressed */
+				/* handle when button is pressed */
 				
 
 				if (xSemaphoreTake(xEspNowf, portMAX_DELAY) == pdPASS)
 				{	
-					
+					/** erase and restore file that has info gateway and peer */
 					struct stat st;
 					int ret = stat("/spiffs/gateway.bin", &st);
 					if(ret >= 0)
@@ -144,7 +154,7 @@ void task_select_master()
 					xSemaphoreGive(xEspNowf);
 				}	
 				
-
+				/** if info of gateway is stored, switch wifi mode and begin broadcast */
 				if (SLT.wifi.is_gateway == true)
 				{
 					if (xSemaphoreTake(xSendEspNow, portMAX_DELAY) == pdPASS)
@@ -191,7 +201,12 @@ void task_select_master()
 	}
 }
 /**
- *	@brief	task handler espnow receive
+ * @brief	task handler espnow receive
+ *	
+ * @details
+ *	- get data from espnow recv callback through queue			
+ *
+ *
  */
 void task_esp_now_recv()
 {
@@ -200,7 +215,6 @@ void task_esp_now_recv()
 	{
 		if (xQueueReceive(xEspNowRecv, &SLT.espnow.recv.buf, portMAX_DELAY) == pdPASS)
 		{
-			
 			uint8_t* data = (uint8_t*)SLT.espnow.recv.buf.data;
 			uint32_t len = SLT.espnow.recv.buf.len;
 			
@@ -208,6 +222,12 @@ void task_esp_now_recv()
 			{
 				if (data[0] == 'S' && data[1] == 'L' && data[2] == 'T')
 				{
+					/** 
+					 *	if recv broadcast
+					 *		- erase and restore file that has info gateway and peers
+					 *		- switch from apsta mode to sta mode
+					 *		- send request add peer to master
+					 */
 					if (data[ESPNOW_INDEX_CMD] == BROADCAST)
 					{
 						esp_now_deinit();
@@ -259,7 +279,6 @@ void task_esp_now_recv()
 							{
 								SLT.espnow.mode_send = ADD_PEER;
 								SLT.espnow.gateway_added = false;
-								set_duty_pwm(&SLT.Pwm, 3, 740);
 								xSemaphoreGive(xSendEspNow);
 							}
 						}
@@ -272,7 +291,6 @@ void task_esp_now_recv()
 							espnow_add_peer((uint8_t*)&data[ESPNOW_INDEX_ADDR], data[ESPNOW_INDEX_POS], true); 
 							xSemaphoreGive(xEspNowf);
 						}
-						set_duty_pwm(&SLT.Pwm, 3, 780);
 					}
 					else if (data[ESPNOW_INDEX_CMD] == ESPNOW_WRITE)
 					{
@@ -296,7 +314,10 @@ void task_esp_now_recv()
 	
 }
 /**
- *	@brief	
+ * @brief	task send espnow
+ *	
+ * @note
+ *	- vtaskdelay must be called after givesemaphore; unless this task will takesemaphore sooner other task
  */
 void task_esp_now_send() 
 {
@@ -337,6 +358,7 @@ void task_esp_now_send()
 		
 		if (xSemaphoreTake(xSendEspNow, portMAX_DELAY) == pdPASS)
 		{
+			/** broadcast time = MAX_BROADCAST_CNT * BROADCAST_CYCLE (ms) */
 			if (SLT.espnow.mode_send == BROADCAST)
 			{ 	
 				if (SLT.espnow.can_send == true)
@@ -358,12 +380,11 @@ void task_esp_now_send()
 					SLT.espnow.mode_send = ESPNOW_WRITE;
 				
 				xSemaphoreGive(xSendEspNow);
-				vTaskDelay(pdMS_TO_TICKS(200));
+				vTaskDelay(pdMS_TO_TICKS(BROADCAST_CYCLE));
 
 			}
 			else if (SLT.espnow.mode_send == ADD_PEER)
 			{
-
 				if (SLT.espnow.gateway_added == false)
 				{
 					if (SLT.espnow.can_send == true)
@@ -543,28 +564,56 @@ void task_tcp_file_bin()
 				else
 				{
 					
-					lseek(fd, SLT.server.recv.segment.pos_in_file, SEEK_SET); 
-					uint32_t remaining = SLT.server.recv.segment.data.len;
-					
-					
-					while (remaining > 0)
+					if (SLT.server.recv.segment.pos_in_file >= 
+					    lseek(fd, 0, SEEK_END))
 					{
-						SLT.server.send.data.len = remaining <= 512 ? remaining : 512; 
-						SLT.server.send.data.content = malloc(SLT.server.send.data.len); 
-						
-						if (SLT.server.send.data.content != NULL)
-						{
-							read(fd, SLT.server.send.data.content, SLT.server.send.data.len);
-						
-							xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
-							remaining = remaining - SLT.server.send.data.len;						
-						}
-						else
-						{
-							break;
-						}
+						SLT.server.send.data.len = 5;
+						SLT.server.send.data.content = malloc(SLT.server.send.data.len);
+						memcpy(SLT.server.send.data.content, "error", SLT.server.send.data.len);
+						xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
 					}
+					else
+					{
+						uint32_t len_f = lseek(fd, 0, SEEK_END);
+						
+						off_t current_off = lseek(fd, SLT.server.recv.segment.pos_in_file, SEEK_SET); 
+						
+						uint32_t remaining = SLT.server.recv.segment.data.len;
 					
+						while (remaining > 0)
+						{
+							
+							SLT.server.send.data.len = remaining <= 512 ? remaining : 512; 
+							
+							if (len_f - current_off < SLT.server.send.data.len)
+							{
+								SLT.server.send.data.len = len_f - current_off;
+								SLT.server.send.data.content = malloc(SLT.server.send.data.len);
+								if (SLT.server.send.data.content != NULL)
+								{
+									read(fd, SLT.server.send.data.content, SLT.server.send.data.len);
+									current_off = lseek(fd, 0, SEEK_CUR);
+									xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
+								}
+								break;
+							}
+							SLT.server.send.data.content = malloc(SLT.server.send.data.len); 
+						
+							if (SLT.server.send.data.content != NULL)
+							{
+								read(fd, SLT.server.send.data.content, SLT.server.send.data.len);
+								current_off = lseek(fd, 0, SEEK_CUR);
+						
+								xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
+								remaining = remaining - SLT.server.send.data.len;						
+							}
+							else
+							{
+								break;
+							}
+						}						
+					}
+
 					if (SLT.server.recv.segment.data.content != NULL) 
 					{
 						free(SLT.server.recv.segment.data.content);

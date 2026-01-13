@@ -16,7 +16,6 @@ void my_start_wifi(wifi_t* wifi)
 {
 	init_wifi();
 	esp_wifi_get_mac(ESP_IF_WIFI_STA, wifi->sta_macaddr); 
-	set_duty_pwm(&SLT.Pwm, 1, 450);
 	
 	struct stat st;
 	int ret = stat("/spiffs/gateway.bin", &st);
@@ -38,10 +37,8 @@ void my_start_wifi(wifi_t* wifi)
 			lseek(fd, POS_ADDR_GATEWAY, SEEK_SET);
 			read(fd, wifi->gateway_addr, 6);
 			
-			set_duty_pwm(&SLT.Pwm, 1, 550);
 			if (is_same_macadrr(wifi->gateway_addr, wifi->sta_macaddr))
 			{
-				set_duty_pwm(&SLT.Pwm, 1, 650);
 				
 				wifi->is_gateway = true; 
 

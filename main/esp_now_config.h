@@ -20,6 +20,7 @@
 #define MAX_BROADCAST_CNT 50
 #define MAC_ADDR_LEN 6
 #define CONFIG_ESPNOW_CHANNEL 1
+#define BROADCAST_CYCLE 200
 
 #define ESPNOW_INDEX_HEADER 0
 #define ESPNOW_LEN_HEADER 3
@@ -57,6 +58,7 @@ typedef struct
 {
 	void* data;
 	uint32_t len;		/**< total byte */
+	uint8_t seq_num;	/**< Sequence Number of buf */
 	
 } buf_espnow_t;
 
@@ -65,12 +67,14 @@ typedef struct Peer
 	esp_now_peer_info_t info;
 	struct
 	{
-		buf_espnow_t buf; 
+		buf_espnow_t* buf;
+		uint8_t tot_buf;			/**< number of serial numbers available */
 	} send;
 	
 	struct
 	{
-		buf_espnow_t buf;
+		buf_espnow_t* buf;
+		uint8_t tot_buf;
 	} recv;
 	
 	uint8_t position;				/**< position of peer in system */
