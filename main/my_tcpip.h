@@ -17,6 +17,7 @@
 #include "lwip/tcp.h"
 #include "lwip/ip_addr.h"
 #include "lwip/netif.h"
+#include "lwip/opt.h"
 
 #define POS_CONTINUE -1
 #define REMAINING -1
@@ -94,6 +95,9 @@ typedef struct
 	void* header;
 
 	void* arg;
+	
+	tcp_client_t* client;
+	
 } tcp_server_t;
 
 

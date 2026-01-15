@@ -9,6 +9,7 @@
 #include "gpio_config.h"
 #include "spiffs_config.h"
 #include "my_tcpip.h"
+#include "my_effect.h"
 
 typedef struct 
 {
@@ -16,6 +17,7 @@ typedef struct
 	tcp_server_t server;
 	My_Esp_Now_Typedef espnow; 
 	wifi_t wifi;
+	effect_manage_t effMana; 
 	
 } Object;
 

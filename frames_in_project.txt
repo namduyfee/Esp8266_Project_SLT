@@ -1,0 +1,35 @@
+
+- tk nhấn reset sau sẽ bị lỗi 
+
+
+- tạo frame.
+
+
+- xây dựng khung truyền và xử lý, copy vào biến.
+
+TCP:
+
+delete, open, close:
+- 'TCP' + CMD (D O C)
+-> trả về 'TCP' + CMD (RETURN D O C) + state
+
+read
+- 'TCP' + CMD (READ) + offset + size
+-> trả về 'TCP' + CMD (RETURN READ) + offset + size + data 
+wirte
+- 'TCP' + CMD (WRITE) + offset + size + data
+
+ESPNOW:
+delete, open, close:
+- 'ESPNOW' + CMD (D O C) + checksum
+-> trả về 'ESPNOW' + CMD (RETURN D O C) + state + checksum
+
+read
+- 'ESPNOW' + CMD (READ) + offset + size + checksum
+-> trả về 'ESPNOW' + CMD (RETURN READ) + offset + size + data + 
+wirte
++ TOTAL SEGMENT of Message + SEQUENCE NUMBER + DATA + CHECKSUM
+
+
+
+- lưu xuống file.

@@ -32,7 +32,7 @@ Object SLT = {
 		.tot_pos_added = 0,
 		.gateway_added = false,
 		.broadcast_cnt = 0,
-		.my_pos = 10,
+		.my_pos = 1,
 		.mode_send = NONE_ESPNOW
 	},
 	.wifi = {
@@ -296,11 +296,11 @@ void task_esp_now_recv()
 					{
 						if (data[ESPNOW_INDEX_DATA] == 'a')
 						{
-							set_duty_pwm(&SLT.Pwm, 0, 650);
+							set_duty_pwm(&SLT.Pwm, 0, 100);
 						}	
 						else if (data[ESPNOW_INDEX_DATA] == 'b')
 						{
-							set_duty_pwm(&SLT.Pwm, 0, 800);
+							set_duty_pwm(&SLT.Pwm, 0, 150);
 						}
 					}
 				}
@@ -563,56 +563,57 @@ void task_tcp_file_bin()
 				}
 				else
 				{
-					
-					if (SLT.server.recv.segment.pos_in_file >= 
-					    lseek(fd, 0, SEEK_END))
-					{
-						SLT.server.send.data.len = 5;
-						SLT.server.send.data.content = malloc(SLT.server.send.data.len);
-						memcpy(SLT.server.send.data.content, "error", SLT.server.send.data.len);
-						xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
-					}
-					else
-					{
-						uint32_t len_f = lseek(fd, 0, SEEK_END);
-						
-						off_t current_off = lseek(fd, SLT.server.recv.segment.pos_in_file, SEEK_SET); 
-						
-						uint32_t remaining = SLT.server.recv.segment.data.len;
-					
-						while (remaining > 0)
-						{
-							
-							SLT.server.send.data.len = remaining <= 512 ? remaining : 512; 
-							
-							if (len_f - current_off < SLT.server.send.data.len)
-							{
-								SLT.server.send.data.len = len_f - current_off;
-								SLT.server.send.data.content = malloc(SLT.server.send.data.len);
-								if (SLT.server.send.data.content != NULL)
-								{
-									read(fd, SLT.server.send.data.content, SLT.server.send.data.len);
-									current_off = lseek(fd, 0, SEEK_CUR);
-									xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
-								}
-								break;
-							}
-							SLT.server.send.data.content = malloc(SLT.server.send.data.len); 
-						
-							if (SLT.server.send.data.content != NULL)
-							{
-								read(fd, SLT.server.send.data.content, SLT.server.send.data.len);
-								current_off = lseek(fd, 0, SEEK_CUR);
-						
-								xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
-								remaining = remaining - SLT.server.send.data.len;						
-							}
-							else
-							{
-								break;
-							}
-						}						
-					}
+					const char* header = "hello ok"; 
+					tcp_write(SLT.server.client->tpcb, header, sizeof(header), TCP_WRITE_FLAG_COPY);
+//					if (SLT.server.recv.segment.pos_in_file >= 
+//					    lseek(fd, 0, SEEK_END))
+//					{
+//						SLT.server.send.data.len = 5;
+//						SLT.server.send.data.content = malloc(SLT.server.send.data.len);
+//						memcpy(SLT.server.send.data.content, "error", SLT.server.send.data.len);
+//						xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
+//					}
+//					else
+//					{
+//						uint32_t len_f = lseek(fd, 0, SEEK_END);
+//						
+//						off_t current_off = lseek(fd, SLT.server.recv.segment.pos_in_file, SEEK_SET); 
+//						
+//						uint32_t remaining = SLT.server.recv.segment.data.len;
+//					
+//						while (remaining > 0)
+//						{
+//							
+//							SLT.server.send.data.len = remaining <= 512 ? remaining : 512; 
+//							
+//							if (len_f - current_off < SLT.server.send.data.len)
+//							{
+//								SLT.server.send.data.len = len_f - current_off;
+//								SLT.server.send.data.content = malloc(SLT.server.send.data.len);
+//								if (SLT.server.send.data.content != NULL)
+//								{
+//									read(fd, SLT.server.send.data.content, SLT.server.send.data.len);
+//									current_off = lseek(fd, 0, SEEK_CUR);
+//									xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
+//								}
+//								break;
+//							}
+//							SLT.server.send.data.content = malloc(SLT.server.send.data.len); 
+//						
+//							if (SLT.server.send.data.content != NULL)
+//							{
+//								read(fd, SLT.server.send.data.content, SLT.server.send.data.len);
+//								current_off = lseek(fd, 0, SEEK_CUR);
+//						
+//								xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
+//								remaining = remaining - SLT.server.send.data.len;						
+//							}
+//							else
+//							{
+//								break;
+//							}
+//						}						
+//					}
 
 					if (SLT.server.recv.segment.data.content != NULL) 
 					{
@@ -621,9 +622,9 @@ void task_tcp_file_bin()
 					}
 				}
 				
-				SLT.server.send.data.content = NULL;
-				SLT.server.send.data.len = 0; 
-				xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
+//				SLT.server.send.data.content = NULL;
+//				SLT.server.send.data.len = 0; 
+//				xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
 			}
 			else if (SLT.server.recv.segment.command == WRITE)
 			{
