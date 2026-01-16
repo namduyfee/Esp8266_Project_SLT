@@ -43,7 +43,6 @@ Object SLT = {
 };
 
 QueueHandle_t xBuffLoadf;					/**< get data from tcp recv callback */
-QueueHandle_t xBuffSendf;					/**< get data from task then send tcp */
 QueueHandle_t xEspNowRecv;					/**< get data from espnow recv callback */
 
 
@@ -64,9 +63,9 @@ void my_init_project(void)
 	
 	my_start_wifi(&SLT.wifi);
 	
-	init_server_tpcp(80, 5);
+	init_server_tpcp(80, 1);
 	
-	init_espnow();
+//	init_espnow();
 }
 
 
@@ -77,8 +76,6 @@ void app_main(void) {
 	
 	xBuffLoadf = xQueueCreate(30, sizeof(tcp_recv_t));
 	
-	xBuffSendf = xQueueCreate(10, sizeof(tcp_data_t)); 
-	
 	xEspNowRecv = xQueueCreate(10, sizeof(buf_espnow_t));
 	
 	xSendEspNow = xSemaphoreCreateBinary(); 
@@ -87,13 +84,13 @@ void app_main(void) {
 	xEspNowf = xSemaphoreCreateBinary(); 
 	xSemaphoreGive(xEspNowf); 
 		
-	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
+//	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
 	
 	xTaskCreate(task_tcp_file_bin, "task_tcp_file_bin", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 	xTaskCreate(task_select_master, "task_select_master", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 		 
-	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
+//	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 }
 
@@ -165,8 +162,8 @@ void task_select_master()
 						wifi_mode_t mode;
 						esp_wifi_get_mode(&mode);
 						
-						esp_now_deinit();
-						clear_all_peer();
+//						esp_now_deinit();
+//						clear_all_peer();
 					
 						if (mode != WIFI_MODE_APSTA)
 						{
@@ -191,7 +188,7 @@ void task_select_master()
 							esp_wifi_start();				
 					
 						}
-						init_espnow();	
+//						init_espnow();	
 						xSemaphoreGive(xSendEspNow);
 					}
 				}
@@ -482,31 +479,14 @@ void task_tcp_file_bin()
 	{
 		if (xQueueReceive(xBuffLoadf, &SLT.server.recv.segment, portMAX_DELAY) == pdPASS)
 		{	
-			if (SLT.server.recv.segment.command == FORMAT)
-			{
-				if (SLT.server.recv.segment.data.content != NULL) 
-				{
-					free(SLT.server.recv.segment.data.content);
-					SLT.server.recv.segment.data.content = NULL;
-				}
-				
-				if (fd >= 0)
-				{
-					close(fd);
-					fd = -100;					
-				}
-				
-				esp_spiffs_format(NULL);
-				spiffs_init(); 
-			}
-			
-			else if (SLT.server.recv.segment.command == OPEN)
+
+			if (SLT.server.recv.segment.command == TCP_OPEN)
 			{
 				
-				if (SLT.server.recv.segment.data.content != NULL) 
+				if (SLT.server.recv.segment.buf.data != NULL) 
 				{
-					free(SLT.server.recv.segment.data.content);
-					SLT.server.recv.segment.data.content = NULL;
+					free(SLT.server.recv.segment.buf.data);
+					SLT.server.recv.segment.buf.data = NULL;
 				}
 				
 				if (fd < 0)
@@ -518,28 +498,49 @@ void task_tcp_file_bin()
 					
 				}
 				
+				if (fd >= 0)
+				{
+					tcp_ret_cmd('o', 't');
+				//	retTcpCmd(TCP_OPEN_RET, true); 
+				}
+				else 
+				{
+					tcp_ret_cmd('o', 'f');
+				//	retTcpCmd(TCP_OPEN_RET, false);
+				}
 
 			}
-			else if (SLT.server.recv.segment.command == CLOSE)
+			else if (SLT.server.recv.segment.command == TCP_CLOSE)
 			{
-				if (SLT.server.recv.segment.data.content != NULL) 
+				if (SLT.server.recv.segment.buf.data != NULL) 
 				{
-					free(SLT.server.recv.segment.data.content);
-					SLT.server.recv.segment.data.content = NULL;
+					free(SLT.server.recv.segment.buf.data);
+					SLT.server.recv.segment.buf.data = NULL;
 				}
 				if (fd >= 0)
 				{
 					close(fd);
 					fd = -100;					
 				}
+				
+				if (fd < 0)
+				{
+					tcp_ret_cmd('c', 't');
+				//	retTcpCmd(TCP_CLOSE_RET, true); 
+				}
+				else 
+				{
+					tcp_ret_cmd('c', 'f');
+				//	retTcpCmd(TCP_CLOSE_RET, false);
+				}
 
 			}			
-			else if (SLT.server.recv.segment.command == DELETE)
+			else if (SLT.server.recv.segment.command == TCP_DELETE)
 			{
-				if (SLT.server.recv.segment.data.content != NULL) 
+				if (SLT.server.recv.segment.buf.data != NULL) 
 				{
-					free(SLT.server.recv.segment.data.content);
-					SLT.server.recv.segment.data.content = NULL;
+					free(SLT.server.recv.segment.buf.data);
+					SLT.server.recv.segment.buf.data = NULL;
 				}
 
 				if (fd >= 0) 
@@ -548,98 +549,155 @@ void task_tcp_file_bin()
 					fd = -100;
 				}
 				unlink("/spiffs/data.bin");
+				
+				struct stat st;
+				int ret = stat("/spiffs/data.bin", &st);
+				
+				if (ret < 0)
+				{
+					tcp_ret_cmd('d', 't');
+				//	retTcpCmd(TCP_DELETE_RET, true); 
+				}
+				else 
+				{
+					tcp_ret_cmd('d', 'f');
+				//	retTcpCmd(TCP_DELETE_RET, false);
+				}
 
+				
 			}
 			
-			else if (SLT.server.recv.segment.command == READ)
+			else if (SLT.server.recv.segment.command == TCP_READ)
 			{
 				if (fd < 0)
 				{
-					if (SLT.server.recv.segment.data.content != NULL) 
+					if (SLT.server.recv.segment.buf.data != NULL) 
 					{
-						free(SLT.server.recv.segment.data.content);
-						SLT.server.recv.segment.data.content = NULL;
-					}		
+						free(SLT.server.recv.segment.buf.data);
+						SLT.server.recv.segment.buf.data = NULL;
+					}
+					tcp_ret_cmd('r', 'f');
+					//	retTcpCmd(TCP_READ_RET, false);
 				}
 				else
 				{
-					const char* header = "hello ok"; 
-					tcp_write(SLT.server.client->tpcb, header, sizeof(header), TCP_WRITE_FLAG_COPY);
-//					if (SLT.server.recv.segment.pos_in_file >= 
-//					    lseek(fd, 0, SEEK_END))
-//					{
-//						SLT.server.send.data.len = 5;
-//						SLT.server.send.data.content = malloc(SLT.server.send.data.len);
-//						memcpy(SLT.server.send.data.content, "error", SLT.server.send.data.len);
-//						xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
-//					}
-//					else
-//					{
-//						uint32_t len_f = lseek(fd, 0, SEEK_END);
-//						
-//						off_t current_off = lseek(fd, SLT.server.recv.segment.pos_in_file, SEEK_SET); 
-//						
-//						uint32_t remaining = SLT.server.recv.segment.data.len;
-//					
-//						while (remaining > 0)
-//						{
-//							
-//							SLT.server.send.data.len = remaining <= 512 ? remaining : 512; 
-//							
-//							if (len_f - current_off < SLT.server.send.data.len)
-//							{
-//								SLT.server.send.data.len = len_f - current_off;
-//								SLT.server.send.data.content = malloc(SLT.server.send.data.len);
-//								if (SLT.server.send.data.content != NULL)
-//								{
-//									read(fd, SLT.server.send.data.content, SLT.server.send.data.len);
-//									current_off = lseek(fd, 0, SEEK_CUR);
-//									xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
-//								}
-//								break;
-//							}
-//							SLT.server.send.data.content = malloc(SLT.server.send.data.len); 
-//						
-//							if (SLT.server.send.data.content != NULL)
-//							{
-//								read(fd, SLT.server.send.data.content, SLT.server.send.data.len);
-//								current_off = lseek(fd, 0, SEEK_CUR);
-//						
-//								xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
-//								remaining = remaining - SLT.server.send.data.len;						
-//							}
-//							else
-//							{
-//								break;
-//							}
-//						}						
-//					}
 
-					if (SLT.server.recv.segment.data.content != NULL) 
+					
+					if (SLT.server.recv.segment.pos_in_file >= 
+					    lseek(fd, 0, SEEK_END))
 					{
-						free(SLT.server.recv.segment.data.content);
-						SLT.server.recv.segment.data.content = NULL;
+						tcp_ret_cmd('r', 'f');
+						//	retTcpCmd(TCP_READ_RET, false);
+					}
+					else
+					{
+						tcp_ret_cmd('r', 't');
+						//	retTcpCmd(TCP_READ_RET, true);
+						
+						uint32_t len_f = lseek(fd, 0, SEEK_END);
+						
+						off_t current_off = lseek(fd, SLT.server.recv.segment.pos_in_file, SEEK_SET); 
+						
+						uint32_t remaining = SLT.server.recv.segment.buf.len;
+					
+						while (remaining > 0)
+						{
+							bool can_break = false;
+							lseek(fd, current_off, SEEK_SET);
+							
+							SLT.server.send.buf = malloc(sizeof(tcp_buf_t));
+							if (SLT.server.send.buf == NULL)
+							{
+								tcp_ret_cmd('r', 'f');
+								//	retTcpCmd(TCP_READ_RET, false);
+								break;
+							}
+							
+							SLT.server.send.buf->len = remaining <= 512 ? remaining : 512; 
+							
+							if (len_f - current_off < SLT.server.send.buf->len)
+							{
+								SLT.server.send.buf->len = len_f - current_off;
+								SLT.server.send.buf->data = malloc(SLT.server.send.buf->len);
+								if (SLT.server.send.buf->data != NULL)
+								{
+									read(fd, SLT.server.send.buf->data, SLT.server.send.buf->len);
+									
+									if (tcpip_callback(tcp_send_cb, SLT.server.send.buf) != ERR_OK)
+									{
+										if (SLT.server.send.buf->data != NULL)
+											free(SLT.server.send.buf->data);
+										if (SLT.server.send.buf != NULL)
+											free(SLT.server.send.buf);
+									}
+									else
+									{
+										current_off = lseek(fd, 0, SEEK_CUR);
+										can_break = true;
+									}
+								}
+								else
+								{
+									if (SLT.server.send.buf != NULL)
+										free(SLT.server.send.buf);
+									can_break = true;
+								}
+
+							}
+							else
+							{
+								SLT.server.send.buf->data = malloc(SLT.server.send.buf->len); 
+						
+								if (SLT.server.send.buf->data != NULL)
+								{
+									read(fd, SLT.server.send.buf->data, SLT.server.send.buf->len);
+								
+									if (tcpip_callback(tcp_send_cb, SLT.server.send.buf) != ERR_OK)
+									{
+										if (SLT.server.send.buf->data != NULL)
+											free(SLT.server.send.buf->data);
+										if (SLT.server.send.buf != NULL)
+											free(SLT.server.send.buf);
+									}
+									else
+									{
+										current_off = lseek(fd, 0, SEEK_CUR);
+										remaining = remaining - SLT.server.send.buf->len;
+									}						
+								}
+								else
+								{
+									if (SLT.server.send.buf != NULL)
+										free(SLT.server.send.buf);
+									can_break = true;
+								}
+							}
+							if (can_break == true)
+								break;
+						}						
+					}
+
+					if (SLT.server.recv.segment.buf.data != NULL) 
+					{
+						free(SLT.server.recv.segment.buf.data);
+						SLT.server.recv.segment.buf.data = NULL;
 					}
 				}
-				
-//				SLT.server.send.data.content = NULL;
-//				SLT.server.send.data.len = 0; 
-//				xQueueSendToBack(xBuffSendf, &SLT.server.send, portMAX_DELAY);
 			}
-			else if (SLT.server.recv.segment.command == WRITE)
+			else if (SLT.server.recv.segment.command == TCP_WRITE)
 			{
 				
 				if (fd < 0)
 				{
-					if (SLT.server.recv.segment.data.content != NULL)
+					if (SLT.server.recv.segment.buf.data != NULL)
 					{
-						free(SLT.server.recv.segment.data.content); 	
-						SLT.server.recv.segment.data.content = NULL; 
+						free(SLT.server.recv.segment.buf.data); 	
+						SLT.server.recv.segment.buf.data = NULL; 
 					}	
 				}
 				else
 				{				
-					if (SLT.server.recv.segment.data.content != NULL)
+					if (SLT.server.recv.segment.buf.data != NULL)
 					{
 						if (SLT.server.recv.segment.tot_len != REMAINING)
 						{
@@ -656,11 +714,11 @@ void task_tcp_file_bin()
 								lseek(fd, SLT.server.recv.segment.pos_in_file, SEEK_SET);
 							}
 							
-							ssize_t to_write = SLT.server.recv.tot_len <= SLT.server.recv.segment.data.len ?
-												SLT.server.recv.tot_len : SLT.server.recv.segment.data.len;
+							ssize_t to_write = SLT.server.recv.tot_len <= SLT.server.recv.segment.buf.len ?
+												SLT.server.recv.tot_len : SLT.server.recv.segment.buf.len;
 							
 							ssize_t written = write(fd,
-								&((uint8_t*)SLT.server.recv.segment.data.content)[SLT.server.recv.segment.pos_data], 
+								&((uint8_t*)SLT.server.recv.segment.buf.data)[SLT.server.recv.segment.pos_data], 
 								to_write);
 							
 							if (written > 0)
@@ -669,8 +727,8 @@ void task_tcp_file_bin()
 							SLT.server.recv.current_pos_file = lseek(fd, 0, SEEK_CUR);							
 						}
 						
-						free(SLT.server.recv.segment.data.content); 		
-						SLT.server.recv.segment.data.content = NULL;
+						free(SLT.server.recv.segment.buf.data); 		
+						SLT.server.recv.segment.buf.data = NULL;
 					
 					}
 
@@ -678,10 +736,10 @@ void task_tcp_file_bin()
 			}
 			else
 			{
-				if (SLT.server.recv.segment.data.content != NULL) 
+				if (SLT.server.recv.segment.buf.data != NULL) 
 				{
-					free(SLT.server.recv.segment.data.content);
-					SLT.server.recv.segment.data.content = NULL;
+					free(SLT.server.recv.segment.buf.data);
+					SLT.server.recv.segment.buf.data = NULL;
 				}				
 			}
 			

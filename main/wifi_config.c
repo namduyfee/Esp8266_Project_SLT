@@ -60,7 +60,7 @@ void my_start_wifi(wifi_t* wifi)
 				
 				esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);		
 				esp_wifi_start();
-				SLT.espnow.mode_send = ESPNOW_WRITE;
+//				SLT.espnow.mode_send = ESPNOW_WRITE;
 				close(fd);
 				return;
 			}

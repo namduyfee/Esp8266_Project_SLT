@@ -18,33 +18,43 @@
 #include "lwip/ip_addr.h"
 #include "lwip/netif.h"
 #include "lwip/opt.h"
+#include "lwip/tcpip.h"
 
 #define POS_CONTINUE -1
 #define REMAINING -1
+
+#define MAX_WAIT_MS 5000
+#define CYCLE_TCP_POLL 500
+#define MAX_WAIT_CNT (MAX_WAIT_MS / CYCLE_TCP_POLL)
 typedef enum
 {
-	OPEN	= 0,
-	CLOSE	= 1,
-	DELETE	= 2, 
-	READ	= 3,
-	WRITE	= 4, 
-	FORMAT  = 5
+	TCP_OPEN	= 0,
+	TCP_CLOSE	= 1,
+	TCP_DELETE	= 2, 
+	TCP_READ	= 3,
+	TCP_WRITE	= 4,
 	
-} command_file_t; 
+	TCP_OPEN_RET	= 5,
+	TCP_CLOSE_RET	= 6,
+	TCP_DELETE_RET	= 7, 
+	TCP_READ_RET	= 8,
+	TCP_WRITE_RET	= 9
+		
+} command_tcp_t; 
 
 typedef struct
 {
-	void* content;
+	void* data;
 	uint32_t len;
 	
-} tcp_data_t; 
+} tcp_buf_t; 
 
 typedef struct 
 {
-	tcp_data_t data;			/**< store content and len */
+	tcp_buf_t buf;			/**< store content and len */
 	uint16_t pos_data;			/**< start position of data to save in buffer */
 	off_t pos_in_file;			/**< position in file to save */
-	command_file_t command;			/**< command with file */
+	command_tcp_t command;			/**< command with file */
 	int tot_len;				/**< total length message */
 	
 } tcp_recv_t;
@@ -53,7 +63,7 @@ typedef struct
 {
 	struct tcp_pcb* tpcb_server;
 	struct tcp_pcb* tpcb;				/**< tcp client is creat */
-	
+	uint8_t retries;					/**< number of waits before close pcb in tcp poll*/
 	struct
 	{
 		tcp_recv_t segment; 
@@ -62,7 +72,7 @@ typedef struct
 	
 	struct
 	{
-		tcp_data_t data;
+		tcp_buf_t buf;
 		bool request;					/**< flag to read file and send */
 		
 	} send;
@@ -88,12 +98,10 @@ typedef struct
 	
 	struct
 	{
-		tcp_data_t data; 
+		tcp_buf_t* buf; 
 		
 	} send;
 	
-	void* header;
-
 	void* arg;
 	
 	tcp_client_t* client;
@@ -102,5 +110,6 @@ typedef struct
 
 
 err_t init_server_tpcp(uint16_t port, uint8_t max_client);  
-
+void tcp_send_cb(void* arg);  
+void tcp_ret_cmd(command_tcp_t cmd, uint8_t state); 
 #endif

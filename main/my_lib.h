@@ -24,7 +24,6 @@ typedef struct
 extern Object SLT; 
 
 extern QueueHandle_t xBuffLoadf;
-extern QueueHandle_t xBuffSendf;
 extern QueueHandle_t xEspNowRecv;
 
 extern SemaphoreHandle_t xEspNowf;
