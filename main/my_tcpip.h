@@ -23,11 +23,11 @@
 #define POS_CONTINUE -1
 #define REMAINING -1
 
-#define MAX_WAIT_MS 5000
-#define CYCLE_TCP_POLL 500
-#define MAX_WAIT_CNT (MAX_WAIT_MS / CYCLE_TCP_POLL)
+#define TCP_POLL_CYCLE 2
+#define TCP_AUTO_DIS_MS 8000
 typedef enum
 {
+	TCP_NONE    = -1,
 	TCP_OPEN	= 0,
 	TCP_CLOSE	= 1,
 	TCP_DELETE	= 2, 
@@ -63,7 +63,7 @@ typedef struct
 {
 	struct tcp_pcb* tpcb_server;
 	struct tcp_pcb* tpcb;				/**< tcp client is creat */
-	uint8_t retries;					/**< number of waits before close pcb in tcp poll*/
+	TickType_t lastTick; 				/**< auto disconnect tcp */
 	struct
 	{
 		tcp_recv_t segment; 
@@ -90,7 +90,7 @@ typedef struct
 	uint8_t max_client;
 	
 	struct
-	{
+	{ 	
 		tcp_recv_t segment; 
 		off_t current_pos_file;
 		int tot_len;				/**< total length message */

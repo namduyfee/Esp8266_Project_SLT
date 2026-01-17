@@ -7,7 +7,7 @@
  *	@details
  *		use dynamic memory and queue to transport data between tcp handler and task_tcp_file_bin in main
  *		
- *		Frame : "SLT" + CMD + OFSET (CMD = R, W) + SIZE (CMD = R, W) + DATA (CMD = W)	
+ *		Frame : "TCP" + CMD + OFSET (CMD = R, W) + SIZE (CMD = R, W) + DATA (CMD = W)	
  *		
  *	@note
  *		only one client at a time
@@ -15,6 +15,7 @@
 
 static err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err);
 static err_t tcp_poll_cb(void* arg, struct tcp_pcb* tpcb); 
+static void tcp_error_cb(void *arg, err_t err);
 static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err); 
 static err_t tcp_sent_cb(void* arg, struct tcp_pcb* tpcb, uint16_t len);
 static err_t tcp_close_client(struct tcp_pcb *cl_tpcb, tcp_client_t* client); 
@@ -94,14 +95,16 @@ static err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 		newclient->tpcb = newpcb; 
 		newclient->tpcb_server = server->tpcb;
 		newclient->send.request = false;
+		newclient->lastTick = xTaskGetTickCount(); 
 		
 		SLT.server.client = newclient;
 		
 		tcp_recv(newpcb, tcp_recv_cb);
 		tcp_sent(newpcb, tcp_sent_cb);		
 		tcp_arg(newpcb, newclient);
-		tcp_err(newpcb, NULL);
-		tcp_poll(newpcb, tcp_poll_cb, MAX_WAIT_CNT); 
+		tcp_err(newpcb, tcp_error_cb);
+		tcp_poll(newpcb, tcp_poll_cb, TCP_POLL_CYCLE); 
+		
 		if(SLT.server.count_client < SLT.server.max_client)
 			SLT.server.count_client++;
 		return ERR_OK;
@@ -113,12 +116,35 @@ static err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 	
 } 
 /**
+ * @brief	tcp error callback
+ * 
+ * @note
+ *	- not call tcp_write(), tcp_close()... in function
+ */
+static void tcp_error_cb(void *arg, err_t err)
+{
+	tcp_client_t* client = (tcp_client_t*)arg;
+	if (client != NULL)
+	{
+		free(client);
+		SLT.server.client = NULL;
+	}
+	
+	if (SLT.server.count_client > 0)
+		SLT.server.count_client--;
+	if (SLT.server.count_client <= 0)
+		pwm_start();
+	
+}
+
+/**
  * @brief	tcp poll callback
  */
 static err_t tcp_poll_cb(void* arg, struct tcp_pcb* tpcb)
 {
 	tcp_client_t* client = (tcp_client_t*)arg;
-	if ( (client->retries)++ > MAX_WAIT_CNT)
+	
+	if (xTaskGetTickCount() - client->lastTick > pdMS_TO_TICKS(TCP_AUTO_DIS_MS))
 	{
 		tcp_close_client(tpcb, client);
 	}
@@ -157,8 +183,8 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 	
 	pbuf_copy_partial(p, client->recv.segment.buf.data, p->tot_len, 0);
 	
-	if (((char*)client->recv.segment.buf.data)[0] == 'S' && ((char*)client->recv.segment.buf.data)[1] == 'L'  && 
-	    ((char*)client->recv.segment.buf.data)[2] == 'T')
+	if (((char*)client->recv.segment.buf.data)[0] == 'T' && ((char*)client->recv.segment.buf.data)[1] == 'C'  && 
+	    ((char*)client->recv.segment.buf.data)[2] == 'P')
 	{
 		client->recv.segment.command = ((char*)client->recv.segment.buf.data)[3];
 		
@@ -197,10 +223,8 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 			
 			client->recv.segment.tot_len = (((uint8_t*)client->recv.segment.buf.data)[11] << 24) | (((uint8_t*)client->recv.segment.buf.data)[10] << 16) | 
 										   (((uint8_t*)client->recv.segment.buf.data)[9] << 8)   | (((uint8_t*)client->recv.segment.buf.data)[8] << 0);
-			
 			client->recv.segment.pos_data = 12;
 			client->recv.segment.buf.len = p->tot_len - 12;
-					
 		}
 		
 	}
@@ -215,7 +239,7 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 
 	}
 	
-	client->retries = 0;
+	client->lastTick = xTaskGetTickCount();
 	
 	xQueueSendToBack(xBuffLoadf, &client->recv.segment, portMAX_DELAY);
 
@@ -229,7 +253,7 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 static err_t tcp_sent_cb(void* arg, struct tcp_pcb* tpcb, uint16_t len)
 {
 	tcp_client_t* client = (tcp_client_t*)arg;
-	client->retries = 0;
+	client->lastTick = xTaskGetTickCount();
 	return ERR_OK; 
 }
 
@@ -250,6 +274,9 @@ static err_t tcp_close_client(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 		tcp_arg(cl_tpcb, NULL);
 		tcp_sent(cl_tpcb, NULL);
 		tcp_recv(cl_tpcb, NULL);
+		tcp_err(cl_tpcb, NULL);
+		tcp_poll(cl_tpcb, NULL, 0);
+		
 		if (tcp_close(cl_tpcb) == ERR_OK) {
 			if (SLT.server.count_client > 0)
 				SLT.server.count_client--;
