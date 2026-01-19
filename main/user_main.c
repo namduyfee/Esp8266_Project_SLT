@@ -46,7 +46,8 @@ Object SLT = {
 		.max_client = 1,
 		.recv = {
 			.current_pos_file = 0,
-			.tot_len = 0
+			.tot_len = 0,
+			.cmd = TCP_NONE
 		},
 		.client = NULL
 	}
@@ -76,7 +77,7 @@ void my_init_project(void)
 	
 	init_server_tpcp(80, 1);
 	
-//	init_espnow();
+	init_espnow();
 }
 
 
@@ -95,13 +96,13 @@ void app_main(void) {
 	xEspNowf = xSemaphoreCreateBinary(); 
 	xSemaphoreGive(xEspNowf); 
 		
-//	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
+	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
 	
 	xTaskCreate(task_tcp_file_bin, "task_tcp_file_bin", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 	xTaskCreate(task_select_master, "task_select_master", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 		 
-//	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
+	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 }
 
@@ -173,8 +174,8 @@ void task_select_master()
 						wifi_mode_t mode;
 						esp_wifi_get_mode(&mode);
 						
-//						esp_now_deinit();
-//						clear_all_peer();
+						esp_now_deinit();
+						clear_all_peer();
 					
 						if (mode != WIFI_MODE_APSTA)
 						{
@@ -199,7 +200,7 @@ void task_select_master()
 							esp_wifi_start();				
 					
 						}
-//						init_espnow();	
+						init_espnow();	
 						xSemaphoreGive(xSendEspNow);
 					}
 				}
@@ -361,11 +362,8 @@ void task_esp_now_send()
 	SLT.espnow.can_send = true;
 	SLT.espnow.sent = false;
 	
-	
-	
 	while (1)
-	{
-		
+	{	
 		if (xSemaphoreTake(xSendEspNow, portMAX_DELAY) == pdPASS)
 		{
 			/** broadcast time = MAX_BROADCAST_CNT * BROADCAST_CYCLE (ms) */
@@ -471,7 +469,6 @@ void task_esp_now_send()
  *	@brief	handler request from tcp
  *	
  *	@details	
- *		- format
  *		- open
  *		- close
  *		- delete
@@ -492,7 +489,11 @@ void task_tcp_file_bin()
 	{
 		if (xQueueReceive(xBuffLoadf, &SLT.server.recv.segment, portMAX_DELAY) == pdPASS)
 		{	
-			if (SLT.server.recv.segment.command == TCP_OPEN)
+			if (SLT.server.recv.segment.command != TCP_NONE)
+			{
+				SLT.server.recv.cmd = SLT.server.recv.segment.command;
+			}
+			if (SLT.server.recv.cmd == TCP_OPEN)
 			{
 				
 				if (SLT.server.recv.segment.buf.data != NULL) 
@@ -512,16 +513,15 @@ void task_tcp_file_bin()
 				
 				if (fd >= 0)
 				{
-					tcp_ret_cmd('o', 't');
-				//	tcp_ret_cmd(TCP_OPEN_RET, true); 
+					tcp_ret_cmd(TCP_OPEN_RET, true); 
 				}
 				else 
 				{
-					tcp_ret_cmd('o', 'f');
-				//	tcp_ret_cmd(TCP_OPEN_RET, false);
+					tcp_ret_cmd(TCP_OPEN_RET, false);
 				}
+				SLT.server.recv.cmd = TCP_NONE;
 			}
-			else if (SLT.server.recv.segment.command == TCP_CLOSE)
+			else if (SLT.server.recv.cmd == TCP_CLOSE)
 			{
 				if (SLT.server.recv.segment.buf.data != NULL) 
 				{
@@ -536,16 +536,15 @@ void task_tcp_file_bin()
 				
 				if (fd < 0)
 				{
-					tcp_ret_cmd('c', 't');
-				//	tcp_ret_cmd(TCP_CLOSE_RET, true); 
+					tcp_ret_cmd(TCP_CLOSE_RET, true); 
 				}
 				else 
 				{
-					tcp_ret_cmd('c', 'f');
-				//	tcp_ret_cmd(TCP_CLOSE_RET, false);
+					tcp_ret_cmd(TCP_CLOSE_RET, false);
 				}
+				SLT.server.recv.cmd = TCP_NONE;
 			}			
-			else if (SLT.server.recv.segment.command == TCP_DELETE)
+			else if (SLT.server.recv.cmd == TCP_DELETE)
 			{
 				if (SLT.server.recv.segment.buf.data != NULL) 
 				{
@@ -565,17 +564,16 @@ void task_tcp_file_bin()
 				
 				if (ret < 0)
 				{
-					tcp_ret_cmd('d', 't');
-				//	tcp_ret_cmd(TCP_DELETE_RET, true); 
+					tcp_ret_cmd(TCP_DELETE_RET, true); 
 				}
 				else 
 				{
-					tcp_ret_cmd('d', 'f');
-				//	tcp_ret_cmd(TCP_DELETE_RET, false);
+					tcp_ret_cmd(TCP_DELETE_RET, false);
 				}
+				SLT.server.recv.cmd = TCP_NONE;
 			}
 			
-			else if (SLT.server.recv.segment.command == TCP_READ)
+			else if (SLT.server.recv.cmd == TCP_READ)
 			{
 				if (fd < 0)
 				{
@@ -584,8 +582,7 @@ void task_tcp_file_bin()
 						free(SLT.server.recv.segment.buf.data);
 						SLT.server.recv.segment.buf.data = NULL;
 					}
-					tcp_ret_cmd('r', 'F');
-					//	tcp_ret_cmd(TCP_READ_RET, false);
+						tcp_ret_cmd(TCP_READ_RET, false);
 				}
 				else
 				{
@@ -594,19 +591,28 @@ void task_tcp_file_bin()
 					if (SLT.server.recv.segment.pos_in_file >= 
 					    lseek(fd, 0, SEEK_END))
 					{
-						tcp_ret_cmd('r', 'f');
-						//	tcp_ret_cmd(TCP_READ_RET, false);
+						tcp_ret_cmd(TCP_READ_RET, false);
 					}
 					else
 					{
-						tcp_ret_cmd('r', 't');
-						//	tcp_ret_cmd(TCP_READ_RET, true);
+
 						
 						uint32_t len_f = lseek(fd, 0, SEEK_END);
 						
 						off_t current_off = lseek(fd, SLT.server.recv.segment.pos_in_file, SEEK_SET); 
 						
 						uint32_t remaining = SLT.server.recv.segment.buf.len;
+						
+						tcp_ret_cmd(TCP_READ_RET, true);
+						
+						SLT.server.send.buf = malloc(sizeof(tcp_buf_t));
+						
+						SLT.server.send.buf->data = malloc(sizeof(uint32_t) * 2);
+						
+						((uint32_t*)SLT.server.send.buf->data)[0] = current_off;
+						((uint32_t*)SLT.server.send.buf->data)[1] = remaining <= len_f - current_off ? remaining : len_f - current_off;
+						SLT.server.send.buf->len = sizeof(uint32_t) * 2;
+						tcpip_callback(tcp_send_cb, SLT.server.send.buf); 
 					
 						while (remaining > 0)
 						{
@@ -698,8 +704,9 @@ void task_tcp_file_bin()
 						SLT.server.recv.segment.buf.data = NULL;
 					}
 				}
+				SLT.server.recv.cmd = TCP_NONE;
 			}
-			else if (SLT.server.recv.segment.command == TCP_WRITE)
+			else if (SLT.server.recv.cmd == TCP_WRITE)
 			{
 				if (fd < 0)
 				{
@@ -708,6 +715,7 @@ void task_tcp_file_bin()
 						free(SLT.server.recv.segment.buf.data); 	
 						SLT.server.recv.segment.buf.data = NULL; 
 					}	
+					SLT.server.recv.cmd = TCP_NONE;
 				}
 				else
 				{				
@@ -730,25 +738,37 @@ void task_tcp_file_bin()
 							
 							ssize_t to_write = SLT.server.recv.tot_len <= SLT.server.recv.segment.buf.len ?
 												SLT.server.recv.tot_len : SLT.server.recv.segment.buf.len;
-						
-							ssize_t written = write(fd,
-								&((uint8_t*)SLT.server.recv.segment.buf.data)[SLT.server.recv.segment.pos_data], 
-								to_write);
+							
+							ssize_t written = 0; 
+							
+							if (to_write > 0)
+							{
+								written = write(fd,
+									&((uint8_t*)SLT.server.recv.segment.buf.data)[SLT.server.recv.segment.pos_data], 
+									to_write);
+							}
 							
 							if (written > 0)
 								SLT.server.recv.tot_len = SLT.server.recv.tot_len - written; 
 							
 							SLT.server.recv.current_pos_file = lseek(fd, 0, SEEK_CUR);
 							
-							if (SLT.server.recv.tot_len == 0)
-								tcp_ret_cmd('w', 't');
+							if (SLT.server.recv.tot_len == 0) 
+							{
+								tcp_ret_cmd(TCP_WRITE_RET, true);
+							}
 						}
+						else 
+							SLT.server.recv.cmd = TCP_NONE;
+						
 						if (SLT.server.recv.segment.buf.data != NULL)
 						{
 							free(SLT.server.recv.segment.buf.data); 		
 							SLT.server.recv.segment.buf.data = NULL;				
 						}
 					}
+					else
+						SLT.server.recv.cmd = TCP_NONE;
 
 				}
 			}
@@ -760,6 +780,7 @@ void task_tcp_file_bin()
 					SLT.server.recv.segment.buf.data = NULL;
 				}				
 			}
+			
 		}
 	}
 }

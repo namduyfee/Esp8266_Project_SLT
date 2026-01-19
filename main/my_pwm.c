@@ -25,8 +25,8 @@ void my_pwm_start(Pwm_Typedef* Pwm)
 	if (Pwm->num_channel_en != 0)
 	{
 		
-		Pwm->duty[Pwm->num_channel_en - 1] = 255;
-		Pwm->period[Pwm->num_channel_en - 1] = duty_to_period(Pwm->duty[Pwm->num_channel_en - 1]);
+//		Pwm->duty[Pwm->num_channel_en - 1] = 0;
+//		Pwm->period[Pwm->num_channel_en - 1] = duty_to_period(Pwm->duty[Pwm->num_channel_en - 1]);
 		
 		pwm_init(PWM_PERIOD, Pwm->period, Pwm->num_channel_en, Pwm->gpio_channel);
 		pwm_start();

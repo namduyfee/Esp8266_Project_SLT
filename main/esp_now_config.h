@@ -41,7 +41,6 @@
 
 #define ESPNOW_LEN_CRC 2
 
-
 typedef enum
 {
 	NONE_ESPNOW		   = -1,	

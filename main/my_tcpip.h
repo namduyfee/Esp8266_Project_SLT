@@ -35,26 +35,26 @@ typedef enum
 	TCP_WRITE	= 4,
 	
 	TCP_OPEN_RET	= 5,
-	TCP_CLOSE_RET	= 6,
-	TCP_DELETE_RET	= 7, 
-	TCP_READ_RET	= 8,
-	TCP_WRITE_RET	= 9
+	TCP_CLOSE_RET,
+	TCP_DELETE_RET, 
+	TCP_READ_RET,
+	TCP_WRITE_RET
 		
 } command_tcp_t; 
 
 typedef struct
 {
 	void* data;
-	uint32_t len;
+	uint32_t len;			/**< total bytes of memory that is pointed by data */
 	
 } tcp_buf_t; 
 
 typedef struct 
 {
-	tcp_buf_t buf;			/**< store content and len */
+	tcp_buf_t buf;				/**< store content and len */
 	uint16_t pos_data;			/**< start position of data to save in buffer */
 	off_t pos_in_file;			/**< position in file to save */
-	command_tcp_t command;			/**< command with file */
+	command_tcp_t command;		/**< command with file */
 	int tot_len;				/**< total length message */
 	
 } tcp_recv_t;
@@ -91,9 +91,10 @@ typedef struct
 	
 	struct
 	{ 	
+		command_tcp_t cmd; 
 		tcp_recv_t segment; 
 		off_t current_pos_file;
-		int tot_len;				/**< total length message */
+		int tot_len;				/**< total bytes of message */
 	} recv;
 	
 	struct

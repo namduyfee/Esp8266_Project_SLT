@@ -205,32 +205,69 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 		}		
 		else if (client->recv.segment.command == TCP_READ)
 		{
-			client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.buf.data)[7] << 24) | (((uint8_t*)client->recv.segment.buf.data)[6] << 16) | 
-											   (((uint8_t*)client->recv.segment.buf.data)[5] << 8)  | (((uint8_t*)client->recv.segment.buf.data)[4] << 0);
+			if (p->tot_len >= 8)
+			{
+				client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.buf.data)[7] << 24) | 
+											   (((uint8_t*)client->recv.segment.buf.data)[6] << 16) | 
+											   (((uint8_t*)client->recv.segment.buf.data)[5] << 8)  | 
+				                               (((uint8_t*)client->recv.segment.buf.data)[4] << 0);			
+			}
+			else 
+				client->recv.segment.pos_in_file = 0; 	
+
 			
+			if (p->tot_len >= 12)
+			{
+				client->recv.segment.buf.len = (((uint8_t*)client->recv.segment.buf.data)[11] << 24) | 
+											   (((uint8_t*)client->recv.segment.buf.data)[10] << 16) | 
+											   (((uint8_t*)client->recv.segment.buf.data)[9] << 8)   | 
+											   (((uint8_t*)client->recv.segment.buf.data)[8] << 0);	
+			}
+			else 
+				client->recv.segment.buf.len = 0;
 			
-			client->recv.segment.buf.len = (((uint8_t*)client->recv.segment.buf.data)[11] << 24) | (((uint8_t*)client->recv.segment.buf.data)[10] << 16) | 
-											(((uint8_t*)client->recv.segment.buf.data)[9] << 8)   | (((uint8_t*)client->recv.segment.buf.data)[8] << 0);	
-					
 			free(client->recv.segment.buf.data);
 			client->recv.segment.buf.data = NULL;
 		}
 		else if (client->recv.segment.command == TCP_WRITE)
 		{
+			if (p->tot_len >= 8)
+			{
+				client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.buf.data)[7] << 24) | 
+												   (((uint8_t*)client->recv.segment.buf.data)[6] << 16) | 
+												   (((uint8_t*)client->recv.segment.buf.data)[5] << 8)  | 
+												   (((uint8_t*)client->recv.segment.buf.data)[4] << 0);	
+			}
+			else 
+				client->recv.segment.pos_in_file = 0;
 			
-			client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.buf.data)[7] << 24) | (((uint8_t*)client->recv.segment.buf.data)[6] << 16) | 
-											   (((uint8_t*)client->recv.segment.buf.data)[5] << 8)  | (((uint8_t*)client->recv.segment.buf.data)[4] << 0);	
+			if (p->tot_len >= 12)
+			{
+				client->recv.segment.tot_len = (((uint8_t*)client->recv.segment.buf.data)[11] << 24) | 
+											   (((uint8_t*)client->recv.segment.buf.data)[10] << 16) | 
+											   (((uint8_t*)client->recv.segment.buf.data)[9] << 8)   | 
+											   (((uint8_t*)client->recv.segment.buf.data)[8] << 0);
+			}
+			else 
+				client->recv.segment.tot_len = 0; 
 			
-			client->recv.segment.tot_len = (((uint8_t*)client->recv.segment.buf.data)[11] << 24) | (((uint8_t*)client->recv.segment.buf.data)[10] << 16) | 
-										   (((uint8_t*)client->recv.segment.buf.data)[9] << 8)   | (((uint8_t*)client->recv.segment.buf.data)[8] << 0);
-			client->recv.segment.pos_data = 12;
-			client->recv.segment.buf.len = p->tot_len - 12;
+			if (p->tot_len > 12)
+			{
+				client->recv.segment.pos_data = 12;
+				client->recv.segment.buf.len = p->tot_len - 12;
+			}
+			else
+			{
+				client->recv.segment.pos_data = 0;
+				client->recv.segment.buf.len = 0;
+			}
+
 		}
 		
 	}
 	else
 	{
-		client->recv.segment.command = TCP_WRITE;
+		client->recv.segment.command = TCP_NONE;
 		client->recv.segment.pos_data = 0;
 		client->recv.segment.buf.len = p->tot_len;
 		client->recv.segment.pos_in_file = POS_CONTINUE;
