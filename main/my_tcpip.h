@@ -27,18 +27,18 @@
 #define TCP_AUTO_DIS_MS 8000
 typedef enum
 {
-	TCP_NONE    = -1,
-	TCP_OPEN	= 0,
-	TCP_CLOSE	= 1,
-	TCP_DELETE	= 2, 
-	TCP_READ	= 3,
-	TCP_WRITE	= 4,
+	TCP_NONE    = 0,
+	TCP_OPF		= 1,
+	TCP_CLSF	= 2,
+	TCP_DLTF	= 3, 
+	TCP_RDF		= 4,
+	TCP_WRF		= 5,
 	
-	TCP_OPEN_RET	= 5,
-	TCP_CLOSE_RET,
-	TCP_DELETE_RET, 
-	TCP_READ_RET,
-	TCP_WRITE_RET
+	TCP_RET_OPF	= 6,
+	TCP_RET_CLSF,
+	TCP_RET_DLTF, 
+	TCP_RET_RDF,
+	TCP_RET_WRT
 		
 } command_tcp_t; 
 

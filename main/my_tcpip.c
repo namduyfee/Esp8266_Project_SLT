@@ -188,22 +188,22 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 	{
 		client->recv.segment.command = ((char*)client->recv.segment.buf.data)[3];
 		
-		if (client->recv.segment.command == TCP_OPEN)
+		if (client->recv.segment.command == TCP_OPF)
 		{
 			free(client->recv.segment.buf.data);
 			client->recv.segment.buf.data = NULL; 
 		}
-		else if (client->recv.segment.command == TCP_CLOSE)
+		else if (client->recv.segment.command == TCP_CLSF)
 		{
 			free(client->recv.segment.buf.data);
 			client->recv.segment.buf.data = NULL; 	
 		}
-		else if (client->recv.segment.command == TCP_DELETE)
+		else if (client->recv.segment.command == TCP_DLTF)
 		{
 			free(client->recv.segment.buf.data);
 			client->recv.segment.buf.data = NULL; 	
 		}		
-		else if (client->recv.segment.command == TCP_READ)
+		else if (client->recv.segment.command == TCP_RDF)
 		{
 			if (p->tot_len >= 8)
 			{
@@ -229,7 +229,7 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 			free(client->recv.segment.buf.data);
 			client->recv.segment.buf.data = NULL;
 		}
-		else if (client->recv.segment.command == TCP_WRITE)
+		else if (client->recv.segment.command == TCP_WRF)
 		{
 			if (p->tot_len >= 8)
 			{

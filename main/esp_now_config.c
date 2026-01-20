@@ -25,7 +25,7 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 	}
 	
 	if (( (uint16_t)(data[len - 1] << 8) | data[len - 2]) == 
-	crc16_modbus((uint8_t*)&data[ESPNOW_INDEX_CMD], len - ESPNOW_LEN_HEADER - ESPNOW_LEN_CRC))
+	crc16_modbus((uint8_t*)data, len - NOW_LEN_CRC))
 	{
 		buf_espnow_t tm;
 		
@@ -45,16 +45,16 @@ static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status)
 		
 		if (xSemaphoreTake(xSendEspNow, portMAX_DELAY) == pdPASS)
 		{
-			if (SLT.espnow.mode_send == BROADCAST)
+			if (SLT.espnow.mode_send == NOW_BRC)
 			{
 				
 			}
-			else if (SLT.espnow.mode_send == ADD_PEER)
+			else if (SLT.espnow.mode_send == NOW_ADD_PEER)
 			{
 				SLT.espnow.gateway_added = true; 
 			}
-			else if (SLT.espnow.mode_send == ESPNOW_READ || 
-					 SLT.espnow.mode_send == ESPNOW_WRITE)
+			else if (SLT.espnow.mode_send == NOW_RDF || 
+					 SLT.espnow.mode_send == NOW_WRF)
 			{
 				SLT.espnow.sent = true;
 			}
@@ -170,6 +170,7 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 					(SLT.espnow.p_peer + i)->info.channel = CONFIG_ESPNOW_CHANNEL;
 					(SLT.espnow.p_peer + i)->info.encrypt = false;
 					(SLT.espnow.p_peer + i)->info.ifidx = ESP_IF_WIFI_STA;
+					(SLT.espnow.p_peer + i)->send_busy = false;
 					esp_now_add_peer(&(SLT.espnow.p_peer + i)->info);
 				
 					off_t current_f = lseek(fd, 6, SEEK_SET); 
@@ -221,6 +222,7 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 					(SLT.espnow.p_peer + i)->info.channel = CONFIG_ESPNOW_CHANNEL;
 					(SLT.espnow.p_peer + i)->info.encrypt = false;
 					(SLT.espnow.p_peer + i)->info.ifidx = ESP_IF_WIFI_STA;
+					(SLT.espnow.p_peer + i)->send_busy = false;
 					esp_now_add_peer(&(SLT.espnow.p_peer + i)->info);	
 					return 1;
 				}
@@ -243,7 +245,7 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 	(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.channel = CONFIG_ESPNOW_CHANNEL;
 	(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.encrypt = false;
 	(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.ifidx = ESP_IF_WIFI_STA;
-	
+	(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->send_busy = false;
 	if (esp_now_is_peer_exist((SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.peer_addr) != true) {
 		esp_now_add_peer(&(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info);  
 		
@@ -301,49 +303,31 @@ uint16_t crc16_modbus(uint8_t *buf, uint32_t len)
 	}
 	return crc;
 }
-
-buf_espnow_t* espnow_make_segment(void* buf, uint8_t cmd, uint32_t len)
-{
-	buf_espnow_t* newbuf = malloc(sizeof(buf_espnow_t));
-	if (newbuf == NULL)
-		return NULL;
+/**
+ * @brief	send espnow with cmd
+ */
+esp_err_t espnow_send_cmd(const uint8_t* addr_peer, command_espnow_t cmd, void* buf, uint32_t len)
+{	
+	uint8_t* tm_buf = (uint8_t*) buf;
 	
-	newbuf->len = len + ESPNOW_LEN_CMD + ESPNOW_LEN_CRC + 
-	                         ESPNOW_LEN_HEADER + ESPNOW_LEN_SIZE_DT; 
+	uint32_t len_send = NOW_LEN_HEADER + NOW_LEN_CMD + NOW_LEN_CRC + len ;
+	uint8_t* send_buf = malloc(len_send);
 	
-	newbuf->data = malloc(newbuf->len);
+	if (send_buf == NULL)
+		return ESP_FAIL;
 	
-	if (newbuf->data == NULL) {
-		free(newbuf);
-		return NULL;
-	}
-	*((uint8_t*)newbuf->data + ESPNOW_INDEX_HEADER) = 'S'; 
-	*((uint8_t*)newbuf->data + ESPNOW_INDEX_HEADER + 1) = 'L';
-	*((uint8_t*)newbuf->data + ESPNOW_INDEX_HEADER + 2) = 'T';
+	send_buf[0] = 'N'; send_buf[1] = 'O'; send_buf[2] = 'W';
+	send_buf[3] = cmd;
 	
-	*((uint8_t*)newbuf->data + ESPNOW_INDEX_CMD) = cmd;
+	if (buf != NULL && len != 0)
+		memcpy(&send_buf[4], tm_buf, len);
 	
-	memcpy((uint8_t*)newbuf->data + ESPNOW_INDEX_SIZE_DT,
-		&len,sizeof(uint32_t));
+	uint16_t crc = crc16_modbus(send_buf, len_send - NOW_LEN_CRC);
+	send_buf[len_send - 2] = crc & 0xFF;
+	send_buf[len_send - 1] = (crc >> 8) & 0xFF;
 	
-	memcpy( (uint8_t*)newbuf->data + ESPNOW_INDEX_DATA, (uint8_t*)buf, len);
+	esp_err_t ret = esp_now_send(addr_peer, send_buf, len_send);
+	free(send_buf);
 	
-	uint16_t crc = crc16_modbus((uint8_t*)newbuf->data + ESPNOW_INDEX_CMD, 
-	                            newbuf->len - ESPNOW_LEN_HEADER - ESPNOW_LEN_CRC); 
-	
-	*((uint8_t*)newbuf->data + newbuf->len - 1) = (crc >> 8) & 0xFF;
-	*((uint8_t*)newbuf->data + newbuf->len - 2) = crc & 0xFF;
-	
-	return newbuf;
-}
-
-void espnow_free_segment(buf_espnow_t* buf)
-{
-	if (buf == NULL)
-		return;
-	buf_espnow_t* free_buf = (buf_espnow_t*)buf;
-	
-	if (free_buf->data != NULL)
-		free(free_buf->data);
-	free(buf);
+	return ret;
 }

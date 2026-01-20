@@ -17,40 +17,49 @@
 #include "my_tcpip.h"
 
 
-#define MAX_BROADCAST_CNT 50
+#define MAX_BRC_CNT 50
 #define MAC_ADDR_LEN 6
 #define CONFIG_ESPNOW_CHANNEL 1
-#define BROADCAST_CYCLE 200
+#define BRC_CYCLE_MS 200
 
-#define ESPNOW_INDEX_HEADER 0
-#define ESPNOW_LEN_HEADER 3
+#define NOW_INDEX_HEADER 0
+#define NOW_LEN_HEADER 3
 
-#define ESPNOW_INDEX_CMD (ESPNOW_INDEX_HEADER + ESPNOW_LEN_HEADER)
-#define ESPNOW_LEN_CMD 1
+#define NOW_INDEX_CMD (NOW_INDEX_HEADER + NOW_LEN_HEADER)
+#define NOW_LEN_CMD 1
 
-#define ESPNOW_INDEX_SIZE_DT (ESPNOW_INDEX_CMD + ESPNOW_LEN_CMD)
-#define ESPNOW_LEN_SIZE_DT 4
+#define NOW_INDEX_DATA (NOW_INDEX_CMD + NOW_LEN_CMD)
 
-#define ESPNOW_INDEX_DATA (ESPNOW_INDEX_SIZE_DT + ESPNOW_LEN_SIZE_DT)
+#define NOW_INDEX_POS (NOW_INDEX_CMD + NOW_LEN_CMD)
+#define NOW_LEN_POS 1
 
-#define ESPNOW_INDEX_POS (ESPNOW_INDEX_DATA)
-#define ESPNOW_LEN_POS 1
+#define NOW_INDEX_ADDR (NOW_INDEX_POS + NOW_LEN_POS)
+#define NOW_LEN_ADDR 6
 
-#define ESPNOW_INDEX_ADDR (ESPNOW_INDEX_POS + ESPNOW_LEN_POS)
-#define ESPNOW_LEN_ADDR 6
-
-#define ESPNOW_LEN_CRC 2
+#define NOW_LEN_CRC 2
 
 typedef enum
 {
-	NONE_ESPNOW		   = -1,	
-	ADD_PEER           = 0,
-	GET_PEER		   = 1,
-	ESPNOW_READ        = 2,
-	ESPNOW_WRITE	   = 3,
-	BROADCAST          = 4,
-	FB_BROADCST		   = 5				/**< feedback broadcast */
-		
+	NOW_NONE				= 0,	
+	NOW_ADD_PEER			= 1,
+	NOW_GET_PEER			= 2,
+	NOW_BRC					= 3,				/**< broadcast */
+	NOW_FB_BRC				= 4,				/**< feedback broadcast */
+	
+	NOW_OPF					= 5,				/**< open file   */
+	NOW_CLSF				= 6,				/**< close file  */
+	NOW_DLTF				= 7,				/**< delete file */
+	NOW_RDF					= 8,				/**< read file	 */
+	NOW_WRF					= 9,				/**< write file  */
+	
+	NOW_RET_OPF				= 10,				/**< return open file	*/
+	NOW_RET_CLSF			= 11,				/**< return close file	*/
+	NOW_RET_DLTF			= 12,				/**< return delete file	*/
+	NOW_RET_RDF				= 13,				/**< return read file	*/
+	NOW_RET_WRF				= 14,				/**< return write file	*/
+	
+	NOW_ACK					= 15,
+	NOW_NACK				= 16
 } command_espnow_t; 
 
 typedef struct
@@ -78,6 +87,7 @@ typedef struct Peer
 	
 	uint8_t position;				/**< position of peer in system */
 	
+	bool send_busy;					/**< state espnow send to this peer*/
 } Peer_Typedef;
 
 typedef struct My_Esp_Now
@@ -111,9 +121,6 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save);
 bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);  
 void clear_all_peer(void);
 uint16_t crc16_modbus(uint8_t *buf, uint32_t len); 
-
-buf_espnow_t* espnow_make_segment(void* buf, uint8_t cmd, uint32_t len);
-void espnow_free_segment(buf_espnow_t* buf);
-
+esp_err_t espnow_send_cmd(const uint8_t* addr_peer, command_espnow_t cmd, void* buf, uint32_t len);
 
 #endif
