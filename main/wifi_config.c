@@ -73,5 +73,7 @@ void my_start_wifi(wifi_t* wifi)
 	esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0);
 	
 	if (SLT.espnow.gateway_added == true)
-		SLT.espnow.mode_send = NOW_WRF;
+	{
+		
+	}
 }

@@ -45,26 +45,25 @@ static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status)
 		
 		if (xSemaphoreTake(xSendEspNow, portMAX_DELAY) == pdPASS)
 		{
-			if (SLT.espnow.mode_send == NOW_BRC)
-			{
-				
-			}
-			else if (SLT.espnow.mode_send == NOW_ADD_PEER)
-			{
-				SLT.espnow.gateway_added = true; 
-			}
-			else if (SLT.espnow.mode_send == NOW_RDF || 
-					 SLT.espnow.mode_send == NOW_WRF)
-			{
-				SLT.espnow.sent = true;
-			}
+//			if (SLT.espnow.mode_send == NOW_BRC)
+//			{
+//				
+//			}
+//			else if (SLT.espnow.mode_send == NOW_ADD_PEER)
+//			{
+//				SLT.espnow.gateway_added = true; 
+//			}
+//			else if (SLT.espnow.mode_send == NOW_RDF || 
+//					 SLT.espnow.mode_send == NOW_WRF)
+//			{
+//				SLT.espnow.sent = true;
+//			}
 			
 			xSemaphoreGive(xSendEspNow);
 		}
 		
 	}
 	
-	SLT.espnow.can_send = true;
 }
 
 void init_espnow(void) 
@@ -170,7 +169,7 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 					(SLT.espnow.p_peer + i)->info.channel = CONFIG_ESPNOW_CHANNEL;
 					(SLT.espnow.p_peer + i)->info.encrypt = false;
 					(SLT.espnow.p_peer + i)->info.ifidx = ESP_IF_WIFI_STA;
-					(SLT.espnow.p_peer + i)->send_busy = false;
+
 					esp_now_add_peer(&(SLT.espnow.p_peer + i)->info);
 				
 					off_t current_f = lseek(fd, 6, SEEK_SET); 
@@ -222,7 +221,7 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 					(SLT.espnow.p_peer + i)->info.channel = CONFIG_ESPNOW_CHANNEL;
 					(SLT.espnow.p_peer + i)->info.encrypt = false;
 					(SLT.espnow.p_peer + i)->info.ifidx = ESP_IF_WIFI_STA;
-					(SLT.espnow.p_peer + i)->send_busy = false;
+
 					esp_now_add_peer(&(SLT.espnow.p_peer + i)->info);	
 					return 1;
 				}
@@ -245,7 +244,7 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 	(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.channel = CONFIG_ESPNOW_CHANNEL;
 	(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.encrypt = false;
 	(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.ifidx = ESP_IF_WIFI_STA;
-	(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->send_busy = false;
+
 	if (esp_now_is_peer_exist((SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.peer_addr) != true) {
 		esp_now_add_peer(&(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info);  
 		
@@ -280,7 +279,7 @@ bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2)
 	if (mac1 == NULL || mac2 == NULL) {
 		return mac1 == mac2;
 	}
-
+	
 	return memcmp(mac1, mac2, MAC_ADDR_LEN) == 0;
 }
 

@@ -66,17 +66,26 @@ typedef struct
 {
 	void* data;
 	uint32_t len;		/**< total byte */
-	uint8_t seq_num;	/**< Sequence Number of buf */
 	
 } buf_espnow_t;
+
+typedef struct
+{
+	uint8_t position;
+	uint8_t* addr;
+	buf_espnow_t buf;
+	
+} espnow_send_queue_t;
 
 typedef struct Peer
 {
 	esp_now_peer_info_t info;
 	struct
 	{
-		buf_espnow_t* buf;
-		uint8_t tot_buf;			/**< number of serial numbers available */
+		buf_espnow_t buf;
+		volatile bool sent;					/**< the last buffer is sent */
+		volatile bool can_send;				/**< can send to wifi buffer */
+		command_espnow_t cmd_send;
 	} send;
 	
 	struct
@@ -87,26 +96,18 @@ typedef struct Peer
 	
 	uint8_t position;				/**< position of peer in system */
 	
-	bool send_busy;					/**< state espnow send to this peer*/
 } Peer_Typedef;
 
 typedef struct My_Esp_Now
 {	
 	bool gateway_added; 
 	
-	volatile bool sent;					/**< the last buffer is sent */
-	
-	volatile bool can_send;				/**< can send to wifi buffer */
-	
 	Peer_Typedef* p_peer; 
 	
 	uint32_t tot_pos_added;				/**< total position added */ 
 	
-	int8_t mode_send;
-	
 	uint8_t my_pos;
 	
-	uint8_t broadcast_cnt;
 	struct
 	{
 		buf_espnow_t buf;
