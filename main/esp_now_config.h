@@ -17,10 +17,11 @@
 #include "my_tcpip.h"
 
 
-#define MAX_BRC_CNT 50
+
+#define MAX_BRC_CNT 100
 #define MAC_ADDR_LEN 6
 #define CONFIG_ESPNOW_CHANNEL 1
-#define BRC_CYCLE_MS 200
+#define NOW_SEND_CYCLE_MS 50
 
 #define NOW_INDEX_HEADER 0
 #define NOW_LEN_HEADER 3
@@ -66,26 +67,35 @@ typedef struct
 {
 	void* data;
 	uint32_t len;		/**< total byte */
-	
 } buf_espnow_t;
 
 typedef struct
 {
 	uint8_t position;
-	uint8_t* addr;
+	uint8_t addr[6];
 	buf_espnow_t buf;
+	uint32_t retry_ms;
 	
 } espnow_send_queue_t;
+
+typedef struct espnow_send_buf
+{
+	buf_espnow_t buf;
+	uint32_t retry_ms;
+	struct espnow_send_buf* next;
+	
+} espnow_send_node_t;
 
 typedef struct Peer
 {
 	esp_now_peer_info_t info;
 	struct
 	{
-		buf_espnow_t buf;
-		volatile bool sent;					/**< the last buffer is sent */
-		volatile bool can_send;				/**< can send to wifi buffer */
-		command_espnow_t cmd_send;
+		espnow_send_node_t* p_hnode;
+		TickType_t last_tick;
+		uint32_t time_retry;
+		bool first_send;
+		
 	} send;
 	
 	struct
@@ -108,6 +118,8 @@ typedef struct My_Esp_Now
 	
 	uint8_t my_pos;
 	
+	bool is_broadcast;
+	
 	struct
 	{
 		buf_espnow_t buf;
@@ -122,6 +134,8 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save);
 bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);  
 void clear_all_peer(void);
 uint16_t crc16_modbus(uint8_t *buf, uint32_t len); 
-esp_err_t espnow_send_cmd(const uint8_t* addr_peer, command_espnow_t cmd, void* buf, uint32_t len);
-
+buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len); 
+uint8_t espnow_make_node_send(Peer_Typedef* p_peer, buf_espnow_t buf); 
+void espnow_swt_node_send(Peer_Typedef* p_peer); 
+void espnow_free_all_node(Peer_Typedef* p_peer);
 #endif

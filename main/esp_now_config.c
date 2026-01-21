@@ -41,26 +41,9 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 
 static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status) 
 {
-	if (status == ESP_NOW_SEND_SUCCESS) {
+	if (status == ESP_NOW_SEND_SUCCESS) 
+	{
 		
-		if (xSemaphoreTake(xSendEspNow, portMAX_DELAY) == pdPASS)
-		{
-//			if (SLT.espnow.mode_send == NOW_BRC)
-//			{
-//				
-//			}
-//			else if (SLT.espnow.mode_send == NOW_ADD_PEER)
-//			{
-//				SLT.espnow.gateway_added = true; 
-//			}
-//			else if (SLT.espnow.mode_send == NOW_RDF || 
-//					 SLT.espnow.mode_send == NOW_WRF)
-//			{
-//				SLT.espnow.sent = true;
-//			}
-			
-			xSemaphoreGive(xSendEspNow);
-		}
 		
 	}
 	
@@ -124,20 +107,49 @@ static void init_my_esp_now(void)
 
 void clear_all_peer(void)
 {
-	if (SLT.espnow.p_peer != NULL)
+	if (SLT.espnow.p_peer != NULL && SLT.espnow.tot_pos_added > 0)
 	{
-		free(SLT.espnow.p_peer);
-		SLT.espnow.p_peer = NULL;
+		for (int i = 0; i < SLT.espnow.tot_pos_added; i++)
+		{
+			espnow_free_all_node(SLT.espnow.p_peer + i);
+		}
+		
+		if (SLT.espnow.p_peer != NULL)
+		{
+			free(SLT.espnow.p_peer);
+			SLT.espnow.p_peer = NULL;
+		}
+		if (SLT.espnow.tot_pos_added > 0)
+			SLT.espnow.tot_pos_added = 0;
 	}
-	if (SLT.espnow.tot_pos_added > 0)
-		SLT.espnow.tot_pos_added = 0;
 }
+
+void init_new_peer(Peer_Typedef* p_peer, uint8_t* peer_addr, uint8_t position)
+{
+	
+	memcpy(p_peer->info.peer_addr, peer_addr, MAC_ADDR_LEN); 
+	p_peer->info.channel = CONFIG_ESPNOW_CHANNEL;
+	p_peer->info.encrypt = false;
+	p_peer->info.ifidx = ESP_IF_WIFI_STA;
+	
+	p_peer->position = position;
+	
+	p_peer->send.p_hnode = NULL;
+	p_peer->send.first_send = true;
+	p_peer->send.last_tick = xTaskGetTickCount(); 
+	p_peer->send.time_retry = 0;
+	
+	p_peer->recv.buf = NULL;
+	p_peer->recv.tot_buf = 0;
+}
+
 uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 {
 	Peer_Typedef *tmp = NULL;
 	if (SLT.espnow.tot_pos_added == 0)
 		tmp = malloc(sizeof(Peer_Typedef));
-	else {
+	else
+	{
 		for (int i = 0; i < SLT.espnow.tot_pos_added; i++)
 		{
 			if (position == (SLT.espnow.p_peer + i)->position)
@@ -165,11 +177,8 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 					{
 						return 0;
 					}
-					memcpy((SLT.espnow.p_peer + i)->info.peer_addr, peer_addr, MAC_ADDR_LEN); 
-					(SLT.espnow.p_peer + i)->info.channel = CONFIG_ESPNOW_CHANNEL;
-					(SLT.espnow.p_peer + i)->info.encrypt = false;
-					(SLT.espnow.p_peer + i)->info.ifidx = ESP_IF_WIFI_STA;
-
+					
+					init_new_peer(SLT.espnow.p_peer + i, peer_addr, position); 
 					esp_now_add_peer(&(SLT.espnow.p_peer + i)->info);
 				
 					off_t current_f = lseek(fd, 6, SEEK_SET); 
@@ -217,11 +226,7 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 				}
 				else
 				{
-					memcpy((SLT.espnow.p_peer + i)->info.peer_addr, peer_addr, MAC_ADDR_LEN); 
-					(SLT.espnow.p_peer + i)->info.channel = CONFIG_ESPNOW_CHANNEL;
-					(SLT.espnow.p_peer + i)->info.encrypt = false;
-					(SLT.espnow.p_peer + i)->info.ifidx = ESP_IF_WIFI_STA;
-
+					init_new_peer(SLT.espnow.p_peer + i, peer_addr, position); 
 					esp_now_add_peer(&(SLT.espnow.p_peer + i)->info);	
 					return 1;
 				}
@@ -237,15 +242,13 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 	
 	SLT.espnow.p_peer = tmp;
 	SLT.espnow.tot_pos_added++;
-	(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->position = position;
 	
+	init_new_peer(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1, 
+		peer_addr,
+		position); 
 	
-	memcpy((SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.peer_addr, peer_addr, MAC_ADDR_LEN);
-	(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.channel = CONFIG_ESPNOW_CHANNEL;
-	(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.encrypt = false;
-	(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.ifidx = ESP_IF_WIFI_STA;
-
-	if (esp_now_is_peer_exist((SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.peer_addr) != true) {
+	if (esp_now_is_peer_exist((SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info.peer_addr) != true)
+	{
 		esp_now_add_peer(&(SLT.espnow.p_peer + SLT.espnow.tot_pos_added - 1)->info);  
 		
 	}
@@ -276,7 +279,8 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 
 bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2)
 {
-	if (mac1 == NULL || mac2 == NULL) {
+	if (mac1 == NULL || mac2 == NULL)
+	{
 		return mac1 == mac2;
 	}
 	
@@ -303,30 +307,80 @@ uint16_t crc16_modbus(uint8_t *buf, uint32_t len)
 	return crc;
 }
 /**
- * @brief	send espnow with cmd
- */
-esp_err_t espnow_send_cmd(const uint8_t* addr_peer, command_espnow_t cmd, void* buf, uint32_t len)
+	* @brief	send espnow with cmd
+	*/
+buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len)
 {	
 	uint8_t* tm_buf = (uint8_t*) buf;
 	
-	uint32_t len_send = NOW_LEN_HEADER + NOW_LEN_CMD + NOW_LEN_CRC + len ;
-	uint8_t* send_buf = malloc(len_send);
+	uint32_t len_send = NOW_LEN_HEADER + NOW_LEN_CMD + NOW_LEN_CRC + len;
+	uint8_t* des_buf = malloc(len_send);
 	
-	if (send_buf == NULL)
-		return ESP_FAIL;
+	buf_espnow_t send_buf = {.data = NULL, len = 0};
 	
-	send_buf[0] = 'N'; send_buf[1] = 'O'; send_buf[2] = 'W';
-	send_buf[3] = cmd;
+	if (des_buf == NULL)
+		return send_buf;
+	
+	des_buf[0] = 'N'; des_buf[1] = 'O'; des_buf[2] = 'W';
+	des_buf[3] = cmd;
 	
 	if (buf != NULL && len != 0)
-		memcpy(&send_buf[4], tm_buf, len);
+		memcpy(&des_buf[4], tm_buf, len);
 	
-	uint16_t crc = crc16_modbus(send_buf, len_send - NOW_LEN_CRC);
-	send_buf[len_send - 2] = crc & 0xFF;
-	send_buf[len_send - 1] = (crc >> 8) & 0xFF;
+	uint16_t crc = crc16_modbus(des_buf, len_send - NOW_LEN_CRC);
+	des_buf[len_send - 2] = crc & 0xFF;
+	des_buf[len_send - 1] = (crc >> 8) & 0xFF;
 	
-	esp_err_t ret = esp_now_send(addr_peer, send_buf, len_send);
-	free(send_buf);
+	send_buf.data = des_buf;
+	send_buf.len = len_send;
 	
-	return ret;
+	return send_buf;
 }
+uint8_t espnow_make_node_send(Peer_Typedef* p_peer, buf_espnow_t buf)
+{
+	espnow_send_node_t* new_node = malloc(sizeof(espnow_send_node_t));
+	
+	if (new_node == NULL) 
+		return 0;
+	new_node->buf = buf;
+	new_node->next = NULL;
+	
+	if (p_peer->send.p_hnode == NULL) 
+		p_peer->send.p_hnode = new_node; 
+	else
+	{
+		espnow_send_node_t* tm_node = p_peer->send.p_hnode;
+		
+		while (tm_node->next != NULL)
+			tm_node = tm_node->next;
+		
+		tm_node->next = new_node; 
+	}
+	return 1; 
+}
+
+void espnow_swt_node_send(Peer_Typedef* p_peer)
+{
+	if (p_peer->send.p_hnode != NULL && p_peer->send.p_hnode->buf.data != NULL)
+		free(p_peer->send.p_hnode->buf.data);
+	
+	if (p_peer->send.p_hnode != NULL)
+	{
+		espnow_send_node_t* tm_node = p_peer->send.p_hnode->next;
+		free(p_peer->send.p_hnode); 
+		p_peer->send.p_hnode = tm_node;
+	}
+}
+
+void espnow_free_all_node(Peer_Typedef* p_peer)
+{
+	espnow_send_node_t* tm_node = p_peer->send.p_hnode; 
+	while (tm_node != NULL)
+	{
+		if (tm_node->buf.data != NULL)
+			free(tm_node->buf.data);
+		tm_node = tm_node->next;
+	}
+	p_peer->send.p_hnode = NULL;
+}
+

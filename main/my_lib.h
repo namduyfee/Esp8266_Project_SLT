@@ -27,7 +27,6 @@ extern QueueHandle_t xBuffLoadf;
 extern QueueHandle_t xEspNowRecv;
 
 extern SemaphoreHandle_t xEspNowf;
-extern SemaphoreHandle_t xSendEspNow;
 
 #endif
 

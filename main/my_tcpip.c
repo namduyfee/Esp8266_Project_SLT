@@ -360,14 +360,14 @@ void tcp_send_cb(void* arg)
 			}
 		}
 		
-		if (tSendBuf->data != NULL)
+		if (tSendBuf != NULL && tSendBuf->data != NULL)
 			free(tSendBuf->data);
 		if (tSendBuf != NULL)
 			free(tSendBuf);
 	}
 	else
 	{
-		if (tSendBuf->data != NULL)
+		if (tSendBuf != NULL && tSendBuf->data != NULL)
 			free(tSendBuf->data);
 		if (tSendBuf != NULL)
 			free(tSendBuf);		
@@ -401,10 +401,9 @@ void tcp_ret_cmd(command_tcp_t cmd, uint8_t state)
 
 	if (tcpip_callback(tcp_send_cb, tSendBuf) != ERR_OK)
 	{
-		if (tSendBuf->data != NULL)
+		if (tSendBuf != NULL && tSendBuf->data != NULL)
 			free(tSendBuf->data);
 		if (tSendBuf != NULL)
 			free(tSendBuf);
 	} 
-	
 }
