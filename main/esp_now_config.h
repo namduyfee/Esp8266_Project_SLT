@@ -74,14 +74,14 @@ typedef struct
 	uint8_t position;
 	uint8_t addr[6];
 	buf_espnow_t buf;
-	uint32_t retry_ms;
+	uint32_t retry_cnt;			/**< number of times the sent callback is called */
 	
 } espnow_send_queue_t;
 
 typedef struct espnow_send_buf
 {
 	buf_espnow_t buf;
-	uint32_t retry_ms;
+	uint32_t retry_cnt;			/**< number of times the sent callback is called */
 	struct espnow_send_buf* next;
 	
 } espnow_send_node_t;
@@ -92,9 +92,6 @@ typedef struct Peer
 	struct
 	{
 		espnow_send_node_t* p_hnode;
-		TickType_t last_tick;
-		uint32_t time_retry;
-		bool first_send;
 		
 	} send;
 	
@@ -111,8 +108,9 @@ typedef struct Peer
 typedef struct My_Esp_Now
 {	
 	bool gateway_added; 
-	
 	Peer_Typedef* p_peer; 
+	
+	bool can_send;
 	
 	uint32_t tot_pos_added;				/**< total position added */ 
 	
@@ -135,7 +133,7 @@ bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);
 void clear_all_peer(void);
 uint16_t crc16_modbus(uint8_t *buf, uint32_t len); 
 buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len); 
-uint8_t espnow_make_node_send(Peer_Typedef* p_peer, buf_espnow_t buf); 
+uint8_t espnow_make_node_send(Peer_Typedef* p_peer, espnow_send_queue_t q_send);  
 void espnow_swt_node_send(Peer_Typedef* p_peer); 
 void espnow_free_all_node(Peer_Typedef* p_peer);
 #endif

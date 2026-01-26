@@ -31,6 +31,7 @@ Object SLT = {
 		.gateway_added = false,
 		.my_pos = 10,
 		.is_broadcast = false,
+		.can_send = true,
 	},
 	.wifi = {
 		.is_gateway = false,
@@ -198,9 +199,9 @@ void task_select_master()
 					
 					espnow_send_queue_t send_q = {
 						.addr = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
-						.retry_ms = 4000,
+						.retry_cnt = 0,
 					};
-					send_q.buf = espnow_make_seg_cmd(NOW_BRC, data, sizeof(data)); 
+					send_q.buf = espnow_make_seg_cmd(NOW_BRC, data, 7); 
 					xQueueSend(xEspNowSend, &send_q, portMAX_DELAY); 
 				}
 			}
@@ -218,6 +219,8 @@ void task_select_master()
  */
 void task_esp_now_recv()
 {
+	TickType_t last_tick_br = xTaskGetTickCount(); 
+	bool first_br = true;
 	
 	while (1)
 	{
@@ -230,14 +233,17 @@ void task_esp_now_recv()
 			{
 				if (data[0] == 'N' && data[1] == 'O' && data[2] == 'W')
 				{
+					
 					/** 
 					 *	if recv broadcast
 					 *		- erase and restore file that has info gateway and peers
 					 *		- switch from apsta mode to sta mode
 					 *		- send request add peer to master
 					 */
-					if (data[NOW_INDEX_CMD] == NOW_BRC)
-					{
+					if ( data[NOW_INDEX_CMD] == NOW_BRC && (first_br == true || 
+					                                       (xTaskGetTickCount() - last_tick_br > pdMS_TO_TICKS(6000)) ) )
+					{ 
+						
 						esp_now_deinit();
 						clear_all_peer();			/**< delete list peer to creat new list peer */
 						
@@ -283,21 +289,34 @@ void task_esp_now_recv()
 						if (saved == true)
 						{
 							/** after add peer gateway; send request add this peer to gateway */
+							if (SLT.espnow.p_peer != NULL)
+							{
+								uint8_t data[7] = {SLT.espnow.my_pos}; 
+								memcpy(&data[1], SLT.wifi.sta_macaddr, 6);
+								
+								espnow_send_queue_t send_q;
+								uint8_t gateway_add[6] = {0x84, 0xF3, 0xEB, 0xA6, 0xD8, 0x4F}; 
+								
+								memcpy(send_q.addr, gateway_add, 6); 
+								//memcpy(send_q.addr, SLT.wifi.gateway_addr, 6); 
+								send_q.buf = espnow_make_seg_cmd(NOW_ADD_PEER, data, 7); 
+								send_q.retry_cnt = 50;
+								send_q.position = SLT.espnow.p_peer->position;
+								xQueueSend(xEspNowSend, &send_q, portMAX_DELAY);
+								SLT.espnow.gateway_added = false;
+								set_duty_pwm(&SLT.Pwm, 0, 0);
+							}
 							
-							uint8_t data[7] = {SLT.espnow.my_pos}; 
-							memcpy(&data[1], SLT.wifi.sta_macaddr, 6);
-							
-							espnow_send_queue_t send_q;
-							memcpy(send_q.addr, SLT.wifi.gateway_addr, 6); 
-							send_q.buf = espnow_make_seg_cmd(NOW_ADD_PEER, data, sizeof(data)); 
-							send_q.retry_ms = 1000;
-							xQueueSend(xEspNowSend, &send_q, portMAX_DELAY);
-							SLT.espnow.gateway_added = false;
+							first_br = false;
+							last_tick_br = xTaskGetTickCount();
 						}
 					}
 					
 					else if (data[NOW_INDEX_CMD] == NOW_ADD_PEER)
 					{
+						set_duty_pwm(&SLT.Pwm, 0, 0);
+						set_duty_pwm(&SLT.Pwm, 1, 0);
+						
 						espnow_add_peer((uint8_t*)&data[NOW_INDEX_ADDR], data[NOW_INDEX_POS], true);
 						
 						if (SLT.espnow.p_peer != NULL)
@@ -307,7 +326,7 @@ void task_esp_now_recv()
 							uint8_t data [] = "a"; 
 							send_q.position = SLT.espnow.p_peer->position;
 							send_q.buf = espnow_make_seg_cmd(NOW_WRF, data, sizeof(data)); 
-							send_q.retry_ms = 400;
+							send_q.retry_cnt = 10;
 							xQueueSend(xEspNowSend, &send_q, portMAX_DELAY);
 						}
 
@@ -316,7 +335,6 @@ void task_esp_now_recv()
 					{
 						if (data[NOW_INDEX_DATA] == 'a')
 						{
-							set_duty_pwm(&SLT.Pwm, 0, 100);
 							
 							if (SLT.espnow.p_peer != NULL)
 							{
@@ -325,14 +343,13 @@ void task_esp_now_recv()
 								uint8_t data [] = "b"; 
 								send_q.position = SLT.espnow.p_peer->position;
 								send_q.buf = espnow_make_seg_cmd(NOW_WRF, data, sizeof(data)); 
-								send_q.retry_ms = 400;
+								send_q.retry_cnt = 10;
 								xQueueSend(xEspNowSend, &send_q, portMAX_DELAY);
 							}
 
 						}	
 						else if (data[NOW_INDEX_DATA] == 'b')
 						{
-							set_duty_pwm(&SLT.Pwm, 0, 150);
 							
 							
 							if (SLT.espnow.p_peer != NULL)
@@ -342,7 +359,7 @@ void task_esp_now_recv()
 								uint8_t data [] = "a"; 
 								send_q.position = SLT.espnow.p_peer->position;
 								send_q.buf = espnow_make_seg_cmd(NOW_WRF, data, sizeof(data)); 
-								send_q.retry_ms = 400;
+								send_q.retry_cnt = 10;
 								xQueueSend(xEspNowSend, &send_q, portMAX_DELAY);
 							}
 						}
@@ -367,26 +384,36 @@ void task_esp_now_recv()
  */
 void task_esp_now_send() 
 {
-	/* send broadcast ; master signal */
-	uint8_t broadcast[6]		= {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-	uint8_t add_send_all_per[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; 
-	
-	espnow_send_queue_t rd_queue;
+	uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; 
 	TickType_t br_lasttick = xTaskGetTickCount();
+	SLT.espnow.can_send = true;
+	
+	uint8_t add_send_all_per[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; 
+	espnow_send_queue_t rd_queue;
+	
 	while (1)
 	{	
 		
 		if (SLT.espnow.is_broadcast == true)
-		{
-
-			esp_now_send(rd_queue.addr,
-				rd_queue.buf.data,
-				rd_queue.buf.len); 
-			if (xTaskGetTickCount() - br_lasttick > pdMS_TO_TICKS(rd_queue.retry_ms))
+		{			
+			if (SLT.espnow.can_send == true)
+			{
+				SLT.espnow.can_send = false;
+				
+				if (esp_now_send(rd_queue.addr,
+					rd_queue.buf.data,
+					rd_queue.buf.len) != ESP_OK)
+				{
+					SLT.espnow.can_send = true;
+				}
+			}
+			
+			if (xTaskGetTickCount() - br_lasttick > pdMS_TO_TICKS(4000))
 			{
 				SLT.espnow.is_broadcast = false;
 				if (rd_queue.buf.data != NULL)
 					free(rd_queue.buf.data);
+				SLT.espnow.can_send = true;
 			}
 		}
 		else
@@ -412,7 +439,7 @@ void task_esp_now_send()
 						if ((SLT.espnow.p_peer + i)->position == rd_queue.position)
 						{
 							free_queue = false;
-							espnow_make_node_send(SLT.espnow.p_peer + i, rd_queue.buf);
+							espnow_make_node_send(SLT.espnow.p_peer + i, rd_queue);
 							break;
 						}
 					}
@@ -430,33 +457,33 @@ void task_esp_now_send()
 
 					if ((SLT.espnow.p_peer + i)->send.p_hnode != NULL)
 					{
-						(SLT.espnow.p_peer + i)->send.time_retry = (SLT.espnow.p_peer + i)->send.p_hnode->retry_ms;
-				
-						esp_now_send((SLT.espnow.p_peer + i)->info.peer_addr,
-							(SLT.espnow.p_peer + i)->send.p_hnode->buf.data,
-							(SLT.espnow.p_peer + i)->send.p_hnode->buf.len);
-				
-						if ((SLT.espnow.p_peer + i)->send.first_send == true) 
+						if ((SLT.espnow.p_peer + i)->send.p_hnode->retry_cnt > 0) 
 						{
-							(SLT.espnow.p_peer + i)->send.last_tick = xTaskGetTickCount();
-							(SLT.espnow.p_peer + i)->send.first_send = false;
+							if (SLT.espnow.can_send == true)
+							{
+								SLT.espnow.can_send = false;
+								if (esp_now_send((SLT.espnow.p_peer + i)->info.peer_addr,
+									(SLT.espnow.p_peer + i)->send.p_hnode->buf.data,
+									(SLT.espnow.p_peer + i)->send.p_hnode->buf.len) != ESP_OK)
+								{
+									SLT.espnow.can_send = true;
+								}
+								else
+								{
+									set_duty_pwm(&SLT.Pwm, 1, 0);
+									(SLT.espnow.p_peer + i)->send.p_hnode->retry_cnt--;
+								}
+							}
 						}
-				
-						if (xTaskGetTickCount() - (SLT.espnow.p_peer + i)->send.last_tick >
-									pdMS_TO_TICKS((SLT.espnow.p_peer + i)->send.time_retry) || 
-									(SLT.espnow.p_peer + i)->send.time_retry == 0) 
+						else 
 						{
 							espnow_swt_node_send((SLT.espnow.p_peer + i));
-							(SLT.espnow.p_peer + i)->send.first_send = true;
+							SLT.espnow.can_send = true; 
 						}
-						
-				
 					}
 				}
-			}
-
+			}		
 		}
-		
 		vTaskDelay(pdMS_TO_TICKS(NOW_SEND_CYCLE_MS));
 	}
 }

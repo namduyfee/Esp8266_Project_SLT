@@ -23,12 +23,11 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 	if (mac_addr == NULL || data == NULL || len <= 0) {
 		return;
 	}
-	
+		
 	if (( (uint16_t)(data[len - 1] << 8) | data[len - 2]) == 
 	crc16_modbus((uint8_t*)data, len - NOW_LEN_CRC))
 	{
 		buf_espnow_t tm;
-		
 		tm.data = malloc(len - 2);		/**< last 2 bytes are crc and it checked */
 		tm.len     = len - 2;
 		if (tm.data != NULL)
@@ -41,12 +40,16 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 
 static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status) 
 {
+	uint8_t br_addr[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+	
 	if (status == ESP_NOW_SEND_SUCCESS) 
 	{
-		
-		
+		if (memcmp(br_addr, mac_addr, 6) == 0) 
+		{
+		}
 	}
 	
+	SLT.espnow.can_send = true;
 }
 
 void init_espnow(void) 
@@ -135,10 +138,7 @@ void init_new_peer(Peer_Typedef* p_peer, uint8_t* peer_addr, uint8_t position)
 	p_peer->position = position;
 	
 	p_peer->send.p_hnode = NULL;
-	p_peer->send.first_send = true;
-	p_peer->send.last_tick = xTaskGetTickCount(); 
-	p_peer->send.time_retry = 0;
-	
+
 	p_peer->recv.buf = NULL;
 	p_peer->recv.tot_buf = 0;
 }
@@ -336,13 +336,18 @@ buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len)
 	
 	return send_buf;
 }
-uint8_t espnow_make_node_send(Peer_Typedef* p_peer, buf_espnow_t buf)
+uint8_t espnow_make_node_send(Peer_Typedef* p_peer, espnow_send_queue_t q_send)
 {
 	espnow_send_node_t* new_node = malloc(sizeof(espnow_send_node_t));
 	
 	if (new_node == NULL) 
+	{ 
+		if (q_send.buf.data != NULL)
+			free(q_send.buf.data); 
 		return 0;
-	new_node->buf = buf;
+	}
+	new_node->buf = q_send.buf;
+	new_node->retry_cnt = q_send.retry_cnt; 
 	new_node->next = NULL;
 	
 	if (p_peer->send.p_hnode == NULL) 
