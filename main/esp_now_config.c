@@ -154,6 +154,9 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 		{
 			if (position == (SLT.espnow.p_peer + i)->position)
 			{
+				if (memcmp(peer_addr, (SLT.espnow.p_peer + i)->info.peer_addr, 6) == 0)
+					return 1; 
+				
 				esp_err_t ret = ESP_OK;
 				
 				if (esp_now_is_peer_exist((SLT.espnow.p_peer + i)->info.peer_addr) == true)
@@ -314,12 +317,12 @@ buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len)
 	uint8_t* tm_buf = (uint8_t*) buf;
 	
 	uint32_t len_send = NOW_LEN_HEADER + NOW_LEN_CMD + NOW_LEN_CRC + len;
-	uint8_t* des_buf = malloc(len_send);
+	uint8_t* des_buf = malloc(len_send * sizeof(uint8_t));
 	
-	buf_espnow_t send_buf = {.data = NULL, len = 0};
+	buf_espnow_t send_buf = {.data = NULL, .len = 0};
 	
 	if (des_buf == NULL)
-		return send_buf;
+		return send_buf; 
 	
 	des_buf[0] = 'N'; des_buf[1] = 'O'; des_buf[2] = 'W';
 	des_buf[3] = cmd;
@@ -336,6 +339,7 @@ buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len)
 	
 	return send_buf;
 }
+
 uint8_t espnow_make_node_send(Peer_Typedef* p_peer, espnow_send_queue_t q_send)
 {
 	espnow_send_node_t* new_node = malloc(sizeof(espnow_send_node_t));
@@ -379,12 +383,17 @@ void espnow_swt_node_send(Peer_Typedef* p_peer)
 
 void espnow_free_all_node(Peer_Typedef* p_peer)
 {
-	espnow_send_node_t* tm_node = p_peer->send.p_hnode; 
-	while (tm_node != NULL)
+	 
+	while (p_peer->send.p_hnode != NULL)
 	{
-		if (tm_node->buf.data != NULL)
-			free(tm_node->buf.data);
-		tm_node = tm_node->next;
+		espnow_send_node_t* tm_node = p_peer->send.p_hnode->next;
+		
+		if (p_peer->send.p_hnode->buf.data != NULL)
+			free(p_peer->send.p_hnode->buf.data);
+		
+		free(p_peer->send.p_hnode); 
+		
+		p_peer->send.p_hnode = tm_node; 
 	}
 	p_peer->send.p_hnode = NULL;
 }

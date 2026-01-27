@@ -16,7 +16,7 @@
 #include "esp_now.h"
 #include "my_tcpip.h"
 
-
+#define TIME_BRC	5000
 
 #define MAX_BRC_CNT 100
 #define MAC_ADDR_LEN 6
@@ -132,7 +132,7 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save);
 bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);  
 void clear_all_peer(void);
 uint16_t crc16_modbus(uint8_t *buf, uint32_t len); 
-buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len); 
+buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len);  
 uint8_t espnow_make_node_send(Peer_Typedef* p_peer, espnow_send_queue_t q_send);  
 void espnow_swt_node_send(Peer_Typedef* p_peer); 
 void espnow_free_all_node(Peer_Typedef* p_peer);
