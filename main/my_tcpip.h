@@ -55,7 +55,7 @@ typedef struct
 	uint16_t pos_data;			/**< start position of data to save in buffer */
 	off_t pos_in_file;			/**< position in file to save */
 	command_tcp_t command;		/**< command with file */
-	int tot_len;				/**< total length message */
+	int w_tot_len;				/**< total length message */
 	
 } tcp_recv_t;
 
@@ -94,7 +94,9 @@ typedef struct
 		command_tcp_t cmd; 
 		tcp_recv_t segment; 
 		off_t current_pos_file;
-		int tot_len;				/**< total bytes of message */
+		int w_tot_len;				/**< total bytes of message */
+		off_t w_start; 
+		int w_remaining; 
 	} recv;
 	
 	struct

@@ -33,7 +33,7 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 		if (tm.data != NULL)
 		{
 			memcpy(tm.data, data, len - 2);
-			xQueueSendToBack(xEspNowRecv, &tm, portMAX_DELAY);
+			xQueueSendToBack(xNowRecv, &tm, portMAX_DELAY);
 		}
 	}
 }
@@ -75,12 +75,12 @@ static void init_my_esp_now(void)
 		esp_now_add_peer(&peer); 
 	
 	struct stat st;
-	int ret = stat("/spiffs/gateway.bin", &st);
+	int ret = stat(PATH_GWAY_PEERS, &st);
 	int fd = -1;
 	
 	if (ret >= 0)
 	{
-		fd = open("/spiffs/gateway.bin", O_RDONLY | O_CREAT, 0666);
+		fd = open(PATH_GWAY_PEERS, O_RDONLY | O_CREAT, 0666);
 	}
 	
 	if (fd >= 0)
@@ -98,7 +98,7 @@ static void init_my_esp_now(void)
 				{
 					lseek(fd, current_f, SEEK_SET);
 					read(fd, tm_info, 1 + 6);
-					espnow_add_peer(&tm_info[1], tm_info[0], false);
+					espnow_add_peer(&tm_info[1], tm_info[0], false, PATH_GWAY_PEERS);
 					current_f = lseek(fd, 0, SEEK_CUR);
 				}
 				free(tm_info);
@@ -143,7 +143,7 @@ void init_new_peer(Peer_Typedef* p_peer, uint8_t* peer_addr, uint8_t position)
 	p_peer->recv.tot_buf = 0;
 }
 
-uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
+uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save, const char* path)
 {
 	Peer_Typedef *tmp = NULL;
 	if (SLT.espnow.tot_pos_added == 0)
@@ -172,9 +172,9 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 				if (save == true)
 				{
 					struct stat st;
-					int ret2 = stat("/spiffs/gateway.bin", &st);
-					int fd = ret2 < 0 ?  open("/spiffs/gateway.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : 
-										open("/spiffs/gateway.bin", O_RDWR | O_CREAT, 0666);
+					int ret2 = stat(path, &st);
+					int fd = ret2 < 0 ?  open(path, O_RDWR | O_CREAT | O_TRUNC, 0666) : 
+										open(path, O_RDWR | O_CREAT, 0666);
 	
 					if (fd < 0)
 					{
@@ -258,9 +258,9 @@ uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save)
 	if (save == true)
 	{
 		struct stat st;
-		int ret = stat("/spiffs/gateway.bin", &st);
-		int fd = ret < 0 ?  open("/spiffs/gateway.bin", O_RDWR | O_CREAT | O_TRUNC, 0666) : 
-							open("/spiffs/gateway.bin", O_RDWR | O_CREAT, 0666);
+		int ret = stat(path, &st);
+		int fd = ret < 0 ?  open(path, O_RDWR | O_CREAT | O_TRUNC, 0666) : 
+							open(path, O_RDWR | O_CREAT, 0666);
 	
 		if (fd >= 0)
 		{

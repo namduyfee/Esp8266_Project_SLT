@@ -18,12 +18,12 @@ void my_start_wifi(wifi_t* wifi)
 	esp_wifi_get_mac(ESP_IF_WIFI_STA, wifi->sta_macaddr); 
 	
 	struct stat st;
-	int ret = stat("/spiffs/gateway.bin", &st);
+	int ret = stat(PATH_GWAY_PEERS, &st);
 	int fd = -1;
 	
 	if (ret >= 0)
 	{
-		fd = open("/spiffs/gateway.bin", O_RDONLY | O_CREAT, 0666);
+		fd = open(PATH_GWAY_PEERS, O_RDONLY | O_CREAT, 0666);
 	}
 	
 	if (fd >= 0)

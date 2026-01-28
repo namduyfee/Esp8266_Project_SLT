@@ -13,6 +13,9 @@
 #include "esp_event.h"
 #include "esp_log.h"
 
+#define PATH_EFFECT "/spiffs/effect.bin"
+#define PATH_EFFECT_TMP "/spiffs/effect_tmp.bin"
+
 typedef struct 
 {
 	uint8_t numPin;				/**< number of pins of object */

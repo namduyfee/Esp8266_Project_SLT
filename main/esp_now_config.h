@@ -16,12 +16,13 @@
 #include "esp_now.h"
 #include "my_tcpip.h"
 
-#define TIME_BRC	5000
+#define PATH_GWAY_PEERS "/spiffs/gway_peers.bin"				/**< store gateway addr, info peers*/
 
+#define TIME_BRC	5000
 #define MAX_BRC_CNT 100
 #define MAC_ADDR_LEN 6
 #define CONFIG_ESPNOW_CHANNEL 1
-#define NOW_SEND_CYCLE_MS 50
+#define NOW_SEND_CYCLE_MS 100
 
 #define NOW_INDEX_HEADER 0
 #define NOW_LEN_HEADER 3
@@ -128,7 +129,7 @@ typedef struct My_Esp_Now
 
 
 void init_espnow(void); 
-uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save);   
+uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save, const char* path);    
 bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);  
 void clear_all_peer(void);
 uint16_t crc16_modbus(uint8_t *buf, uint32_t len); 

@@ -49,7 +49,6 @@ err_t init_server_tpcp(uint16_t port, uint8_t max_client)
 	{
 		tcp_close(server_listen_tpcb);
 		SLT.server.tpcb = 0;
-		printf("Error listen!\r\n");
 		return ERR_MEM;
 	}
 	
@@ -58,7 +57,9 @@ err_t init_server_tpcp(uint16_t port, uint8_t max_client)
 	SLT.server.max_client = max_client;
 	SLT.server.count_client = 0; 
 	SLT.server.recv.current_pos_file = 0; 
-	SLT.server.recv.tot_len = 0;
+	SLT.server.recv.w_tot_len = 0;
+	SLT.server.recv.w_remaining = 0;
+	SLT.server.recv.w_start = 0;
 	
 	SLT.server.send.buf = NULL;
 	SLT.server.client = NULL;
@@ -243,13 +244,13 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 			
 			if (p->tot_len >= 12)
 			{
-				client->recv.segment.tot_len = (((uint8_t*)client->recv.segment.buf.data)[11] << 24) | 
+				client->recv.segment.w_tot_len = (((uint8_t*)client->recv.segment.buf.data)[11] << 24) | 
 											   (((uint8_t*)client->recv.segment.buf.data)[10] << 16) | 
 											   (((uint8_t*)client->recv.segment.buf.data)[9] << 8)   | 
 											   (((uint8_t*)client->recv.segment.buf.data)[8] << 0);
 			}
 			else 
-				client->recv.segment.tot_len = 0; 
+				client->recv.segment.w_tot_len = 0; 
 			
 			if (p->tot_len > 12)
 			{
@@ -272,7 +273,7 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 		client->recv.segment.buf.len = p->tot_len;
 		client->recv.segment.pos_in_file = POS_CONTINUE;
 		
-		client->recv.segment.tot_len = REMAINING; 
+		client->recv.segment.w_tot_len = REMAINING; 
 
 	}
 	

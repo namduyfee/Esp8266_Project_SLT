@@ -34,17 +34,6 @@ void spiffs_init(void)
 	
 }
 
-void spiffs_read_file(const char *path, char *data, uint32_t data_len)
-{ 
-	int fd = open(path, O_RDONLY, 0666);
-	if (fd < 0)
-	{
-		return;
-	}
-	read(fd, data, data_len);
-	close(fd);
-	
-}
 
 
 
