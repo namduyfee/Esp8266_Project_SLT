@@ -20,27 +20,10 @@
 #include "lwip/opt.h"
 #include "lwip/tcpip.h"
 
-#define POS_CONTINUE -1
-#define REMAINING -1
+#include "spiffs_config.h"
 
 #define TCP_POLL_CYCLE 2
 #define TCP_AUTO_DIS_MS 8000
-typedef enum
-{
-	TCP_NONE    = 0,
-	TCP_OPF		= 1,
-	TCP_CLSF	= 2,
-	TCP_DLTF	= 3, 
-	TCP_RDF		= 4,
-	TCP_WRF		= 5,
-	
-	TCP_RET_OPF	= 6,
-	TCP_RET_CLSF,
-	TCP_RET_DLTF, 
-	TCP_RET_RDF,
-	TCP_RET_WRT
-		
-} command_tcp_t; 
 
 typedef struct
 {
@@ -49,35 +32,13 @@ typedef struct
 	
 } tcp_buf_t; 
 
-typedef struct 
-{
-	tcp_buf_t buf;				/**< store content and len */
-	uint16_t pos_data;			/**< start position of data to save in buffer */
-	off_t pos_in_file;			/**< position in file to save */
-	command_tcp_t command;		/**< command with file */
-	int w_tot_len;				/**< total length message */
-	
-} tcp_recv_t;
 
 typedef struct
 {
 	struct tcp_pcb* tpcb_server;
 	struct tcp_pcb* tpcb;				/**< tcp client is creat */
 	TickType_t lastTick; 				/**< auto disconnect tcp */
-	struct
-	{
-		tcp_recv_t segment; 
-		
-	} recv;
-	
-	struct
-	{
-		tcp_buf_t buf;
-		bool request;					/**< flag to read file and send */
-		
-	} send;
-  
-void* arg;
+
 } tcp_client_t;
 
 typedef struct
@@ -91,12 +52,7 @@ typedef struct
 	
 	struct
 	{ 	
-		command_tcp_t cmd; 
-		tcp_recv_t segment; 
-		off_t current_pos_file;
-		int w_tot_len;				/**< total bytes of message */
-		off_t w_start; 
-		int w_remaining; 
+		
 	} recv;
 	
 	struct
@@ -107,12 +63,12 @@ typedef struct
 	
 	void* arg;
 	
-	tcp_client_t* client;
+	tcp_client_t* p_client;
 	
 } tcp_server_t;
 
 
 err_t init_server_tpcp(uint16_t port, uint8_t max_client);  
 void tcp_send_cb(void* arg);  
-void tcp_ret_cmd(command_tcp_t cmd, uint8_t state); 
+void tcp_ret_cmd(file_command_t cmd, uint8_t state); 
 #endif

@@ -15,6 +15,72 @@
 #include "nvs_flash.h"
 #include "esp_spiffs.h"
 
+#define POS_CONTINUE -1
+#define REMAINING -1
+
+typedef enum
+{
+	F_NONE    = 0,
+	F_OP      = 1,
+	F_CLS     = 2,
+	F_DLT     = 3, 
+	F_RD      = 4,
+	F_WR      = 5,
+	
+	F_RET_OP  = 6,
+	F_RET_CLS,
+	F_RET_DLT, 
+	F_RET_RD,
+	F_RET_WRT
+		
+} file_command_t;
+
+typedef struct
+{
+	void* data;
+	uint32_t len;			/**< total bytes of memory that is pointed by data */
+	
+} file_buf_t;
+
+typedef struct 
+{
+	file_command_t cmd;			/**< command with file */
+	off_t offset;				/**< offset of request */
+	
+	union
+	{
+		struct
+		{
+			file_buf_t buf;				/**< content and len of segment */
+			int tot_len;				/**< total length message */
+		} write;
+		struct
+		{
+			int len;				/**< total length message */
+		} read;
+	};
+	
+} file_request_t;
+
+typedef struct
+{
+	file_command_t cmd_cur;				/**< command current */
+	
+	struct
+	{
+		off_t offset_last;					/**< lastest offset after write */
+		off_t offset_start;				/**< the fisrt offset is written after recv message */
+		int tot_len;					/**< total length message */
+		int remaining;					/**< remaining bytes to write */
+	} write;
+	struct
+	{
+		off_t off_last;					/**< lastest offset after read */
+	} read;
+	
+} file_mana_t;
+
+
 void spiffs_init(void);
 void spiffs_read_file(const char *path, char *data, uint32_t data_len);
 

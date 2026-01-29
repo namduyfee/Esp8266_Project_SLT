@@ -42,4 +42,7 @@ typedef struct
 	
 } effect_manage_t;
 
+
+
+
 #endif

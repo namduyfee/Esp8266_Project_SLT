@@ -56,13 +56,10 @@ err_t init_server_tpcp(uint16_t port, uint8_t max_client)
 	SLT.server.port = port;
 	SLT.server.max_client = max_client;
 	SLT.server.count_client = 0; 
-	SLT.server.recv.current_pos_file = 0; 
-	SLT.server.recv.w_tot_len = 0;
-	SLT.server.recv.w_remaining = 0;
-	SLT.server.recv.w_start = 0;
+
 	
 	SLT.server.send.buf = NULL;
-	SLT.server.client = NULL;
+	SLT.server.p_client = NULL;
 	
 	tcp_accept(server_listen_tpcb, server_accept_tcp);
 	
@@ -95,10 +92,9 @@ static err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 		 
 		newclient->tpcb = newpcb; 
 		newclient->tpcb_server = server->tpcb;
-		newclient->send.request = false;
 		newclient->lastTick = xTaskGetTickCount(); 
 		
-		SLT.server.client = newclient;
+		SLT.server.p_client = newclient;
 		
 		tcp_recv(newpcb, tcp_recv_cb);
 		tcp_sent(newpcb, tcp_sent_cb);		
@@ -128,7 +124,7 @@ static void tcp_error_cb(void *arg, err_t err)
 	if (client != NULL)
 	{
 		free(client);
-		SLT.server.client = NULL;
+		SLT.server.p_client = NULL;
 	}
 	
 	if (SLT.server.count_client > 0)
@@ -172,9 +168,11 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 		return ERR_MEM;
 	}
 	
+	tcp_buf_t recv_buf; 
 	
-	client->recv.segment.buf.data = malloc(p->tot_len);	
-	if (client->recv.segment.buf.data == NULL)
+	recv_buf.data = malloc(p->tot_len);	
+	
+	if (recv_buf.data == NULL)
 	{
 		tcp_recved(tpcb, p->tot_len);
 		pbuf_free(p);	
@@ -182,85 +180,89 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 		return ERR_MEM;
 	}
 	
-	pbuf_copy_partial(p, client->recv.segment.buf.data, p->tot_len, 0);
+	pbuf_copy_partial(p, recv_buf.data, p->tot_len, 0);
+	recv_buf.len = p->tot_len; 
 	
-	if (((char*)client->recv.segment.buf.data)[0] == 'T' && ((char*)client->recv.segment.buf.data)[1] == 'C'  && 
-	    ((char*)client->recv.segment.buf.data)[2] == 'P')
+	file_request_t eff;
+	
+	if (((char*)recv_buf.data)[0] == 'T' && ((char*)recv_buf.data)[1] == 'C' && 
+	    ((char*)recv_buf.data)[2] == 'P')
 	{
-		client->recv.segment.command = ((char*)client->recv.segment.buf.data)[3];
 		
-		if (client->recv.segment.command == TCP_OPF)
+		
+		eff.cmd = ((char*)recv_buf.data)[3];
+		
+		if (eff.cmd == F_OP)
 		{
-			free(client->recv.segment.buf.data);
-			client->recv.segment.buf.data = NULL; 
+
 		}
-		else if (client->recv.segment.command == TCP_CLSF)
+		else if (eff.cmd == F_CLS)
 		{
-			free(client->recv.segment.buf.data);
-			client->recv.segment.buf.data = NULL; 	
+
 		}
-		else if (client->recv.segment.command == TCP_DLTF)
+		else if (eff.cmd == F_DLT)
 		{
-			free(client->recv.segment.buf.data);
-			client->recv.segment.buf.data = NULL; 	
+	
 		}		
-		else if (client->recv.segment.command == TCP_RDF)
+		else if (eff.cmd == F_RD)
 		{
-			if (p->tot_len >= 8)
+			if (recv_buf.len >= 8)
 			{
-				client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.buf.data)[7] << 24) | 
-											   (((uint8_t*)client->recv.segment.buf.data)[6] << 16) | 
-											   (((uint8_t*)client->recv.segment.buf.data)[5] << 8)  | 
-				                               (((uint8_t*)client->recv.segment.buf.data)[4] << 0);			
+				eff.offset = (((uint8_t*)recv_buf.data)[7] << 24) | 
+							 (((uint8_t*)recv_buf.data)[6] << 16) | 
+							 (((uint8_t*)recv_buf.data)[5] << 8)  | 
+				             (((uint8_t*)recv_buf.data)[4] << 0);			
 			}
 			else 
-				client->recv.segment.pos_in_file = 0; 	
+				eff.offset = 0; 	
 
 			
-			if (p->tot_len >= 12)
+			if (recv_buf.len >= 12)
 			{
-				client->recv.segment.buf.len = (((uint8_t*)client->recv.segment.buf.data)[11] << 24) | 
-											   (((uint8_t*)client->recv.segment.buf.data)[10] << 16) | 
-											   (((uint8_t*)client->recv.segment.buf.data)[9] << 8)   | 
-											   (((uint8_t*)client->recv.segment.buf.data)[8] << 0);	
+				eff.read.len = (((uint8_t*)recv_buf.data)[11] << 24) | 
+							   (((uint8_t*)recv_buf.data)[10] << 16) | 
+							   (((uint8_t*)recv_buf.data)[9] << 8)   | 
+							   (((uint8_t*)recv_buf.data)[8] << 0);	
 			}
 			else 
-				client->recv.segment.buf.len = 0;
+				eff.read.len = 0;
 			
-			free(client->recv.segment.buf.data);
-			client->recv.segment.buf.data = NULL;
 		}
-		else if (client->recv.segment.command == TCP_WRF)
+		else if (eff.cmd == F_WR)
 		{
-			if (p->tot_len >= 8)
+			if (recv_buf.len >= 8)
 			{
-				client->recv.segment.pos_in_file = (((uint8_t*)client->recv.segment.buf.data)[7] << 24) | 
-												   (((uint8_t*)client->recv.segment.buf.data)[6] << 16) | 
-												   (((uint8_t*)client->recv.segment.buf.data)[5] << 8)  | 
-												   (((uint8_t*)client->recv.segment.buf.data)[4] << 0);	
+				eff.offset = (((uint8_t*)recv_buf.data)[7] << 24) | 
+							 (((uint8_t*)recv_buf.data)[6] << 16) | 
+							 (((uint8_t*)recv_buf.data)[5] << 8)  | 
+				             (((uint8_t*)recv_buf.data)[4] << 0);	
 			}
 			else 
-				client->recv.segment.pos_in_file = 0;
+				eff.offset = 0;
 			
-			if (p->tot_len >= 12)
+			if (recv_buf.len >= 12)
 			{
-				client->recv.segment.w_tot_len = (((uint8_t*)client->recv.segment.buf.data)[11] << 24) | 
-											   (((uint8_t*)client->recv.segment.buf.data)[10] << 16) | 
-											   (((uint8_t*)client->recv.segment.buf.data)[9] << 8)   | 
-											   (((uint8_t*)client->recv.segment.buf.data)[8] << 0);
+				eff.write.tot_len = (((uint8_t*)recv_buf.data)[11] << 24) | 
+									(((uint8_t*)recv_buf.data)[10] << 16) | 
+									(((uint8_t*)recv_buf.data)[9] << 8)   | 
+									(((uint8_t*)recv_buf.data)[8] << 0);
 			}
 			else 
-				client->recv.segment.w_tot_len = 0; 
+				eff.write.tot_len = 0; 
 			
-			if (p->tot_len > 12)
+			if (recv_buf.len > 12)
 			{
-				client->recv.segment.pos_data = 12;
-				client->recv.segment.buf.len = p->tot_len - 12;
+				eff.write.buf.len = recv_buf.len - 12; 
+				eff.write.buf.data = malloc(sizeof(uint8_t) * eff.write.buf.len);
+				if (eff.write.buf.data != NULL)
+				{
+					memcpy(eff.write.buf.data, (uint8_t*)recv_buf.data + 12, eff.write.buf.len); 
+				}
 			}
 			else
 			{
-				client->recv.segment.pos_data = 0;
-				client->recv.segment.buf.len = 0;
+				eff.write.buf.data = NULL; 
+				eff.write.buf.len = 0; 
 			}
 
 		}
@@ -268,19 +270,27 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 	}
 	else
 	{
-		client->recv.segment.command = TCP_NONE;
-		client->recv.segment.pos_data = 0;
-		client->recv.segment.buf.len = p->tot_len;
-		client->recv.segment.pos_in_file = POS_CONTINUE;
+		eff.cmd = F_NONE;
+		eff.offset = POS_CONTINUE;
+		eff.write.tot_len = REMAINING;
 		
-		client->recv.segment.w_tot_len = REMAINING; 
-
+		eff.write.buf.len = recv_buf.len;
+		eff.write.buf.data = malloc(sizeof(uint8_t) * eff.write.buf.len);
+		
+		if (eff.write.buf.data != NULL)
+		{
+			memcpy(eff.write.buf.data, recv_buf.data, eff.write.buf.len); 
+		}
 	}
 	
 	client->lastTick = xTaskGetTickCount();
 	
-	xQueueSendToBack(xBuffLoadf, &client->recv.segment, portMAX_DELAY);
+	xQueueSendToBack(xEffLoadf, &eff, portMAX_DELAY);
 
+	if (recv_buf.data != NULL)
+		free(recv_buf.data);
+	recv_buf.data = NULL;
+	
 	tcp_recved(tpcb, p->tot_len);
 	pbuf_free(p);
 	return ERR_OK;
@@ -304,7 +314,7 @@ static err_t tcp_close_client(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 	if (client != NULL)
 	{
 		free(client);
-		SLT.server.client = NULL;
+		SLT.server.p_client = NULL;
 	}
 	
 	if (cl_tpcb != NULL)
@@ -334,7 +344,7 @@ void tcp_send_cb(void* arg)
 {
 	tcp_buf_t* tSendBuf = (tcp_buf_t*)arg;
 	
-	if (SLT.server.client->tpcb != NULL && SLT.server.client->tpcb->state != CLOSED)
+	if (SLT.server.p_client->tpcb != NULL && SLT.server.p_client->tpcb->state != CLOSED)
 	{
 		size_t remaining = tSendBuf->len; 
 		
@@ -343,14 +353,14 @@ void tcp_send_cb(void* arg)
 			if (tSendBuf->data == NULL || tSendBuf == NULL)
 				break;
 			
-			if (tcp_sndqueuelen(SLT.server.client->tpcb) < TCP_SND_QUEUELEN)
+			if (tcp_sndqueuelen(SLT.server.p_client->tpcb) < TCP_SND_QUEUELEN)
 			{
-				size_t numByteEmpty = tcp_sndbuf(SLT.server.client->tpcb);
+				size_t numByteEmpty = tcp_sndbuf(SLT.server.p_client->tpcb);
 				
 				if (numByteEmpty > 0)
 				{
 					size_t to_write = remaining <= numByteEmpty ? remaining : numByteEmpty;
-					if (tcp_write(SLT.server.client->tpcb,
+					if (tcp_write(SLT.server.p_client->tpcb,
 						(uint8_t*)tSendBuf->data + (tSendBuf->len - remaining),
 						to_write,
 						TCP_WRITE_FLAG_COPY) == ERR_OK)
@@ -377,7 +387,7 @@ void tcp_send_cb(void* arg)
 }
 
 #define TCP_LEN_RETURN_CMD 5
-void tcp_ret_cmd(command_tcp_t cmd, uint8_t state)
+void tcp_ret_cmd(file_command_t cmd, uint8_t state)
 {
 	
 	uint8_t* retCmd = malloc(sizeof(uint8_t) * TCP_LEN_RETURN_CMD); 
