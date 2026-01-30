@@ -33,7 +33,9 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 		if (tm.data != NULL)
 		{
 			memcpy(tm.data, data, len - 2);
-			xQueueSendToBack(xNowRecv, &tm, portMAX_DELAY);
+			
+			if (xQueueSendToBack(xNowRecv, &tm, pdMS_TO_TICKS(200)) != pdPASS)
+				free(tm.data); 
 		}
 	}
 }
@@ -68,7 +70,15 @@ static void init_my_esp_now(void)
 	uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; 	
 	memcpy(peer.peer_addr, broadcast, ESP_NOW_ETH_ALEN);
 	peer.channel = CONFIG_ESPNOW_CHANNEL;
-	peer.ifidx = WIFI_IF_STA;
+	
+	wifi_mode_t mode;
+	esp_wifi_get_mode(&mode); 
+	
+	if (mode == WIFI_MODE_STA)
+		peer.ifidx = WIFI_IF_STA;
+	else if(mode == WIFI_MODE_AP)
+		peer.ifidx = WIFI_IF_AP;
+	
 	peer.encrypt = false;
 	
 	if (esp_now_is_peer_exist(broadcast) != true)
@@ -133,7 +143,14 @@ void init_new_peer(Peer_Typedef* p_peer, uint8_t* peer_addr, uint8_t position)
 	memcpy(p_peer->info.peer_addr, peer_addr, MAC_ADDR_LEN); 
 	p_peer->info.channel = CONFIG_ESPNOW_CHANNEL;
 	p_peer->info.encrypt = false;
-	p_peer->info.ifidx = ESP_IF_WIFI_STA;
+	
+	wifi_mode_t mode;
+	esp_wifi_get_mode(&mode);
+	
+	if (mode == WIFI_MODE_STA)
+		p_peer->info.ifidx = WIFI_IF_STA;
+	else if (mode == WIFI_MODE_AP)
+		p_peer->info.ifidx = WIFI_IF_AP;
 	
 	p_peer->position = position;
 	

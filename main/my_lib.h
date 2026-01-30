@@ -27,6 +27,7 @@ extern Object SLT;
 
 extern QueueHandle_t xEffLoadf;
 extern QueueHandle_t xNowRecv;
+extern SemaphoreHandle_t xUseWifi;
 
 #endif
 

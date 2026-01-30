@@ -73,44 +73,50 @@ static err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 	
 	tcp_server_t* server = (tcp_server_t*)arg;
 	
-
 	if (server->count_client >= server->max_client)
 	{
 		tcp_close(newpcb);
-		
 		pwm_start();  
-		
 		return ERR_MEM;
 	}
 	
-	tcp_client_t* newclient = NULL; 
-	newclient = malloc(sizeof(tcp_server_t));
-	
-	
-	if (newclient != NULL)
+	if (xSemaphoreTake(xUseWifi, pdMS_TO_TICKS(1000)) == pdPASS)
 	{
+		tcp_client_t* newclient = NULL; 
+		newclient = malloc(sizeof(tcp_server_t));
+	
+		if (newclient != NULL)
+		{
 		 
-		newclient->tpcb = newpcb; 
-		newclient->tpcb_server = server->tpcb;
-		newclient->lastTick = xTaskGetTickCount(); 
+			newclient->tpcb = newpcb; 
+			newclient->tpcb_server = server->tpcb;
+			newclient->lastTick = xTaskGetTickCount(); 
 		
-		SLT.server.p_client = newclient;
+			SLT.server.p_client = newclient;
 		
-		tcp_recv(newpcb, tcp_recv_cb);
-		tcp_sent(newpcb, tcp_sent_cb);		
-		tcp_arg(newpcb, newclient);
-		tcp_err(newpcb, tcp_error_cb);
-		tcp_poll(newpcb, tcp_poll_cb, TCP_POLL_CYCLE); 
+			tcp_recv(newpcb, tcp_recv_cb);
+			tcp_sent(newpcb, tcp_sent_cb);		
+			tcp_arg(newpcb, newclient);
+			tcp_err(newpcb, tcp_error_cb);
+			tcp_poll(newpcb, tcp_poll_cb, TCP_POLL_CYCLE); 
 		
-		if(SLT.server.count_client < SLT.server.max_client)
-			SLT.server.count_client++;
-		return ERR_OK;
+			if (SLT.server.count_client < SLT.server.max_client)
+				SLT.server.count_client++;
+			return ERR_OK;
+		}
+		
+		tcp_close(newpcb);
+		pwm_start();
+		xSemaphoreGive(xUseWifi);
+		return ERR_MEM;
 	}
-	pwm_start();
-	
-	tcp_close(newpcb);
-	return ERR_MEM;
-	
+	else
+	{
+		tcp_close(newpcb);
+		pwm_start();
+		return ERR_MEM;
+	}
+
 } 
 /**
  * @brief	tcp error callback
@@ -285,14 +291,15 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 	
 	client->lastTick = xTaskGetTickCount();
 	
-	xQueueSendToBack(xEffLoadf, &eff, portMAX_DELAY);
-
 	if (recv_buf.data != NULL)
 		free(recv_buf.data);
 	recv_buf.data = NULL;
 	
 	tcp_recved(tpcb, p->tot_len);
 	pbuf_free(p);
+	
+	xQueueSendToBack(xEffLoadf, &eff, portMAX_DELAY);
+
 	return ERR_OK;
 }
 /**
@@ -310,7 +317,9 @@ static err_t tcp_sent_cb(void* arg, struct tcp_pcb* tpcb, uint16_t len)
  */
 static err_t tcp_close_client(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 {
-
+	
+	xSemaphoreGive(xUseWifi);
+	
 	if (client != NULL)
 	{
 		free(client);

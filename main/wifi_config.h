@@ -22,6 +22,7 @@
 #define POS_ADDR_GATEWAY 0
 typedef struct wifi
 {
+	uint8_t ap_macaddr[6]; 
 	uint8_t sta_macaddr[6];
 	uint8_t gateway_addr[6]; 
 	bool is_gateway;

@@ -15,7 +15,9 @@ void init_wifi(void)
 void my_start_wifi(wifi_t* wifi)
 {
 	init_wifi();
+	
 	esp_wifi_get_mac(ESP_IF_WIFI_STA, wifi->sta_macaddr); 
+	esp_wifi_get_mac(ESP_IF_WIFI_AP, wifi->ap_macaddr); 
 	
 	struct stat st;
 	int ret = stat(PATH_GWAY_PEERS, &st);
@@ -37,12 +39,12 @@ void my_start_wifi(wifi_t* wifi)
 			lseek(fd, POS_ADDR_GATEWAY, SEEK_SET);
 			read(fd, wifi->gateway_addr, 6);
 			
-			if (is_same_macadrr(wifi->gateway_addr, wifi->sta_macaddr))
+			if (is_same_macadrr(wifi->gateway_addr, wifi->ap_macaddr))
 			{
 				
 				wifi->is_gateway = true; 
 
-				esp_wifi_set_mode(WIFI_MODE_APSTA);
+				esp_wifi_set_mode(WIFI_MODE_AP);
 				
 				char result[32];
 				snprintf(result, sizeof(result), "SLT_ESP%d", SLT.espnow.my_pos);
