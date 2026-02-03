@@ -20,14 +20,20 @@
 
 typedef enum
 {
+	F_TCP_SOURCE = 0,
+	F_NOW_SOURCE
+} file_source_req;
+
+typedef enum
+{
 	F_NONE    = 0,
-	F_OP      = 1,
-	F_CLS     = 2,
-	F_DLT     = 3, 
-	F_RD      = 4,
-	F_WR      = 5,
+	F_OP,
+	F_CLS,
+	F_DLT, 
+	F_RD,
+	F_WR,
 	
-	F_RET_OP  = 6,
+	F_RET_OP,
 	F_RET_CLS,
 	F_RET_DLT, 
 	F_RET_RD,
@@ -46,7 +52,7 @@ typedef struct
 {
 	file_command_t cmd;			/**< command with file */
 	off_t offset;				/**< offset of request */
-	
+	file_source_req source;
 	union
 	{
 		struct

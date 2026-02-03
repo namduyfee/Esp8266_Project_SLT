@@ -25,6 +25,23 @@
 #define TCP_POLL_CYCLE 2
 #define TCP_AUTO_DIS_MS 8000
 
+typedef enum
+{
+	TCP_NONE    = 0,
+	TCP_OPF,
+	TCP_CLSF,
+	TCP_DLTF, 
+	TCP_RDF,
+	TCP_WRF,
+	
+	TCP_RET_OPF,
+	TCP_RET_CLSF,
+	TCP_RET_DLTF, 
+	TCP_RET_RDF,
+	TCP_RET_WRTF
+		
+} tcp_command_t;
+
 typedef struct
 {
 	void* data;

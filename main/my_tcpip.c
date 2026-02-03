@@ -7,7 +7,7 @@
  *	@details
  *		use dynamic memory and queue to transport data between tcp handler and task_tcp_file_bin in main
  *		
- *		Frame : "TCP" + CMD + OFSET (CMD = R, W) + SIZE (CMD = R, W) + DATA (CMD = W)	
+ *		Frame : "TCP" + CMD + OFSET (CMD = R, W) + DATA (CMD = W) 
  *		
  *	@note
  *		only one client at a time
@@ -80,43 +80,33 @@ static err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 		return ERR_MEM;
 	}
 	
-	if (xSemaphoreTake(xUseWifi, pdMS_TO_TICKS(1000)) == pdPASS)
-	{
-		tcp_client_t* newclient = NULL; 
-		newclient = malloc(sizeof(tcp_server_t));
+	tcp_client_t* newclient = NULL; 
+	newclient = malloc(sizeof(tcp_server_t));
 	
-		if (newclient != NULL)
-		{
-		 
-			newclient->tpcb = newpcb; 
-			newclient->tpcb_server = server->tpcb;
-			newclient->lastTick = xTaskGetTickCount(); 
-		
-			SLT.server.p_client = newclient;
-		
-			tcp_recv(newpcb, tcp_recv_cb);
-			tcp_sent(newpcb, tcp_sent_cb);		
-			tcp_arg(newpcb, newclient);
-			tcp_err(newpcb, tcp_error_cb);
-			tcp_poll(newpcb, tcp_poll_cb, TCP_POLL_CYCLE); 
-		
-			if (SLT.server.count_client < SLT.server.max_client)
-				SLT.server.count_client++;
-			return ERR_OK;
-		}
-		
-		tcp_close(newpcb);
-		pwm_start();
-		xSemaphoreGive(xUseWifi);
-		return ERR_MEM;
-	}
-	else
+	if (newclient != NULL)
 	{
-		tcp_close(newpcb);
-		pwm_start();
-		return ERR_MEM;
+		 
+		newclient->tpcb = newpcb; 
+		newclient->tpcb_server = server->tpcb;
+		newclient->lastTick = xTaskGetTickCount(); 
+		
+		SLT.server.p_client = newclient;
+		
+		tcp_recv(newpcb, tcp_recv_cb);
+		tcp_sent(newpcb, tcp_sent_cb);		
+		tcp_arg(newpcb, newclient);
+		tcp_err(newpcb, tcp_error_cb);
+		tcp_poll(newpcb, tcp_poll_cb, TCP_POLL_CYCLE); 
+		
+		if (SLT.server.count_client < SLT.server.max_client)
+			SLT.server.count_client++;
+		return ERR_OK;
 	}
-
+		
+	tcp_close(newpcb);
+	pwm_start();
+	return ERR_MEM;
+	
 } 
 /**
  * @brief	tcp error callback
@@ -189,29 +179,34 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 	pbuf_copy_partial(p, recv_buf.data, p->tot_len, 0);
 	recv_buf.len = p->tot_len; 
 	
-	file_request_t eff;
+	
+	file_request_t eff = {
+			.cmd = F_NONE,
+			.offset = 0,
+			.source = F_TCP_SOURCE
+		};
+	
 	
 	if (((char*)recv_buf.data)[0] == 'T' && ((char*)recv_buf.data)[1] == 'C' && 
 	    ((char*)recv_buf.data)[2] == 'P')
 	{
-		
-		
-		eff.cmd = ((char*)recv_buf.data)[3];
-		
-		if (eff.cmd == F_OP)
+		if (((char*)recv_buf.data)[3] == TCP_OPF)
 		{
-
+			eff.cmd = F_OP; 
 		}
-		else if (eff.cmd == F_CLS)
+		
+		else if (((char*)recv_buf.data)[3] == TCP_CLSF)
 		{
-
+			eff.cmd = F_CLS; 
 		}
-		else if (eff.cmd == F_DLT)
+		else if (((char*)recv_buf.data)[3] == TCP_DLTF)
 		{
-	
+			eff.cmd = F_DLT; 
 		}		
-		else if (eff.cmd == F_RD)
+		else if (((char*)recv_buf.data)[3] == TCP_RDF)
 		{
+			eff.cmd = F_RD;
+				
 			if (recv_buf.len >= 8)
 			{
 				eff.offset = (((uint8_t*)recv_buf.data)[7] << 24) | 
@@ -234,8 +229,10 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 				eff.read.len = 0;
 			
 		}
-		else if (eff.cmd == F_WR)
+		else if (((char*)recv_buf.data)[3] == TCP_WRF)
 		{
+			eff.cmd = F_WR;
+				
 			if (recv_buf.len >= 8)
 			{
 				eff.offset = (((uint8_t*)recv_buf.data)[7] << 24) | 
@@ -295,11 +292,10 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 		free(recv_buf.data);
 	recv_buf.data = NULL;
 	
-	tcp_recved(tpcb, p->tot_len);
-	pbuf_free(p);
-	
 	xQueueSendToBack(xEffLoadf, &eff, portMAX_DELAY);
 
+	tcp_recved(tpcb, p->tot_len);
+	pbuf_free(p);
 	return ERR_OK;
 }
 /**
@@ -317,8 +313,6 @@ static err_t tcp_sent_cb(void* arg, struct tcp_pcb* tpcb, uint16_t len)
  */
 static err_t tcp_close_client(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 {
-	
-	xSemaphoreGive(xUseWifi);
 	
 	if (client != NULL)
 	{

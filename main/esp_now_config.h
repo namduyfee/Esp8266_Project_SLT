@@ -16,6 +16,9 @@
 #include "esp_now.h"
 #include "my_tcpip.h"
 
+#define NOW_POS_PEER_BRC (0xFF)
+#define NOW_POS_ALL_PEER (0xFE)
+
 #define PATH_GWAY_PEERS "/spiffs/gway_peers.bin"				/**< store gateway addr, info peers*/
 
 #define TIME_BRC	5000
@@ -35,33 +38,37 @@
 #define NOW_INDEX_POS (NOW_INDEX_CMD + NOW_LEN_CMD)
 #define NOW_LEN_POS 1
 
-#define NOW_INDEX_ADDR (NOW_INDEX_POS + NOW_LEN_POS)
-#define NOW_LEN_ADDR 6
-
 #define NOW_LEN_CRC 2
 
 typedef enum
 {
 	NOW_NONE				= 0,	
-	NOW_ADD_PEER			= 1,
-	NOW_GET_PEER			= 2,
-	NOW_BRC					= 3,				/**< broadcast */
-	NOW_FB_BRC				= 4,				/**< feedback broadcast */
+	NOW_ADD_PEER,
+	NOW_GET_PEER,
+	NOW_BRC,					/**< broadcast */
+	NOW_FB_BRC,					/**< feedback broadcast */
 	
-	NOW_OPF					= 5,				/**< open file   */
-	NOW_CLSF				= 6,				/**< close file  */
-	NOW_DLTF				= 7,				/**< delete file */
-	NOW_RDF					= 8,				/**< read file	 */
-	NOW_WRF					= 9,				/**< write file  */
+	NOW_OPF,					/**< open file   */
+	NOW_CLSF,					/**< close file  */
+	NOW_DLTF,					/**< delete file */
+	NOW_RDF,					/**< read file	 */
 	
-	NOW_RET_OPF				= 10,				/**< return open file	*/
-	NOW_RET_CLSF			= 11,				/**< return close file	*/
-	NOW_RET_DLTF			= 12,				/**< return delete file	*/
-	NOW_RET_RDF				= 13,				/**< return read file	*/
-	NOW_RET_WRF				= 14,				/**< return write file	*/
+	NOW_ST_WRF,
+	NOW_WRF,					/**< write file  */
+	NOW_END_WRF,
 	
-	NOW_ACK					= 15,
-	NOW_NACK				= 16
+	NOW_RET_OPF,				/**< return open file	*/
+	NOW_RET_CLSF,				/**< return close file	*/
+	NOW_RET_DLTF,				/**< return delete file	*/
+	
+	NOW_ST_RET_RDF,
+	NOW_RET_RDF,				/**< return read file	*/
+	NOW_END_RET_RDF,
+	
+	NOW_RET_WRF,				/**< return write file	*/
+	
+	NOW_ACK,
+	NOW_NACK
 } command_espnow_t; 
 
 typedef struct
@@ -73,8 +80,14 @@ typedef struct
 
 typedef struct
 {
-	uint8_t position;
+	buf_espnow_t buf;
 	uint8_t addr[6];
+	
+} espnow_recv_queue_t;
+
+typedef struct
+{
+	uint8_t position;
 	buf_espnow_t buf;
 	uint32_t retry_cnt;			/**< number of times the sent callback is called */
 	
@@ -111,20 +124,10 @@ typedef struct My_Esp_Now
 {	
 	bool gateway_added; 
 	Peer_Typedef* p_peer; 
-	
 	bool can_send;
-	
 	uint32_t tot_pos_added;				/**< total position added */ 
-	
 	uint8_t my_pos;
-	
 	bool is_broadcast;
-	
-	struct
-	{
-		buf_espnow_t buf;
-		
-	} recv;
 	
 } My_Esp_Now_Typedef;
 
@@ -133,9 +136,10 @@ void init_espnow(void);
 uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save, const char* path);    
 bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);  
 void clear_all_peer(void);
-uint16_t crc16_modbus(uint8_t *buf, uint32_t len); 
+uint16_t crc16_modbus(uint16_t crc, uint8_t *buf, uint32_t len);  
+int espnow_send_write_file(uint16_t* crc, void* buf, uint32_t len, off_t start_offset, uint8_t pos_peer);
 buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len);  
-uint8_t espnow_make_node_send(Peer_Typedef* p_peer, espnow_send_queue_t q_send);  
+int espnow_make_node_send(Peer_Typedef* p_peer, espnow_send_queue_t q_send);  
 void espnow_swt_node_send(Peer_Typedef* p_peer); 
 void espnow_free_all_node(Peer_Typedef* p_peer);
 #endif

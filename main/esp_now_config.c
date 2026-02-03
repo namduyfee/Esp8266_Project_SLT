@@ -6,12 +6,12 @@
  * @brief
  * 
  * @details
- *	frame				 : SLT + CMD + SIZE + DATA_1, DATA_2, ... DATA_N + CHECKSUM 
+ *	frame				 : SLT + CMD + DATA_1, DATA_2, ... DATA_N + CHECKSUM 
  *	
- *		ADD_PEER		 : SLT + ADD_PEER (CMD) + SIZE + POSTION TO ADD + ADDRESS TO ADD + CHECKSUM
- *		GET_PEER		 : SLT + GET_PEER (CMD) + SIZE + POSTION TO GET + CHECKSUM (IF POSTION = 0xFF THEN GET ALL PEER) + CHECKSUM
+ *		ADD_PEER		 : SLT + ADD_PEER (CMD) + POSTION TO ADD + ADDRESS TO ADD + CHECKSUM
+ *		GET_PEER		 : SLT + GET_PEER (CMD) + POSTION TO GET + CHECKSUM (IF POSTION = 0xFF THEN GET ALL PEER) + CHECKSUM
  *		ESPNOW_READ		 : 
- *		ESPNOW_WRITE	 : SLT + ESPNOW_WRITE (CMD) + SIZE + SEQUENCE NUMBER + DATA1, .. DATAN + CHECKSUM	
+ *		ESPNOW_WRITE	 : SLT + ESPNOW_WRITE (CMD) + SEQUENCE NUMBER + DATA1, .. DATAN + CHECKSUM	
  */
 
 static void init_my_esp_now(void);
@@ -25,17 +25,20 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 	}
 		
 	if (( (uint16_t)(data[len - 1] << 8) | data[len - 2]) == 
-	crc16_modbus((uint8_t*)data, len - NOW_LEN_CRC))
+	crc16_modbus(0xffff, (uint8_t*)data, len - NOW_LEN_CRC))
 	{
-		buf_espnow_t tm;
-		tm.data = malloc(len - 2);		/**< last 2 bytes are crc and it checked */
-		tm.len     = len - 2;
-		if (tm.data != NULL)
+		espnow_recv_queue_t tm;
+		
+		memcpy(tm.addr, mac_addr, MAC_ADDR_LEN);
+		
+		tm.buf.data = malloc(len - 2);		/**< last 2 bytes are crc and it checked */
+		tm.buf.len     = len - 2;
+		if (tm.buf.data != NULL)
 		{
-			memcpy(tm.data, data, len - 2);
+			memcpy(tm.buf.data, data, len - 2);
 			
 			if (xQueueSendToBack(xNowRecv, &tm, pdMS_TO_TICKS(200)) != pdPASS)
-				free(tm.data); 
+				free(tm.buf.data); 
 		}
 	}
 }
@@ -307,13 +310,10 @@ bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2)
 	return memcmp(mac1, mac2, MAC_ADDR_LEN) == 0;
 }
 
-uint16_t crc16_modbus(uint8_t *buf, uint32_t len)
-{
-	uint16_t crc = 0xffff;
-	
+uint16_t crc16_modbus(uint16_t crc, uint8_t *buf, uint32_t len)
+{	
 	for (uint32_t i = 0; i < len; i++)
 	{
-		
 		crc ^= buf[i];
 		for (int j = 0; j < 8; j++)
 		{
@@ -327,8 +327,65 @@ uint16_t crc16_modbus(uint8_t *buf, uint32_t len)
 	return crc;
 }
 /**
-	* @brief	send espnow with cmd
-	*/
+ *	@brief	make frame to packet espnow to write the file
+ */
+int espnow_send_write_file(uint16_t* crc, void* buf, uint32_t len, off_t start_offset, uint8_t pos_peer)
+{
+	
+	uint8_t* tm_buf = buf; 
+	uint32_t remaining = len; 
+	off_t offset_segment = start_offset;
+	
+	while (remaining > 0)
+	{
+		
+		uint32_t len_send = ESP_NOW_MAX_DATA_LEN < remaining ? ESP_NOW_MAX_DATA_LEN : remaining; 
+	
+		uint8_t* new_buf = malloc(len_send + sizeof(uint32_t));
+		
+		if (new_buf == NULL)
+			continue;
+		
+		memcpy(new_buf, &offset_segment, 4);
+		memcpy(new_buf + 4, &tm_buf[len - remaining], len_send); 
+		
+		espnow_send_queue_t send_q;
+		send_q.retry_cnt = 1;
+		send_q.position = pos_peer;
+		send_q.buf = espnow_make_seg_cmd(NOW_WRF, &new_buf, len_send + sizeof(uint32_t));
+		
+		if (send_q.buf.data == NULL)
+		{
+			if (new_buf != NULL)
+				free(new_buf);
+			continue;
+		}
+		
+		if (xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(500)) != pdPASS)
+		{
+			if (new_buf != NULL)
+				free(new_buf);
+		
+			if (send_q.buf.data != NULL && send_q.buf.len > 0) 
+				free(send_q.buf.data);
+			
+			return -1;
+		}
+		
+		*crc = crc16_modbus(*crc, &tm_buf[len - remaining], len_send);
+		
+		remaining = remaining - len_send;
+		offset_segment = offset_segment + len_send;
+		
+		if (new_buf != NULL)
+			free(new_buf);
+	}
+	return 0; 
+}
+
+/**
+ * @brief	send espnow with cmd
+ */
 buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len)
 {	
 	uint8_t* tm_buf = (uint8_t*) buf;
@@ -347,7 +404,7 @@ buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len)
 	if (buf != NULL && len != 0)
 		memcpy(&des_buf[4], tm_buf, len);
 	
-	uint16_t crc = crc16_modbus(des_buf, len_send - NOW_LEN_CRC);
+	uint16_t crc = crc16_modbus(0xffff, des_buf, len_send - NOW_LEN_CRC);
 	des_buf[len_send - 2] = crc & 0xFF;
 	des_buf[len_send - 1] = (crc >> 8) & 0xFF;
 	
@@ -356,8 +413,12 @@ buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len)
 	
 	return send_buf;
 }
+/**
+ * @brief	
+ *
+ */
 
-uint8_t espnow_make_node_send(Peer_Typedef* p_peer, espnow_send_queue_t q_send)
+int espnow_make_node_send(Peer_Typedef* p_peer, espnow_send_queue_t q_send)
 {
 	espnow_send_node_t* new_node = malloc(sizeof(espnow_send_node_t));
 	
@@ -365,7 +426,7 @@ uint8_t espnow_make_node_send(Peer_Typedef* p_peer, espnow_send_queue_t q_send)
 	{ 
 		if (q_send.buf.data != NULL)
 			free(q_send.buf.data); 
-		return 0;
+		return -1;
 	}
 	new_node->buf = q_send.buf;
 	new_node->retry_cnt = q_send.retry_cnt; 
@@ -382,7 +443,7 @@ uint8_t espnow_make_node_send(Peer_Typedef* p_peer, espnow_send_queue_t q_send)
 		
 		tm_node->next = new_node; 
 	}
-	return 1; 
+	return 0; 
 }
 
 void espnow_swt_node_send(Peer_Typedef* p_peer)
