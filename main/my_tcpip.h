@@ -32,7 +32,10 @@ typedef enum
 	TCP_CLSF,
 	TCP_DLTF, 
 	TCP_RDF,
+	
+	TCP_ST_WRF,
 	TCP_WRF,
+	TCP_END_WRF,
 	
 	TCP_RET_OPF,
 	TCP_RET_CLSF,

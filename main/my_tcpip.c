@@ -151,7 +151,9 @@ static err_t tcp_poll_cb(void* arg, struct tcp_pcb* tpcb)
  */
 static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t err)
 {
+	
 	tcp_client_t* client = (tcp_client_t*)arg;
+	client->lastTick = xTaskGetTickCount();
 	
 	if ((err != ERR_OK) || (p == NULL) || (client == NULL)) {
 		if (p != NULL) {
@@ -180,16 +182,14 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 	recv_buf.len = p->tot_len; 
 	
 	
-	file_request_t eff = {
-			.cmd = F_NONE,
-			.offset = 0,
-			.source = F_TCP_SOURCE
-		};
-	
-	
 	if (((char*)recv_buf.data)[0] == 'T' && ((char*)recv_buf.data)[1] == 'C' && 
 	    ((char*)recv_buf.data)[2] == 'P')
 	{
+		file_request_t eff = {
+			.cmd = F_NONE,
+			.source = F_TCP_SOURCE
+		};
+		
 		if (((char*)recv_buf.data)[3] == TCP_OPF)
 		{
 			eff.cmd = F_OP; 
@@ -209,13 +209,13 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 				
 			if (recv_buf.len >= 8)
 			{
-				eff.offset = (((uint8_t*)recv_buf.data)[7] << 24) | 
-							 (((uint8_t*)recv_buf.data)[6] << 16) | 
-							 (((uint8_t*)recv_buf.data)[5] << 8)  | 
-				             (((uint8_t*)recv_buf.data)[4] << 0);			
+				eff.read.offset = (((uint8_t*)recv_buf.data)[7] << 24) | 
+								  (((uint8_t*)recv_buf.data)[6] << 16) | 
+								  (((uint8_t*)recv_buf.data)[5] << 8)  | 
+								  (((uint8_t*)recv_buf.data)[4] << 0);			
 			}
 			else 
-				eff.offset = 0; 	
+				eff.read.offset = 0; 	
 
 			
 			if (recv_buf.len >= 12)
@@ -229,37 +229,52 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 				eff.read.len = 0;
 			
 		}
+		else if (((char*)recv_buf.data)[3] == TCP_ST_WRF)
+		{
+			
+			eff.cmd = F_ST_WR;
+			if (recv_buf.len >= 8)
+			{
+				eff.write_start.offset = (((uint8_t*)recv_buf.data)[7] << 24) | 
+										 (((uint8_t*)recv_buf.data)[6] << 16) | 
+										 (((uint8_t*)recv_buf.data)[5] << 8)  | 
+										 (((uint8_t*)recv_buf.data)[4] << 0); 
+			}
+			else 
+				eff.write_start.offset = 0; 
+			
+			if (recv_buf.len >= 12)
+			{
+				eff.write_start.tot_len = (((uint8_t*)recv_buf.data)[11] << 24) | 
+										  (((uint8_t*)recv_buf.data)[10] << 16) | 
+										  (((uint8_t*)recv_buf.data)[9] << 8)   | 
+										  (((uint8_t*)recv_buf.data)[8] << 0);
+			}
+			else 
+				eff.write_start.tot_len = 0; 
+			
+		}
 		else if (((char*)recv_buf.data)[3] == TCP_WRF)
 		{
 			eff.cmd = F_WR;
 				
 			if (recv_buf.len >= 8)
 			{
-				eff.offset = (((uint8_t*)recv_buf.data)[7] << 24) | 
-							 (((uint8_t*)recv_buf.data)[6] << 16) | 
-							 (((uint8_t*)recv_buf.data)[5] << 8)  | 
-				             (((uint8_t*)recv_buf.data)[4] << 0);	
+				eff.write.offset = (((uint8_t*)recv_buf.data)[7] << 24) | 
+								   (((uint8_t*)recv_buf.data)[6] << 16) | 
+								   (((uint8_t*)recv_buf.data)[5] << 8)  | 
+								   (((uint8_t*)recv_buf.data)[4] << 0);	
 			}
 			else 
-				eff.offset = 0;
+				eff.write.offset = 0;
 			
-			if (recv_buf.len >= 12)
+			if (recv_buf.len > 8)
 			{
-				eff.write.tot_len = (((uint8_t*)recv_buf.data)[11] << 24) | 
-									(((uint8_t*)recv_buf.data)[10] << 16) | 
-									(((uint8_t*)recv_buf.data)[9] << 8)   | 
-									(((uint8_t*)recv_buf.data)[8] << 0);
-			}
-			else 
-				eff.write.tot_len = 0; 
-			
-			if (recv_buf.len > 12)
-			{
-				eff.write.buf.len = recv_buf.len - 12; 
+				eff.write.buf.len = recv_buf.len - 8; 
 				eff.write.buf.data = malloc(sizeof(uint8_t) * eff.write.buf.len);
 				if (eff.write.buf.data != NULL)
 				{
-					memcpy(eff.write.buf.data, (uint8_t*)recv_buf.data + 12, eff.write.buf.len); 
+					memcpy(eff.write.buf.data, (uint8_t*)recv_buf.data + 8, eff.write.buf.len); 
 				}
 			}
 			else
@@ -267,32 +282,25 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 				eff.write.buf.data = NULL; 
 				eff.write.buf.len = 0; 
 			}
-
+			
 		}
-		
-	}
-	else
-	{
-		eff.cmd = F_NONE;
-		eff.offset = POS_CONTINUE;
-		eff.write.tot_len = REMAINING;
-		
-		eff.write.buf.len = recv_buf.len;
-		eff.write.buf.data = malloc(sizeof(uint8_t) * eff.write.buf.len);
-		
-		if (eff.write.buf.data != NULL)
+		else if (((char*)recv_buf.data)[3] == TCP_END_WRF)
 		{
-			memcpy(eff.write.buf.data, recv_buf.data, eff.write.buf.len); 
+			
+			eff.cmd = F_END_WR; 
+			eff.write_end.checksum = (((uint8_t*)recv_buf.data)[5] << 8)  | 
+									 (((uint8_t*)recv_buf.data)[4] << 0);
 		}
+		
+		if (eff.cmd != F_NONE)
+			xQueueSendToBack(xEffLoadf, &eff, portMAX_DELAY);
 	}
 	
-	client->lastTick = xTaskGetTickCount();
 	
 	if (recv_buf.data != NULL)
 		free(recv_buf.data);
 	recv_buf.data = NULL;
 	
-	xQueueSendToBack(xEffLoadf, &eff, portMAX_DELAY);
 
 	tcp_recved(tpcb, p->tot_len);
 	pbuf_free(p);

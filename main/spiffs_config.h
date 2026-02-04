@@ -31,7 +31,10 @@ typedef enum
 	F_CLS,
 	F_DLT, 
 	F_RD,
+	
+	F_ST_WR,
 	F_WR,
+	F_END_WR,
 	
 	F_RET_OP,
 	F_RET_CLS,
@@ -50,19 +53,29 @@ typedef struct
 
 typedef struct 
 {
-	file_command_t cmd;			/**< command with file */
-	off_t offset;				/**< offset of request */
+	file_command_t cmd;			/**< command with file */				
 	file_source_req source;
 	union
 	{
 		struct
 		{
+			off_t offset;
+			uint32_t tot_len;				/**< total byte to write */
+		} write_start;
+		struct
+		{
+			off_t offset;				/**< offset of request */
 			file_buf_t buf;				/**< content and len of segment */
-			int tot_len;				/**< total length message */
+			
 		} write;
 		struct
 		{
-			int len;				/**< total length message */
+			uint16_t checksum;
+		} write_end;
+		struct
+		{
+			off_t offset;
+			uint32_t len;				/**< total length message */
 		} read;
 	};
 	
@@ -70,18 +83,19 @@ typedef struct
 
 typedef struct
 {
-	file_command_t cmd_cur;				/**< command current */
-	
+
 	struct
 	{
-		off_t offset_last;					/**< lastest offset after write */
 		off_t offset_start;				/**< the fisrt offset is written after recv message */
 		int tot_len;					/**< total length message */
 		int remaining;					/**< remaining bytes to write */
+		uint16_t checksum;
+		
 	} write;
+	
 	struct
 	{
-		off_t off_last;					/**< lastest offset after read */
+
 	} read;
 	
 } file_mana_t;

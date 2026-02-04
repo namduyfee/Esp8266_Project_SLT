@@ -509,18 +509,13 @@ void task_file_effect()
 	
 	file_request_t file_req = {
 		.cmd = F_NONE, 
-		.offset = 0
 	};  
 	
 	while (1)
 	{
 		if (xQueueReceive(xEffLoadf, &file_req, portMAX_DELAY) == pdPASS)
 		{	
-			if (file_req.cmd != F_NONE)
-			{
-				SLT.eff_file.cmd_cur = file_req.cmd;
-			}
-			if (SLT.eff_file.cmd_cur == F_OP)
+			if (file_req.cmd == F_OP)
 			{
 				
 				if (fd < 0)
@@ -529,7 +524,6 @@ void task_file_effect()
 					int ret = stat(PATH_EFFECT, &st);
 					fd = ret < 0 ?  open(PATH_EFFECT, O_RDWR | O_CREAT | O_TRUNC, 0666) : 
 									open(PATH_EFFECT, O_RDWR | O_CREAT, 0666);
-					
 				}
 				
 				if (fd >= 0)
@@ -540,9 +534,8 @@ void task_file_effect()
 				{
 					tcp_ret_cmd(F_RET_OP, false);
 				}
-				SLT.eff_file.cmd_cur = F_NONE;
 			}
-			else if (SLT.eff_file.cmd_cur == F_CLS)
+			else if (file_req.cmd == F_CLS)
 			{
 				if (fd >= 0)
 				{
@@ -558,9 +551,8 @@ void task_file_effect()
 				{
 					tcp_ret_cmd(F_RET_CLS, false);
 				}
-				SLT.eff_file.cmd_cur = F_NONE;
 			}			
-			else if (SLT.eff_file.cmd_cur == F_DLT)
+			else if (file_req.cmd == F_DLT)
 			{
 
 				if (fd >= 0) 
@@ -581,10 +573,9 @@ void task_file_effect()
 				{
 					tcp_ret_cmd(F_RET_DLT, false);
 				}
-				SLT.eff_file.cmd_cur = F_NONE;
 			}
 			
-			else if (SLT.eff_file.cmd_cur == F_RD)
+			else if (file_req.cmd == F_RD)
 			{
 				if (fd < 0)
 				{
@@ -592,7 +583,7 @@ void task_file_effect()
 				}
 				else
 				{
-					if (file_req.offset >= 
+					if (file_req.read.offset >= 
 					    lseek(fd, 0, SEEK_END))
 					{
 						tcp_ret_cmd(F_RET_RD, false);
@@ -600,10 +591,9 @@ void task_file_effect()
 					else
 					{
 
-						
 						uint32_t len_f = lseek(fd, 0, SEEK_END);
 						
-						off_t current_off = lseek(fd, file_req.offset, SEEK_SET); 
+						off_t current_off = lseek(fd, file_req.read.offset, SEEK_SET); 
 						
 						uint32_t remaining = file_req.read.len;
 						
@@ -640,11 +630,13 @@ void task_file_effect()
 									
 									if (tcpip_callback(tcp_send_cb, SLT.server.send.buf) != ERR_OK)
 									{
-										if (SLT.server.send.buf->data != NULL) {
+										if (SLT.server.send.buf->data != NULL)
+										{
 											free(SLT.server.send.buf->data);
 											SLT.server.send.buf->data = NULL;
 										}
-										if (SLT.server.send.buf != NULL) {
+										if (SLT.server.send.buf != NULL)
+										{
 											free(SLT.server.send.buf);
 											SLT.server.send.buf = NULL;
 										}
@@ -657,7 +649,8 @@ void task_file_effect()
 								}
 								else
 								{
-									if (SLT.server.send.buf != NULL) {
+									if (SLT.server.send.buf != NULL)
+									{
 										free(SLT.server.send.buf);
 										SLT.server.send.buf = NULL;
 									}
@@ -674,11 +667,13 @@ void task_file_effect()
 								
 									if (tcpip_callback(tcp_send_cb, SLT.server.send.buf) != ERR_OK)
 									{
-										if (SLT.server.send.buf->data != NULL) {
+										if (SLT.server.send.buf->data != NULL)
+										{
 											free(SLT.server.send.buf->data);
 											SLT.server.send.buf->data = NULL;
 										}
-										if (SLT.server.send.buf != NULL) {
+										if (SLT.server.send.buf != NULL)
+										{
 											free(SLT.server.send.buf);
 											SLT.server.send.buf = NULL;
 										}
@@ -691,7 +686,8 @@ void task_file_effect()
 								}
 								else
 								{
-									if (SLT.server.send.buf != NULL) {
+									if (SLT.server.send.buf != NULL)
+									{
 										free(SLT.server.send.buf);
 										SLT.server.send.buf = NULL;
 									}
@@ -702,9 +698,34 @@ void task_file_effect()
 						}						
 					}
 				}
-				SLT.eff_file.cmd_cur = F_NONE;
 			}
-			else if (SLT.eff_file.cmd_cur == F_WR)
+			else if (file_req.cmd == F_ST_WR)
+			{
+				if (fd_tmp >= 0)
+				{
+					close(fd_tmp);
+					fd_tmp = -100; 
+				}
+				fd_tmp = open(PATH_EFFECT_TMP, O_RDWR | O_CREAT | O_TRUNC, 0666);  
+							
+				SLT.eff_file.write.tot_len = file_req.write_start.tot_len;
+				SLT.eff_file.write.remaining = file_req.write_start.tot_len; 
+				SLT.eff_file.write.offset_start = file_req.write_start.offset;
+				SLT.eff_file.write.checksum = 0xffff;
+				
+//				espnow_send_queue_t send_q;
+//				send_q.retry_cnt = 5;
+//				send_q.position = NOW_POS_ALL_PEER;
+//				send_q.buf = espnow_make_seg_cmd(NOW_ST_WRF, NULL, 0); 
+//							
+//				if (send_q.buf.data != NULL && send_q.buf.len != 0)
+//					if (xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(200)) != pdPASS)
+//					{
+//						free(send_q.buf.data); 
+//					}
+				
+			}
+			else if (file_req.cmd == F_WR)
 			{
 				if (fd < 0)
 				{
@@ -712,52 +733,21 @@ void task_file_effect()
 					{
 						free(file_req.write.buf.data); 	
 						file_req.write.buf.data = NULL; 
-					}	
-					SLT.eff_file.cmd_cur = F_NONE;		
+					}		
 				}
 				else
 				{				
 					if (file_req.write.buf.data != NULL)
 					{
 						
-						if (file_req.write.tot_len != REMAINING && 
-						    file_req.offset != POS_CONTINUE)
+						if (SLT.eff_file.write.remaining > 0 && 
+						    file_req.write.offset >= SLT.eff_file.write.offset_start)
 						{
 							if (fd_tmp >= 0)
 							{
-								close(fd_tmp);
-								fd_tmp = -100; 
-							}
-							fd_tmp = open(PATH_EFFECT_TMP, O_RDWR | O_CREAT | O_TRUNC, 0666);  
-							
-							SLT.eff_file.write.tot_len = file_req.write.tot_len;
-							SLT.eff_file.write.remaining = file_req.write.tot_len; 
-							SLT.eff_file.write.offset_start = file_req.offset;
-							
-							espnow_send_queue_t send_q;
-							send_q.retry_cnt = 5;
-							send_q.position = NOW_POS_ALL_PEER;
-							send_q.buf = espnow_make_seg_cmd(NOW_ST_WRF, NULL, 0); 
-							
-							if (send_q.buf.data != NULL && send_q.buf.len != 0)
-								if (xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(200)) != pdPASS)
-								{
-									free(send_q.buf.data); 
-								}
-						}
-						
-						if (SLT.eff_file.write.remaining > 0)
-						{
-							if (fd_tmp >= 0)
-							{
-								if (file_req.offset == POS_CONTINUE)
-								{
-									lseek(fd_tmp, SLT.eff_file.write.offset_last, SEEK_SET);
-								}
-								else
-								{
-									lseek(fd_tmp, 0, SEEK_SET);
-								}
+								tcp_ret_cmd(F_RET_WRT, 't');
+								
+								lseek(fd_tmp, file_req.write.offset - SLT.eff_file.write.offset_start, SEEK_SET);
 								
 								ssize_t to_write = SLT.eff_file.write.remaining <= file_req.write.buf.len ?
 													SLT.eff_file.write.remaining : file_req.write.buf.len;
@@ -771,62 +761,14 @@ void task_file_effect()
 										to_write);
 								}
 								
-								if (written > 0)
-									SLT.eff_file.write.remaining = SLT.eff_file.write.remaining - written; 
-								
-								SLT.eff_file.write.offset_last = lseek(fd_tmp, 0, SEEK_CUR);
-								
-								tcp_ret_cmd(F_RET_WRT, 't');
-								
-
-								if (SLT.eff_file.write.remaining == 0) 
+								if (written > 0) 
 								{
-									//tcp_ret_cmd(F_RET_WRT, true);
-									tcp_ret_cmd(F_RET_WRT, 'T');
-									
-									int remaining = SLT.eff_file.write.tot_len; 
-									
-									off_t posfd = SLT.eff_file.write.offset_start; 
-									off_t posfd_tmp = 0;
-									
-									uint8_t* bufA = malloc(sizeof(uint8_t) * 512);
-									
-									
-									while (remaining > 0)
-									{
-										lseek(fd, posfd, SEEK_SET);
-										lseek(fd_tmp, posfd_tmp, SEEK_SET);
-
-										size_t len = remaining > 512 ? 
-											512 : remaining;
-										
-										read(fd_tmp, bufA, len);
-										ssize_t written = write(fd,	bufA, len);
-										
-										if (written > 0)
-										{
-											remaining -= written;
-											posfd += written;
-											posfd_tmp += written;
-										}
-									}
-									
-									if (bufA != NULL)
-										free(bufA); 
-									
-									if (fd_tmp >= 0)
-										close(fd_tmp); 
-									fd_tmp = -100; 
-									
-									struct stat st;
-									int ret = stat(PATH_EFFECT_TMP, &st);
-									if (ret >= 0)
-										unlink(PATH_EFFECT_TMP);
+									SLT.eff_file.write.checksum = crc16_modbus(SLT.eff_file.write.checksum, file_req.write.buf.data, written); 
+									SLT.eff_file.write.remaining = SLT.eff_file.write.remaining - written; 
 								}
+								
 							}
 						}
-						else 
-							SLT.eff_file.cmd_cur = F_NONE;
 						
 						if (file_req.write.buf.data != NULL)
 						{
@@ -834,21 +776,53 @@ void task_file_effect()
 							file_req.write.buf.data = NULL; 
 						}
 					}
-					else
-						SLT.eff_file.cmd_cur = F_NONE;
-
 				}
 			}
-			else
+			else if (file_req.cmd == F_END_WR)
 			{
-				/** when request is F_NONE and not free in F_WR*/
-				if (file_req.write.buf.data != NULL)
+				if (SLT.eff_file.write.checksum == file_req.write_end.checksum)
 				{
-					free(file_req.write.buf.data); 	
-					file_req.write.buf.data = NULL; 
+					tcp_ret_cmd(F_RET_WRT, 'T');
+					
+					int remaining = SLT.eff_file.write.tot_len; 
+									
+					off_t posfd = SLT.eff_file.write.offset_start; 
+					off_t posfd_tmp = 0;
+								
+					uint8_t* bufA = malloc(sizeof(uint8_t) * 512);
+									
+									
+					while (remaining > 0)
+					{
+						lseek(fd, posfd, SEEK_SET);
+						lseek(fd_tmp, posfd_tmp, SEEK_SET);
+
+						size_t len = remaining > 512 ? 
+							512 : remaining;
+										
+						read(fd_tmp, bufA, len);
+						ssize_t written = write(fd, bufA, len);
+										
+						if (written > 0)
+						{
+							remaining -= written;
+							posfd += written;
+							posfd_tmp += written;
+						}
+					}
+					if (bufA != NULL)
+						free(bufA);
 				}
+				
+				if (fd_tmp >= 0)
+					close(fd_tmp); 
+				fd_tmp = -100; 
+									
+				struct stat st;
+				int ret = stat(PATH_EFFECT_TMP, &st);
+				if (ret >= 0)
+					unlink(PATH_EFFECT_TMP);
 			}
-			
 		}
 	}
 }
