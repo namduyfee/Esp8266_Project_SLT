@@ -354,7 +354,7 @@ static err_t tcp_close_client(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 void tcp_send_cb(void* arg)
 {
 	tcp_buf_t* tSendBuf = (tcp_buf_t*)arg;
-	
+
 	if (SLT.server.p_client->tpcb != NULL && SLT.server.p_client->tpcb->state != CLOSED)
 	{
 		size_t remaining = tSendBuf->len; 
@@ -363,11 +363,11 @@ void tcp_send_cb(void* arg)
 		{
 			if (tSendBuf->data == NULL || tSendBuf == NULL)
 				break;
-			
+
 			if (tcp_sndqueuelen(SLT.server.p_client->tpcb) < TCP_SND_QUEUELEN)
 			{
 				size_t numByteEmpty = tcp_sndbuf(SLT.server.p_client->tpcb);
-				
+			
 				if (numByteEmpty > 0)
 				{
 					size_t to_write = remaining <= numByteEmpty ? remaining : numByteEmpty;

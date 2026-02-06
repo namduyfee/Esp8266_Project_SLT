@@ -29,7 +29,7 @@ Object SLT = {
 		.p_peer = NULL,
 		.tot_pos_added = 0,
 		.gateway_added = false,
-		.my_pos = 10,
+		.my_pos = 1,
 		.is_broadcast = false,
 		.can_send = true,
 	},
@@ -299,7 +299,6 @@ void task_esp_now_recv()
 									free(send_q.buf.data); 
 								}
 							}
-							
 							SLT.espnow.gateway_added = false;
 						}
 						
@@ -579,22 +578,20 @@ void task_file_effect()
 			{
 				if (fd < 0)
 				{
-					tcp_ret_cmd(F_RET_RD, false);
+					tcp_ret_cmd(F_RET_RD, 'F');
 				}
 				else
 				{
-					if (file_req.read.offset >= 
-					    lseek(fd, 0, SEEK_END))
+					if (file_req.read.offset >= lseek(fd, 0, SEEK_END) || 
+					    file_req.read.len > (lseek(fd, 0, SEEK_END) - file_req.read.offset))
 					{
-						tcp_ret_cmd(F_RET_RD, false);
+						tcp_ret_cmd(F_RET_RD, 'f');
 					}
 					else
 					{
 
 						uint32_t len_f = lseek(fd, 0, SEEK_END);
-						
 						off_t current_off = lseek(fd, file_req.read.offset, SEEK_SET); 
-						
 						uint32_t remaining = file_req.read.len;
 						
 						tcp_ret_cmd(F_RET_RD, true);
@@ -604,13 +601,14 @@ void task_file_effect()
 						SLT.server.send.buf->data = malloc(sizeof(uint32_t) * 2);
 						
 						((uint32_t*)SLT.server.send.buf->data)[0] = current_off;
-						((uint32_t*)SLT.server.send.buf->data)[1] = remaining <= len_f - current_off ? remaining : len_f - current_off;
+						//((uint32_t*)SLT.server.send.buf->data)[1] = remaining <= len_f - current_off ? remaining : len_f - current_off;
+						((uint32_t*)SLT.server.send.buf->data)[1] = len_f;
 						SLT.server.send.buf->len = sizeof(uint32_t) * 2;
+						
 						tcpip_callback(tcp_send_cb, SLT.server.send.buf); 
-					
+
 						while (remaining > 0)
 						{
-							bool can_break = false;
 							lseek(fd, current_off, SEEK_SET);
 							
 							SLT.server.send.buf = malloc(sizeof(tcp_buf_t));
@@ -620,81 +618,39 @@ void task_file_effect()
 							}
 							SLT.server.send.buf->len = remaining <= 512 ? remaining : 512; 
 							
-							if (len_f - current_off < SLT.server.send.buf->len)
+							SLT.server.send.buf->data = malloc(SLT.server.send.buf->len); 
+							
+							if (SLT.server.send.buf->data != NULL)
 							{
-								SLT.server.send.buf->len = len_f - current_off;
-								SLT.server.send.buf->data = malloc(SLT.server.send.buf->len);
-								if (SLT.server.send.buf->data != NULL)
+								read(fd, SLT.server.send.buf->data, SLT.server.send.buf->len);
+								
+								if (tcpip_callback(tcp_send_cb, SLT.server.send.buf) != ERR_OK)
 								{
-									read(fd, SLT.server.send.buf->data, SLT.server.send.buf->len);
-									
-									if (tcpip_callback(tcp_send_cb, SLT.server.send.buf) != ERR_OK)
+									if (SLT.server.send.buf->data != NULL)
 									{
-										if (SLT.server.send.buf->data != NULL)
-										{
-											free(SLT.server.send.buf->data);
-											SLT.server.send.buf->data = NULL;
-										}
-										if (SLT.server.send.buf != NULL)
-										{
-											free(SLT.server.send.buf);
-											SLT.server.send.buf = NULL;
-										}
+										free(SLT.server.send.buf->data);
+										SLT.server.send.buf->data = NULL;
 									}
-									else
-									{
-										current_off = lseek(fd, 0, SEEK_CUR);
-										can_break = true;
-									}
-								}
-								else
-								{
 									if (SLT.server.send.buf != NULL)
 									{
 										free(SLT.server.send.buf);
 										SLT.server.send.buf = NULL;
 									}
 								}
-
+								else
+								{
+									current_off = lseek(fd, 0, SEEK_CUR);
+									remaining = remaining - SLT.server.send.buf->len;
+								}						
 							}
 							else
 							{
-								SLT.server.send.buf->data = malloc(SLT.server.send.buf->len); 
-						
-								if (SLT.server.send.buf->data != NULL)
+								if (SLT.server.send.buf != NULL)
 								{
-									read(fd, SLT.server.send.buf->data, SLT.server.send.buf->len);
-								
-									if (tcpip_callback(tcp_send_cb, SLT.server.send.buf) != ERR_OK)
-									{
-										if (SLT.server.send.buf->data != NULL)
-										{
-											free(SLT.server.send.buf->data);
-											SLT.server.send.buf->data = NULL;
-										}
-										if (SLT.server.send.buf != NULL)
-										{
-											free(SLT.server.send.buf);
-											SLT.server.send.buf = NULL;
-										}
-									}
-									else
-									{
-										current_off = lseek(fd, 0, SEEK_CUR);
-										remaining = remaining - SLT.server.send.buf->len;
-									}						
-								}
-								else
-								{
-									if (SLT.server.send.buf != NULL)
-									{
-										free(SLT.server.send.buf);
-										SLT.server.send.buf = NULL;
-									}
+									free(SLT.server.send.buf);
+									SLT.server.send.buf = NULL;
 								}
 							}
-							if (can_break == true)
-								break;
 						}						
 					}
 				}
@@ -736,7 +692,7 @@ void task_file_effect()
 					}		
 				}
 				else
-				{				
+				{
 					if (file_req.write.buf.data != NULL)
 					{
 						
@@ -780,9 +736,8 @@ void task_file_effect()
 			}
 			else if (file_req.cmd == F_END_WR)
 			{
-				if (SLT.eff_file.write.checksum == file_req.write_end.checksum)
+				if (SLT.eff_file.write.checksum == file_req.write_end.checksum && fd >= 0 && fd_tmp >= 0)
 				{
-					tcp_ret_cmd(F_RET_WRT, 'T');
 					
 					int remaining = SLT.eff_file.write.tot_len; 
 									
@@ -812,12 +767,16 @@ void task_file_effect()
 					}
 					if (bufA != NULL)
 						free(bufA);
+					
+					tcp_ret_cmd(F_RET_WRT, 'T');
 				}
 				
-				if (fd_tmp >= 0)
+				if (fd_tmp >= 0) 
+				{
 					close(fd_tmp); 
-				fd_tmp = -100; 
-									
+					fd_tmp = -100;
+				}
+				 				
 				struct stat st;
 				int ret = stat(PATH_EFFECT_TMP, &st);
 				if (ret >= 0)
