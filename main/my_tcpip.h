@@ -90,5 +90,5 @@ typedef struct
 
 err_t init_server_tpcp(uint16_t port, uint8_t max_client);  
 void tcp_send_cb(void* arg);  
-void tcp_ret_cmd(file_command_t cmd, uint8_t state); 
+tcp_buf_t* tcp_make_ret_cmd(file_command_t cmd, uint8_t state);  
 #endif

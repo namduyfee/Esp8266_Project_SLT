@@ -357,53 +357,27 @@ void tcp_send_cb(void* arg)
 
 	if (SLT.server.p_client->tpcb != NULL && SLT.server.p_client->tpcb->state != CLOSED)
 	{
-		size_t remaining = tSendBuf->len; 
-		
-		while (remaining > 0)
+		if (tcp_sndqueuelen(SLT.server.p_client->tpcb) < TCP_SND_QUEUELEN)
 		{
-			if (tSendBuf->data == NULL || tSendBuf == NULL)
-				break;
-
-			if (tcp_sndqueuelen(SLT.server.p_client->tpcb) < TCP_SND_QUEUELEN)
-			{
-				size_t numByteEmpty = tcp_sndbuf(SLT.server.p_client->tpcb);
+			size_t numByteEmpty = tcp_sndbuf(SLT.server.p_client->tpcb);
+			size_t to_write = numByteEmpty < tSendBuf->len ? numByteEmpty : tSendBuf->len; 
 			
-				if (numByteEmpty > 0)
-				{
-					size_t to_write = remaining <= numByteEmpty ? remaining : numByteEmpty;
-					if (tcp_write(SLT.server.p_client->tpcb,
-						(uint8_t*)tSendBuf->data + (tSendBuf->len - remaining),
-						to_write,
-						TCP_WRITE_FLAG_COPY) == ERR_OK)
-					{
-						remaining = remaining - to_write;
-					}
-				}
-			}
+			tcp_write(SLT.server.p_client->tpcb, (uint8_t*)tSendBuf->data, to_write, TCP_WRITE_FLAG_COPY);
 		}
-		
-		if (tSendBuf != NULL && tSendBuf->data != NULL)
-			free(tSendBuf->data);
-		if (tSendBuf != NULL)
-			free(tSendBuf);
 	}
-	else
-	{
-		if (tSendBuf != NULL && tSendBuf->data != NULL)
-			free(tSendBuf->data);
-		if (tSendBuf != NULL)
-			free(tSendBuf);		
-	}
-
+	
+	if (tSendBuf != NULL && tSendBuf->data != NULL)
+		free(tSendBuf->data);
+	if (tSendBuf != NULL)
+		free(tSendBuf);		
 }
 
 #define TCP_LEN_RETURN_CMD 5
-void tcp_ret_cmd(file_command_t cmd, uint8_t state)
+tcp_buf_t* tcp_make_ret_cmd(file_command_t cmd, uint8_t state)
 {
-	
 	uint8_t* retCmd = malloc(sizeof(uint8_t) * TCP_LEN_RETURN_CMD); 
 	if (retCmd == NULL)
-		return;
+		return NULL;
 	uint8_t header[TCP_LEN_RETURN_CMD] = {'T', 'C', 'P'};
 	header[3] = (uint8_t)cmd; 			
 	header[4] = state; 
@@ -415,17 +389,11 @@ void tcp_ret_cmd(file_command_t cmd, uint8_t state)
 	{
 		if (retCmd != NULL)
 			free(retCmd);
-		return;
+		return NULL;
 	}
 	
 	tSendBuf->data = retCmd;
 	tSendBuf->len = TCP_LEN_RETURN_CMD;
-
-	if (tcpip_callback(tcp_send_cb, tSendBuf) != ERR_OK)
-	{
-		if (tSendBuf != NULL && tSendBuf->data != NULL)
-			free(tSendBuf->data);
-		if (tSendBuf != NULL)
-			free(tSendBuf);
-	} 
+	
+	return tSendBuf; 
 }
