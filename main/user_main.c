@@ -531,15 +531,27 @@ void task_file_effect()
 				
 				if (fd >= 0)
 				{
-					tcp_buf_t* p_buf = tcp_make_ret_cmd(F_RET_OP, true); 
+					tcp_buf_t* p_buf = tcp_make_ret_doc(F_RET_OP, true); 
 					if(p_buf != NULL)
-						xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500));
+						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+						{
+							if (p_buf != NULL && p_buf->data != NULL)
+								free(p_buf->data); 
+							if (p_buf != NULL)
+								free(p_buf); 
+						}
 				}
 				else 
 				{
-					tcp_buf_t* p_buf = tcp_make_ret_cmd(F_RET_OP, false); 
+					tcp_buf_t* p_buf = tcp_make_ret_doc(F_RET_OP, false); 
 					if(p_buf != NULL)
-						xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500));
+						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+						{
+							if (p_buf != NULL && p_buf->data != NULL)
+								free(p_buf->data); 
+							if (p_buf != NULL)
+								free(p_buf); 
+						}
 				}
 			}
 			else if (file_req.cmd == F_CLS)
@@ -552,15 +564,27 @@ void task_file_effect()
 				
 				if (fd < 0)
 				{
-					tcp_buf_t* p_buf = tcp_make_ret_cmd(F_RET_CLS, true); 
+					tcp_buf_t* p_buf = tcp_make_ret_doc(F_RET_CLS, true); 
 					if (p_buf != NULL)
-						xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)); 
+						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+						{
+							if (p_buf != NULL && p_buf->data != NULL)
+								free(p_buf->data); 
+							if (p_buf != NULL)
+								free(p_buf); 
+						} 
 				}
 				else 
 				{
-					tcp_buf_t* p_buf = tcp_make_ret_cmd(F_RET_CLS, false);
+					tcp_buf_t* p_buf = tcp_make_ret_doc(F_RET_CLS, false);
 					if (p_buf != NULL)
-						xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500));
+						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+						{
+							if (p_buf != NULL && p_buf->data != NULL)
+								free(p_buf->data); 
+							if (p_buf != NULL)
+								free(p_buf); 
+						}
 				}
 			}			
 			else if (file_req.cmd == F_DLT)
@@ -578,15 +602,27 @@ void task_file_effect()
 				
 				if (ret < 0)
 				{
-					tcp_buf_t* p_buf = tcp_make_ret_cmd(F_RET_DLT, true);
+					tcp_buf_t* p_buf = tcp_make_ret_doc(F_RET_DLT, true);
 					if (p_buf != NULL)
-						xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500));
+						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+						{
+							if (p_buf != NULL && p_buf->data != NULL)
+								free(p_buf->data); 
+							if (p_buf != NULL)
+								free(p_buf); 
+						}
 				}
 				else 
 				{
-					tcp_buf_t* p_buf = tcp_make_ret_cmd(F_RET_DLT, false);
+					tcp_buf_t* p_buf = tcp_make_ret_doc(F_RET_DLT, false);
 					if (p_buf != NULL)
-						xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500));
+						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+						{
+							if (p_buf != NULL && p_buf->data != NULL)
+								free(p_buf->data); 
+							if (p_buf != NULL)
+								free(p_buf); 
+						}
 				}
 			}
 			
@@ -594,18 +630,31 @@ void task_file_effect()
 			{
 				if (fd < 0)
 				{
-					tcp_buf_t* p_buf = tcp_make_ret_cmd(F_RET_RD, 'F');
+					tcp_buf_t* p_buf = tcp_make_st_ret_read('F', 0, 0);
+					
 					if (p_buf != NULL)
-						xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500));
+						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+						{
+							if (p_buf != NULL && p_buf->data != NULL)
+								free(p_buf->data); 
+							if (p_buf != NULL)
+								free(p_buf); 
+						}
 				}
 				else
 				{
 					if (file_req.read.offset >= lseek(fd, 0, SEEK_END) || 
 					    file_req.read.len > (lseek(fd, 0, SEEK_END) - file_req.read.offset))
 					{
-						tcp_buf_t* p_buf = tcp_make_ret_cmd(F_RET_RD, 'f');
+						tcp_buf_t* p_buf = tcp_make_st_ret_read('f', 0, 0);
 						if (p_buf != NULL)
-							xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500));
+							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+							{
+								if (p_buf != NULL && p_buf->data != NULL)
+									free(p_buf->data); 
+								if (p_buf != NULL)
+									free(p_buf); 
+							}
 					}
 					else
 					{
@@ -614,21 +663,17 @@ void task_file_effect()
 						off_t current_off = lseek(fd, file_req.read.offset, SEEK_SET); 
 						uint32_t remaining = file_req.read.len;
 						
-						tcp_buf_t* p_buf = tcp_make_ret_cmd(F_RET_RD, true);
+						
+						tcp_buf_t* p_buf = tcp_make_st_ret_read(true, current_off, len_f);
 						if (p_buf != NULL)
-							xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500));
+							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+							{
+								if (p_buf != NULL && p_buf->data != NULL)
+									free(p_buf->data); 
+								if (p_buf != NULL)
+									free(p_buf); 
+							}
 						
-						SLT.server.send.buf = malloc(sizeof(tcp_buf_t));
-						
-						SLT.server.send.buf->data = malloc(sizeof(uint32_t) * 2);
-						
-						((uint32_t*)SLT.server.send.buf->data)[0] = current_off;
-						((uint32_t*)SLT.server.send.buf->data)[1] = len_f;
-						
-						SLT.server.send.buf->len = sizeof(uint32_t) * 2;
-						
-						xQueueSend(xSendTcp, &SLT.server.send.buf, pdMS_TO_TICKS(500));
-
 						
 						TickType_t last_tick = xTaskGetTickCount(); 
 						while (remaining > 0)
@@ -637,48 +682,36 @@ void task_file_effect()
 							if (xTaskGetTickCount() - last_tick > pdMS_TO_TICKS(5000))
 								break; 
 							
+							uint32_t len = remaining <= 512 ? remaining : 512; 
+							uint8_t* data = malloc(len);
 							
-							SLT.server.send.buf = malloc(sizeof(tcp_buf_t));
-							if (SLT.server.send.buf == NULL)
-								continue;
+							if (data == NULL)
+								continue; 
 							
 							lseek(fd, current_off, SEEK_SET);
+							read(fd, data, len);
 							
-							SLT.server.send.buf->len = remaining <= 512 ? remaining : 512; 
+							tcp_buf_t* p_buf = tcp_make_ret_read(data, len, current_off); 
 							
-							SLT.server.send.buf->data = malloc(SLT.server.send.buf->len); 
-							
-							if (SLT.server.send.buf->data != NULL)
+							if (p_buf != NULL)
 							{
-								read(fd, SLT.server.send.buf->data, SLT.server.send.buf->len);
-								
-								if (xQueueSend(xSendTcp, &SLT.server.send.buf, pdMS_TO_TICKS(500)) == pdPASS)
+								if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) == pdPASS)
 								{
 									current_off = lseek(fd, 0, SEEK_CUR);
-									remaining = remaining - SLT.server.send.buf->len;
+									remaining = remaining - len;
 								}
 								else
 								{
-									if (SLT.server.send.buf->data != NULL)
-									{
-										free(SLT.server.send.buf->data);
-										SLT.server.send.buf->data = NULL;
-									}
-									if (SLT.server.send.buf != NULL)
-									{
-										free(SLT.server.send.buf);
-										SLT.server.send.buf = NULL;
-									}
-								}					
-							}
-							else
-							{
-								if (SLT.server.send.buf != NULL)
-								{
-									free(SLT.server.send.buf);
-									SLT.server.send.buf = NULL;
+									if (p_buf != NULL && p_buf->data != NULL)
+										free(p_buf->data); 
+									if (p_buf != NULL)
+										free(p_buf);
 								}
 							}
+							
+							if (data != NULL)
+								free(data); 
+							data = NULL; 
 						}						
 					}
 				}
@@ -730,7 +763,7 @@ void task_file_effect()
 							if (fd_tmp >= 0)
 							{
 								
-								tcp_buf_t* p_buf = tcp_make_ret_cmd(F_RET_WRT, 't');
+								tcp_buf_t* p_buf = tcp_make_ret_doc(F_RET_WRT, 't');
 								if (p_buf != NULL)
 									xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500));
 								
@@ -799,7 +832,7 @@ void task_file_effect()
 					if (bufA != NULL)
 						free(bufA);
 					
-					tcp_buf_t* p_buf = tcp_make_ret_cmd(F_RET_WRT, 'T');
+					tcp_buf_t* p_buf = tcp_make_ret_doc(F_RET_WRT, 'T');
 					if (p_buf != NULL)
 						xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500));
 				}
@@ -824,34 +857,39 @@ void task_file_effect()
  */
 void task_send_tcp()
 {
-	tcp_buf_t* tcp_send_buf;
+	tcp_buf_t* tcp_send_buf = NULL;
+	
+	SLT.server.send.sent = false; 
+	SLT.server.send.can_send = true;
+	
 	while (1)
 	{
-		if (xQueueReceive(xSendTcp, &tcp_send_buf, portMAX_DELAY) == pdPASS)
+		
+		if (SLT.server.send.can_send == true)
 		{
-			
-			TickType_t last_tick = xTaskGetTickCount(); 
-			bool send_ok = true;
-			
-			while (tcpip_callback(tcp_send_cb, tcp_send_buf) != ERR_OK)
+			if (SLT.server.send.sent == true) 
 			{
-				if (xTaskGetTickCount() - last_tick > pdMS_TO_TICKS(1000))
-				{
-					send_ok = false; 
-				}
-				vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
-			}
-			
-			if (send_ok == false)
-			{
-				
-				if (tcp_send_buf != NULL && tcp_send_buf->data != NULL) 
+				if (tcp_send_buf != NULL && tcp_send_buf->data != NULL)
 					free(tcp_send_buf->data);
 				if (tcp_send_buf != NULL)
 					free(tcp_send_buf);
+			
+				tcp_send_buf = NULL; 
+			}
+			
+			if (tcp_send_buf == NULL)
+			{
+				xQueueReceive(xSendTcp, &tcp_send_buf, portMAX_DELAY); 
+			}
 				
+			if (tcpip_callback(tcp_send_cb, tcp_send_buf) == ERR_OK)
+			{
+				SLT.server.send.can_send = false;
+				SLT.server.send.sent = false;
 			}
 		}
+		
+		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
 	}
 }
 

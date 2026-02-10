@@ -58,7 +58,6 @@ err_t init_server_tpcp(uint16_t port, uint8_t max_client)
 	SLT.server.count_client = 0; 
 
 	
-	SLT.server.send.buf = NULL;
 	SLT.server.p_client = NULL;
 	
 	tcp_accept(server_listen_tpcb, server_accept_tcp);
@@ -252,7 +251,6 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 			}
 			else 
 				eff.write_start.tot_len = 0; 
-			
 		}
 		else if (((char*)recv_buf.data)[3] == TCP_WRF)
 		{
@@ -360,29 +358,39 @@ void tcp_send_cb(void* arg)
 		if (tcp_sndqueuelen(SLT.server.p_client->tpcb) < TCP_SND_QUEUELEN)
 		{
 			size_t numByteEmpty = tcp_sndbuf(SLT.server.p_client->tpcb);
-			size_t to_write = numByteEmpty < tSendBuf->len ? numByteEmpty : tSendBuf->len; 
 			
-			tcp_write(SLT.server.p_client->tpcb, (uint8_t*)tSendBuf->data, to_write, TCP_WRITE_FLAG_COPY);
+			if (numByteEmpty >= tSendBuf->len)
+			{
+				if (tcp_write(SLT.server.p_client->tpcb,
+					(uint8_t*)tSendBuf->data,
+					tSendBuf->len, 
+					TCP_WRITE_FLAG_COPY) == ERR_OK)
+				{
+					SLT.server.send.sent = true; 
+				}
+				else 
+					SLT.server.send.sent = false;
+			}			
 		}
-	}
-	
-	if (tSendBuf != NULL && tSendBuf->data != NULL)
-		free(tSendBuf->data);
-	if (tSendBuf != NULL)
-		free(tSendBuf);		
+	}	
+	SLT.server.send.can_send = true; 
 }
 
-#define TCP_LEN_RETURN_CMD 5
-tcp_buf_t* tcp_make_ret_cmd(file_command_t cmd, uint8_t state)
+/**
+ *	@brief make tcp frame return open, delete, close 
+ */
+#define TCP_LEN_RETURN_DOC 5
+tcp_buf_t* tcp_make_ret_doc(file_command_t cmd, uint8_t state)
 {
-	uint8_t* retCmd = malloc(sizeof(uint8_t) * TCP_LEN_RETURN_CMD); 
+	uint8_t* retCmd = malloc(sizeof(uint8_t) * TCP_LEN_RETURN_DOC); 
 	if (retCmd == NULL)
 		return NULL;
-	uint8_t header[TCP_LEN_RETURN_CMD] = {'T', 'C', 'P'};
+	
+	uint8_t header[TCP_LEN_RETURN_DOC] = {'T', 'C', 'P'};
 	header[3] = (uint8_t)cmd; 			
 	header[4] = state; 
 	
-	memcpy(retCmd, header, TCP_LEN_RETURN_CMD); 
+	memcpy(retCmd, header, TCP_LEN_RETURN_DOC); 
 					
 	tcp_buf_t* tSendBuf = malloc(sizeof(tcp_buf_t));
 	if (tSendBuf == NULL)
@@ -393,7 +401,69 @@ tcp_buf_t* tcp_make_ret_cmd(file_command_t cmd, uint8_t state)
 	}
 	
 	tSendBuf->data = retCmd;
-	tSendBuf->len = TCP_LEN_RETURN_CMD;
+	tSendBuf->len = TCP_LEN_RETURN_DOC;
 	
 	return tSendBuf; 
+}
+
+/**
+ *	@brief make tcp frame start return read 
+ */
+#define TCP_LEN_ST_RET_READ 13
+tcp_buf_t* tcp_make_st_ret_read(uint8_t state, uint32_t offset_read, uint32_t tot_read)
+{	
+	uint8_t* retCmd = malloc(sizeof(uint8_t) * TCP_LEN_ST_RET_READ); 
+	if (retCmd == NULL)
+		return NULL;
+	
+	uint8_t header[TCP_LEN_ST_RET_READ] = {'T', 'C', 'P'};
+	header[3] = TCP_ST_RET_RDF; 			
+	header[4] = state; 
+	memcpy(&header[5], &offset_read, 4);
+	memcpy(&header[9], &tot_read, 4); 
+	
+	memcpy(retCmd, header, TCP_LEN_ST_RET_READ); 
+					
+	tcp_buf_t* tSendBuf = malloc(sizeof(tcp_buf_t));
+	if (tSendBuf == NULL)
+	{
+		if (retCmd != NULL)
+			free(retCmd);
+		return NULL;
+	}
+	
+	tSendBuf->data = retCmd;
+	tSendBuf->len = TCP_LEN_ST_RET_READ;
+	
+	return tSendBuf; 
+}
+/**
+ *	@brief make frame return read 
+ */
+#define TCP_LEN_HEADER_RET_READ 12
+tcp_buf_t* tcp_make_ret_read(void*data, uint32_t len, uint32_t offset)
+{
+	uint8_t* retCmd = malloc(sizeof(uint8_t) * (len + TCP_LEN_HEADER_RET_READ)) ; 
+	if (retCmd == NULL)
+		return NULL;
+	
+	uint8_t header[TCP_LEN_HEADER_RET_READ] = {'T', 'C', 'P', TCP_RET_RDF}; 	
+	memcpy(&header[4], &offset, 4);
+	memcpy(&header[8], &len, 4); 
+	
+	memcpy(retCmd, header, TCP_LEN_HEADER_RET_READ); 
+	memcpy(retCmd + TCP_LEN_HEADER_RET_READ, data, len); 
+					
+	tcp_buf_t* tSendBuf = malloc(sizeof(tcp_buf_t));
+	if (tSendBuf == NULL)
+	{
+		if (retCmd != NULL)
+			free(retCmd);
+		return NULL;
+	}
+	
+	tSendBuf->data = retCmd;
+	tSendBuf->len = len + TCP_LEN_HEADER_RET_READ;
+	
+	return tSendBuf;
 }

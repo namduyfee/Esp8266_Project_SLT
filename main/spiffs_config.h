@@ -78,7 +78,7 @@ typedef struct
 			uint32_t len;				/**< total length message */
 		} read;
 	};
-	
+
 } file_request_t;
 
 typedef struct
