@@ -337,7 +337,6 @@ static err_t tcp_close_client(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 	return ERR_OK;
 }
 
-static tcp_buf_t* g_pending = NULL; 
 /**
  * @brief	tcp sent callback
  */
@@ -346,15 +345,6 @@ static err_t tcp_sent_cb(void* arg, struct tcp_pcb* tpcb, uint16_t len)
 	tcp_client_t* client = (tcp_client_t*)arg;
 	client->lastTick = xTaskGetTickCount();
 	
-	if (g_pending != NULL)
-	{
-		tcp_send_cb(g_pending);
-		g_pending = NULL;
-	}
-	else
-	{
-		xSemaphoreGive(xTcpSwitchBufSend);
-	}
 	return ERR_OK; 
 }
 /**
@@ -372,15 +362,15 @@ void tcp_send_cb(void* arg)
 
 	if (ret == ERR_OK)
 	{
-		tcp_output(pcb);
-
-		free(buf->data);
-		free(buf);
+		tcp_output(pcb);	
+		SLT.server.send.sent = true; 
 	}
 	else
 	{
-		g_pending = buf;  // gi? l?i
+		SLT.server.send.sent = false; 
 	}
+	xSemaphoreGive(xTcpSwitchBufSend);
+	
 }
 
 /**

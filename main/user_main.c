@@ -767,8 +767,13 @@ void task_file_effect()
 							{
 								
 								tcp_buf_t* p_buf = tcp_make_ret_doc(F_RET_WRT, 't');
-								if (p_buf != NULL)
-									xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500));
+								if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+								{
+									if (p_buf != NULL && p_buf->data != NULL)
+										free(p_buf->data); 
+									if (p_buf != NULL)
+										free(p_buf); 
+								}
 								
 								lseek(fd_tmp, file_req.write.offset - SLT.eff_file.write.offset_start, SEEK_SET);
 								
@@ -790,6 +795,17 @@ void task_file_effect()
 									SLT.eff_file.write.remaining = SLT.eff_file.write.remaining - written; 
 								}
 								
+							}
+						}
+						else
+						{
+							tcp_buf_t* p_buf = tcp_make_ret_doc(F_RET_WRT, 'f');
+							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+							{
+								if (p_buf != NULL && p_buf->data != NULL)
+									free(p_buf->data); 
+								if (p_buf != NULL)
+									free(p_buf); 
 							}
 						}
 						
@@ -836,8 +852,13 @@ void task_file_effect()
 						free(bufA);
 					
 					tcp_buf_t* p_buf = tcp_make_ret_doc(F_RET_WRT, 'T');
-					if (p_buf != NULL)
-						xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500));
+					if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+					{
+						if (p_buf != NULL && p_buf->data != NULL)
+							free(p_buf->data); 
+						if (p_buf != NULL)
+							free(p_buf); 
+					}
 				}
 				
 				if (fd_tmp >= 0) 
@@ -863,16 +884,30 @@ void task_send_tcp()
 	tcp_buf_t* tcp_send_buf = NULL;
 	
 	xSemaphoreTake(xTcpSwitchBufSend, 0);
+	SLT.server.send.sent = false;
 	
 	while (1)
 	{
-		if (xQueueReceive(xSendTcp, &tcp_send_buf, portMAX_DELAY) == pdPASS)
+		if (tcp_send_buf == NULL)
 		{
-			while (tcpip_callback(tcp_send_cb, tcp_send_buf) != ERR_OK)
-			{
-				vTaskDelay(pdMS_TO_TICKS(1));
-			}
-			xSemaphoreTake(xTcpSwitchBufSend, portMAX_DELAY);
+			xQueueReceive(xSendTcp, &tcp_send_buf, portMAX_DELAY); 
+		}
+		
+		while (tcpip_callback(tcp_send_cb, tcp_send_buf) != ERR_OK)
+		{
+			vTaskDelay(pdMS_TO_TICKS(5));
+		}
+		
+		xSemaphoreTake(xTcpSwitchBufSend, portMAX_DELAY);
+		
+		if (SLT.server.send.sent == true) 
+		{
+			if (tcp_send_buf != NULL && tcp_send_buf->data != NULL)
+				free(tcp_send_buf->data);
+			if (tcp_send_buf != NULL)
+				free(tcp_send_buf);
+			
+			tcp_send_buf = NULL;
 		}
 	}
 }
