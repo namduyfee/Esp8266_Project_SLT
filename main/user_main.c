@@ -51,6 +51,7 @@ QueueHandle_t xEffLoadf;					/**< get data from tcp recv callback */
 QueueHandle_t xNowRecv;						/**< get data from espnow recv callback */
 QueueHandle_t xNowSend;						
 SemaphoreHandle_t xNowPeersMana; 
+SemaphoreHandle_t xTcpSwitchBufSend; 
 QueueHandle_t xSendTcp;
 
 void my_init_project(void)
@@ -87,6 +88,8 @@ void app_main(void) {
 	
 	xNowPeersMana = xSemaphoreCreateBinary(); 
 	xSemaphoreGive(xNowPeersMana);
+	
+	xTcpSwitchBufSend = xSemaphoreCreateBinary();
 	
 	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
 	
@@ -859,37 +862,18 @@ void task_send_tcp()
 {
 	tcp_buf_t* tcp_send_buf = NULL;
 	
-	SLT.server.send.sent = false; 
-	SLT.server.send.can_send = true;
+	xSemaphoreTake(xTcpSwitchBufSend, 0);
 	
 	while (1)
 	{
-		
-		if (SLT.server.send.can_send == true)
+		if (xQueueReceive(xSendTcp, &tcp_send_buf, portMAX_DELAY) == pdPASS)
 		{
-			if (SLT.server.send.sent == true) 
+			while (tcpip_callback(tcp_send_cb, tcp_send_buf) != ERR_OK)
 			{
-				if (tcp_send_buf != NULL && tcp_send_buf->data != NULL)
-					free(tcp_send_buf->data);
-				if (tcp_send_buf != NULL)
-					free(tcp_send_buf);
-			
-				tcp_send_buf = NULL; 
+				vTaskDelay(pdMS_TO_TICKS(1));
 			}
-			
-			if (tcp_send_buf == NULL)
-			{
-				xQueueReceive(xSendTcp, &tcp_send_buf, portMAX_DELAY); 
-			}
-				
-			if (tcpip_callback(tcp_send_cb, tcp_send_buf) == ERR_OK)
-			{
-				SLT.server.send.can_send = false;
-				SLT.server.send.sent = false;
-			}
+			xSemaphoreTake(xTcpSwitchBufSend, portMAX_DELAY);
 		}
-		
-		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
 	}
 }
 

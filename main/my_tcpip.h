@@ -23,7 +23,7 @@
 #include "spiffs_config.h"
 
 #define TCP_POLL_CYCLE 2
-#define TCP_AUTO_DIS_MS 10000
+#define TCP_AUTO_DIS_MS 20000
 
 typedef enum
 {
@@ -81,8 +81,6 @@ typedef struct
 	
 	struct
 	{
-		volatile bool can_send; 
-		volatile bool sent; 
 		
 	} send;
 	

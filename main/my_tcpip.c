@@ -304,15 +304,6 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 	pbuf_free(p);
 	return ERR_OK;
 }
-/**
- * @brief	tcp sent callback
- */
-static err_t tcp_sent_cb(void* arg, struct tcp_pcb* tpcb, uint16_t len)
-{
-	tcp_client_t* client = (tcp_client_t*)arg;
-	client->lastTick = xTaskGetTickCount();
-	return ERR_OK; 
-}
 
 /**
  * @brief handler close tcp
@@ -346,34 +337,50 @@ static err_t tcp_close_client(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 	return ERR_OK;
 }
 
+static tcp_buf_t* g_pending = NULL; 
+/**
+ * @brief	tcp sent callback
+ */
+static err_t tcp_sent_cb(void* arg, struct tcp_pcb* tpcb, uint16_t len)
+{
+	tcp_client_t* client = (tcp_client_t*)arg;
+	client->lastTick = xTaskGetTickCount();
+	
+	if (g_pending != NULL)
+	{
+		tcp_send_cb(g_pending);
+		g_pending = NULL;
+	}
+	else
+	{
+		xSemaphoreGive(xTcpSwitchBufSend);
+	}
+	return ERR_OK; 
+}
 /**
  * @brief tcp send callback is called by tcpip_callback 
  */
 void tcp_send_cb(void* arg)
-{
-	tcp_buf_t* tSendBuf = (tcp_buf_t*)arg;
+{	
+	tcp_buf_t* buf = (tcp_buf_t*)arg;
+	struct tcp_pcb* pcb = SLT.server.p_client->tpcb;
+	
+	if (pcb == NULL || pcb->state == CLOSED)
+		return;
 
-	if (SLT.server.p_client->tpcb != NULL && SLT.server.p_client->tpcb->state != CLOSED)
+	err_t ret = tcp_write(pcb, buf->data, buf->len, TCP_WRITE_FLAG_COPY);
+
+	if (ret == ERR_OK)
 	{
-		if (tcp_sndqueuelen(SLT.server.p_client->tpcb) < TCP_SND_QUEUELEN)
-		{
-			size_t numByteEmpty = tcp_sndbuf(SLT.server.p_client->tpcb);
-			
-			if (numByteEmpty >= tSendBuf->len)
-			{
-				if (tcp_write(SLT.server.p_client->tpcb,
-					(uint8_t*)tSendBuf->data,
-					tSendBuf->len, 
-					TCP_WRITE_FLAG_COPY) == ERR_OK)
-				{
-					SLT.server.send.sent = true; 
-				}
-				else 
-					SLT.server.send.sent = false;
-			}			
-		}
-	}	
-	SLT.server.send.can_send = true; 
+		tcp_output(pcb);
+
+		free(buf->data);
+		free(buf);
+	}
+	else
+	{
+		g_pending = buf;  // gi? l?i
+	}
 }
 
 /**
