@@ -35,12 +35,6 @@ typedef enum
 	F_ST_WR,
 	F_WR,
 	F_END_WR,
-	
-	F_RET_OP,
-	F_RET_CLS,
-	F_RET_DLT, 
-	F_RET_RD,
-	F_RET_WRT
 		
 } file_command_t;
 

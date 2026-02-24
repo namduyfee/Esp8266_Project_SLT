@@ -374,21 +374,31 @@ void tcp_send_cb(void* arg)
 }
 
 /**
- *	@brief make tcp frame return open, delete, close 
+ *	@brief make frame tcp ack or nack
  */
-#define TCP_LEN_RETURN_DOC 5
-tcp_buf_t* tcp_make_ret_doc(file_command_t cmd, uint8_t state)
+
+#define TCP_LEN_HEADER_RET 4
+tcp_buf_t* tcp_make_ret(tcp_command_t ret_cmd, void* data, uint32_t byte_data)
 {
-	uint8_t* retCmd = malloc(sizeof(uint8_t) * TCP_LEN_RETURN_DOC); 
+	if (ret_cmd != TCP_ACK && ret_cmd != TCP_NACK)
+		return NULL; 
+	
+	uint32_t byte_of_frame = (data != NULL && byte_data != 0) ? TCP_LEN_HEADER_RET + byte_data : TCP_LEN_HEADER_RET; 
+	uint8_t* retCmd = malloc(byte_of_frame);
+
 	if (retCmd == NULL)
 		return NULL;
 	
-	uint8_t header[TCP_LEN_RETURN_DOC] = {'T', 'C', 'P'};
-	header[3] = (uint8_t)cmd; 			
-	header[4] = state; 
+	uint8_t header[TCP_LEN_HEADER_RET] = {'T', 'C', 'P'};
+	header[3] = (uint8_t)ret_cmd; 			
 	
-	memcpy(retCmd, header, TCP_LEN_RETURN_DOC); 
-					
+	memcpy(retCmd, header, TCP_LEN_HEADER_RET); 
+				
+	if (data != NULL && byte_data != 0)
+	{
+		memcpy(&retCmd[TCP_LEN_HEADER_RET], data, byte_data); 
+	}
+	
 	tcp_buf_t* tSendBuf = malloc(sizeof(tcp_buf_t));
 	if (tSendBuf == NULL)
 	{
@@ -398,45 +408,15 @@ tcp_buf_t* tcp_make_ret_doc(file_command_t cmd, uint8_t state)
 	}
 	
 	tSendBuf->data = retCmd;
-	tSendBuf->len = TCP_LEN_RETURN_DOC;
+	tSendBuf->len = byte_of_frame;
 	
 	return tSendBuf; 
 }
 
 /**
- *	@brief make tcp frame start return read 
- */
-#define TCP_LEN_ST_RET_READ 13
-tcp_buf_t* tcp_make_st_ret_read(uint8_t state, uint32_t offset_read, uint32_t tot_read)
-{	
-	uint8_t* retCmd = malloc(sizeof(uint8_t) * TCP_LEN_ST_RET_READ); 
-	if (retCmd == NULL)
-		return NULL;
-	
-	uint8_t header[TCP_LEN_ST_RET_READ] = {'T', 'C', 'P'};
-	header[3] = TCP_ST_RET_RDF; 			
-	header[4] = state; 
-	memcpy(&header[5], &offset_read, 4);
-	memcpy(&header[9], &tot_read, 4); 
-	
-	memcpy(retCmd, header, TCP_LEN_ST_RET_READ); 
-					
-	tcp_buf_t* tSendBuf = malloc(sizeof(tcp_buf_t));
-	if (tSendBuf == NULL)
-	{
-		if (retCmd != NULL)
-			free(retCmd);
-		return NULL;
-	}
-	
-	tSendBuf->data = retCmd;
-	tSendBuf->len = TCP_LEN_ST_RET_READ;
-	
-	return tSendBuf; 
-}
-/**
  *	@brief make frame return read 
  */
+
 #define TCP_LEN_HEADER_RET_READ 12
 tcp_buf_t* tcp_make_ret_read(void*data, uint32_t len, uint32_t offset)
 {
