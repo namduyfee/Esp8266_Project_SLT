@@ -1,20 +1,34 @@
 
 TCP:
 
-delete, open, close:
+* delete, open, close:
 - 'TCP' + CMD (D O C)
--> trả về 'TCP' + CMD (RETURN D O C) + state
+-> trả về 'TCP' + CMD (TCP_ACK | TCP_NACK)
 
-read
-- 'TCP' + CMD (READ) + offset + size to read
--> trả về 'TCP' + CMD (RETURN READ) + state (1 | 0) +  if state = 1 (offset + size + data) + checksum (only data)
 
-wirte
-- 'TCP' + CMD (WRITE) + offset + size + data + checksum (only data)
-- data 
-- data 
+* read
+- 'TCP' + CMD (READ) + offset + tot size + max segment size
+-> trả về 'TCP' + CMD (TCP_ACK | TCP_NACK)
+
+* return read 
+'TCP' + CMD (RETURN READ) + offset + data
 ...
--> trả về 'TCP' + CMD (RETURN WRITE) + state (1 | 0)
+
+* end return read 
+- 'TCP' + CMD (END RETURN READ) + checksum (của tất cả data)
+-> trả về 'TCP' + CMD (TCP_ACK | TCP_NACK)
+
+* start write
+- 'TCP' + CMD (start write) + offset_start + tot size
+-> trả về TCP + CMD (TCP_ACK | TCP_NACK) + max segment size
+
+* wirte
+- 'TCP' + CMD (WRITE) + offset + data
+...
+
+* end write
+- 'TCP' + CMD (END WRITE) + checksum (của tất cả data)
+-> trả về 'TCP' + CMD (TCP_ACK | TCP_NACK)
 
 ESPNOW:
 form:
@@ -76,16 +90,12 @@ if( read_queue == pass)
 
 }
 
+- giải quyết tcp 
++ định dạng gói tin
++ truyền; nhận đúng frame yêu cầu. 
 
 
-
-
-
-
-
-- truyền các yêu cầu cơ bản.
-
-
+- 
 
 
 
