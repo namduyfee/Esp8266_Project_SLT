@@ -173,12 +173,12 @@ void task_select_master()
 				
 						wifi_config_t ap_config = {
 							.ap = {
-							.max_connection = 4,
-							.password = "12345678",
-							.channel = CONFIG_ESPNOW_CHANNEL, 
-							.authmode = WIFI_AUTH_WPA_WPA2_PSK		
-							}	
-						};
+								.max_connection = 4,
+								.password = "12345678",
+								.channel = CONFIG_ESPNOW_CHANNEL, 
+								.authmode = WIFI_AUTH_WPA_WPA2_PSK		
+							}
+						}; 
 						memcpy(ap_config.ap.ssid, result, strlen(result));
 						ap_config.ap.ssid_len = strlen(result);
 							
