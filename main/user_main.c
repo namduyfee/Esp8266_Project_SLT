@@ -91,13 +91,13 @@ void app_main(void) {
 	
 	xTcpSwitchBufSend = xSemaphoreCreateBinary();
 	
-	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
+//	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
 	
 	xTaskCreate(task_file_effect, "task_tcp_file_bin", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 	xTaskCreate(task_select_master, "task_select_master", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 		 
-	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
+//	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 	xTaskCreate(task_send_tcp, "task_send_tcp", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
@@ -765,7 +765,7 @@ void task_file_effect()
 								
 								ssize_t to_write = SLT.eff_file.write.remaining <= file_req.write.buf.len ?
 													SLT.eff_file.write.remaining : file_req.write.buf.len;
-							
+								
 								ssize_t written = 0; 
 							
 								if (to_write > 0)
@@ -796,36 +796,72 @@ void task_file_effect()
 			{
 				if (SLT.eff_file.write.checksum == file_req.write_end.checksum && fd >= 0 && fd_tmp >= 0)
 				{
-					
-					int remaining = SLT.eff_file.write.tot_len; 
-									
-					off_t posfd = SLT.eff_file.write.offset_start; 
-					off_t posfd_tmp = 0;
-								
-					uint8_t* bufA = malloc(sizeof(uint8_t) * 512);
-									
-									
-					while (remaining > 0)
+					/** write all file */
+					if (SLT.eff_file.write.offset_start == 0 && SLT.eff_file.write.tot_len > 2)
 					{
-						lseek(fd, posfd, SEEK_SET);
-						lseek(fd_tmp, posfd_tmp, SEEK_SET);
-
-						size_t len = remaining > 512 ? 
-							512 : remaining;
-										
-						read(fd_tmp, bufA, len);
-						ssize_t written = write(fd, bufA, len);
-										
-						if (written > 0)
+						fsync(fd_tmp); 
+						
+						if (fd >= 0) 
 						{
-							remaining -= written;
-							posfd += written;
-							posfd_tmp += written;
+							close(fd); 
+							fd = -100;
 						}
+						
+						if (fd_tmp >= 0) 
+						{
+							close(fd_tmp); 
+							fd_tmp = -100;
+						}
+						
+						rename(PATH_EFFECT_TMP, PATH_EFFECT); 
+						
+						fd = open(PATH_EFFECT, O_RDWR | O_CREAT, 0666);
 					}
-					if (bufA != NULL)
-						free(bufA);
-					
+					else
+					{
+						int remaining = SLT.eff_file.write.tot_len; 
+									
+						off_t posfd = SLT.eff_file.write.offset_start; 
+						off_t posfd_tmp = 0;
+								
+						uint8_t* bufA = malloc(sizeof(uint8_t) * 512);
+									
+						while (remaining > 0)
+						{
+							lseek(fd, posfd, SEEK_SET);
+							lseek(fd_tmp, posfd_tmp, SEEK_SET);
+
+							size_t len = remaining > 512 ? 
+								512 : remaining;
+										
+							read(fd_tmp, bufA, len);
+							ssize_t written = write(fd, bufA, len);
+										
+							if (written > 0)
+							{
+								remaining -= written;
+								posfd += written;
+								posfd_tmp += written;
+							}
+						}
+						fsync(fd);
+						
+						if (bufA != NULL)
+							free(bufA);
+						
+						if (fd_tmp >= 0) 
+						{
+							close(fd_tmp); 
+							fd_tmp = -100;
+						}
+				 				
+						struct stat st;
+						int ret = stat(PATH_EFFECT_TMP, &st);
+						if (ret >= 0)
+							unlink(PATH_EFFECT_TMP);
+						
+					}
+
 					if (file_req.source == F_TCP_SOURCE)
 					{
 						tcp_buf_t* p_buf = tcp_make_ret(TCP_ACK, NULL, 0);
@@ -841,7 +877,7 @@ void task_file_effect()
 					}
 					else if (file_req.source == F_NOW_SOURCE)
 					{
-					
+						
 					
 					}
 				}
@@ -865,18 +901,17 @@ void task_file_effect()
 					
 					
 					}
-				}
-				
-				if (fd_tmp >= 0) 
-				{
-					close(fd_tmp); 
-					fd_tmp = -100;
-				}
+					if (fd_tmp >= 0) 
+					{
+						close(fd_tmp); 
+						fd_tmp = -100;
+					}
 				 				
-				struct stat st;
-				int ret = stat(PATH_EFFECT_TMP, &st);
-				if (ret >= 0)
-					unlink(PATH_EFFECT_TMP);
+					struct stat st;
+					int ret = stat(PATH_EFFECT_TMP, &st);
+					if (ret >= 0)
+						unlink(PATH_EFFECT_TMP);
+				}
 			}
 		}
 	}
@@ -906,7 +941,7 @@ void task_send_tcp()
 		
 		xSemaphoreTake(xTcpSwitchBufSend, portMAX_DELAY);
 		
-		if (SLT.server.send.sent == true) 
+		if (SLT.server.send.sent == true)
 		{
 			if (tcp_send_buf != NULL && tcp_send_buf->data != NULL)
 				free(tcp_send_buf->data);

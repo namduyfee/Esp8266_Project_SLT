@@ -23,7 +23,7 @@
 #include "spiffs_config.h"
 
 #define TCP_POLL_CYCLE 2
-#define TCP_AUTO_DIS_MS 60000
+#define TCP_AUTO_DIS_MS 30000
 
 
 typedef enum
