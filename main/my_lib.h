@@ -32,5 +32,9 @@ extern QueueHandle_t xNowSend;
 
 extern SemaphoreHandle_t xTcpSwitchBufSend;
 
+extern SemaphoreHandle_t xWifiAPStart;
+
+extern SemaphoreHandle_t xWifiSTAStart;
+
 #endif
 

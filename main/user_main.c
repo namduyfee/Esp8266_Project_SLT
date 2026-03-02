@@ -8,6 +8,7 @@ void task_esp_now_recv();
 void task_file_effect(); 
 void task_select_master(); 
 void task_send_tcp();
+void task_init_effect(); 
 
 Object SLT = {
 	.Pwm = {
@@ -47,11 +48,14 @@ Object SLT = {
 	
 };
 
+SemaphoreHandle_t xNowPeersMana; 
+SemaphoreHandle_t xTcpSwitchBufSend;
+SemaphoreHandle_t xWifiAPStart; 
+SemaphoreHandle_t xWifiSTAStart;
+
 QueueHandle_t xEffLoadf;					/**< get data from tcp recv callback */
 QueueHandle_t xNowRecv;						/**< get data from espnow recv callback */
-QueueHandle_t xNowSend;						
-SemaphoreHandle_t xNowPeersMana; 
-SemaphoreHandle_t xTcpSwitchBufSend; 
+QueueHandle_t xNowSend;						 
 QueueHandle_t xSendTcp;
 
 void my_init_project(void)
@@ -76,20 +80,25 @@ void my_init_project(void)
 
 void app_main(void) {
 	
-	my_init_project();
-	
 	xEffLoadf = xQueueCreate(30, sizeof(file_request_t));
 	
 	xNowRecv = xQueueCreate(20, sizeof(espnow_recv_queue_t));
 	
 	xNowSend = xQueueCreate(20, sizeof(espnow_send_queue_t)); 
 	
-	xSendTcp = xQueueCreate(20, sizeof( tcp_buf_t* )); 
+	xSendTcp = xQueueCreate(20, sizeof(tcp_buf_t*)); 
 	
 	xNowPeersMana = xSemaphoreCreateBinary(); 
 	xSemaphoreGive(xNowPeersMana);
 	
+	xWifiAPStart = xSemaphoreCreateBinary();
+	
+	xWifiSTAStart = xSemaphoreCreateBinary(); 
+	
 	xTcpSwitchBufSend = xSemaphoreCreateBinary();
+	
+	my_init_project();
+	
 	
 //	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
 	
@@ -99,7 +108,9 @@ void app_main(void) {
 		 
 //	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
-	xTaskCreate(task_send_tcp, "task_send_tcp", MIN_SIZE_OP_FILE, NULL, 4, NULL);
+	xTaskCreate(task_send_tcp, "task_send_tcp", 1024, NULL, 4, NULL);
+	
+//	xTaskCreate(task_init_effect, "task_init_effect", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 }
 
@@ -117,6 +128,7 @@ void app_main(void) {
  */
 void task_select_master()
 {
+	xSemaphoreTake(xWifiAPStart, 0); 
 	
 	while (1)
 	{
@@ -157,6 +169,7 @@ void task_select_master()
 					
 					
 					/** switch sta to ap */
+
 					wifi_mode_t mode;
 					esp_wifi_get_mode(&mode);
 						
@@ -165,6 +178,8 @@ void task_select_master()
 					
 					if (mode != WIFI_MODE_AP)
 					{
+						xSemaphoreTake(xWifiAPStart, 0);		/* ensure semaphore are take before switch to mode ap*/
+						
 						esp_wifi_stop();
 						esp_wifi_set_mode(WIFI_MODE_AP);
 							
@@ -173,22 +188,24 @@ void task_select_master()
 				
 						wifi_config_t ap_config = {
 							.ap = {
-								.max_connection = 4,
-								.password = "12345678",
-								.channel = CONFIG_ESPNOW_CHANNEL, 
-								.authmode = WIFI_AUTH_WPA_WPA2_PSK		
-							}
+							.max_connection = 4,
+							.password = "12345678",
+							.channel = CONFIG_ESPNOW_CHANNEL, 
+							.authmode = WIFI_AUTH_WPA_WPA2_PSK		
+						}
 						}; 
 						memcpy(ap_config.ap.ssid, result, strlen(result));
 						ap_config.ap.ssid_len = strlen(result);
 							
 						esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);		
-						esp_wifi_start();				
-					
+						esp_wifi_start();
+						
+						xSemaphoreTake(xWifiAPStart, pdMS_TO_TICKS(4000)); 
+						
 					}
+					
 					init_espnow();
 					
-
 					/** send request broadcast */
 					uint8_t data[] = {SLT.espnow.my_pos}; 
 					
@@ -217,11 +234,13 @@ void task_select_master()
  */
 void task_esp_now_recv()
 {
+	
+	xSemaphoreTake(xWifiSTAStart, 0);
+	
 	TickType_t last_tick_br = xTaskGetTickCount(); 
 	bool first_br = true;
 	
 	espnow_recv_queue_t espnow_recv;
-	
 	
 	while (1)
 	{
@@ -254,10 +273,12 @@ void task_esp_now_recv()
 						
 							if (mode != WIFI_MODE_STA)
 							{
+								xSemaphoreTake(xWifiSTAStart, 0);			/* ensure semaphore are take before switch to mode sta*/
 								esp_wifi_stop();
 								esp_wifi_set_mode(WIFI_MODE_STA);
 								esp_wifi_start();
 								esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0);
+								xSemaphoreTake(xWifiSTAStart, pdMS_TO_TICKS(4000)); 
 							}
 							init_espnow();
 							
@@ -299,7 +320,7 @@ void task_esp_now_recv()
 							
 							if (send_q.buf.data != NULL && send_q.buf.len != 0)
 							{ 
-							
+								
 								if (xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(200)) != pdPASS)
 								{
 									free(send_q.buf.data); 
@@ -516,6 +537,7 @@ void task_file_effect()
 	file_request_t file_req = {
 		.cmd = F_NONE, 
 	};  
+	
 	
 	while (1)
 	{
@@ -735,7 +757,7 @@ void task_file_effect()
 				}
 				else if (file_req.source == F_NOW_SOURCE)
 				{
-					
+					 
 					
 				}
 				
@@ -799,13 +821,17 @@ void task_file_effect()
 					/** write all file */
 					if (SLT.eff_file.write.offset_start == 0 && SLT.eff_file.write.tot_len > 2)
 					{
-						fsync(fd_tmp); 
 						
 						if (fd >= 0) 
 						{
 							close(fd); 
 							fd = -100;
 						}
+						
+						struct stat st;
+						int ret = stat(PATH_EFFECT, &st);
+						if (ret >= 0)
+							unlink(PATH_EFFECT);
 						
 						if (fd_tmp >= 0) 
 						{
@@ -844,7 +870,6 @@ void task_file_effect()
 								posfd_tmp += written;
 							}
 						}
-						fsync(fd);
 						
 						if (bufA != NULL)
 							free(bufA);
@@ -950,6 +975,18 @@ void task_send_tcp()
 			
 			tcp_send_buf = NULL;
 		}
+	}
+}
+/**
+ *	@brief	task init infomation for the effect 
+ *	
+ */
+void task_init_effect() 
+{
+	
+	while (1)
+	{
+		
 	}
 }
 
