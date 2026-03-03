@@ -52,6 +52,9 @@ SemaphoreHandle_t xNowPeersMana;
 SemaphoreHandle_t xTcpSwitchBufSend;
 SemaphoreHandle_t xWifiAPStart; 
 SemaphoreHandle_t xWifiSTAStart;
+SemaphoreHandle_t xUpdateEffect;
+SemaphoreHandle_t xUpdatedEffect;
+
 
 QueueHandle_t xEffLoadf;					/**< get data from tcp recv callback */
 QueueHandle_t xNowRecv;						/**< get data from espnow recv callback */
@@ -91,11 +94,16 @@ void app_main(void) {
 	xNowPeersMana = xSemaphoreCreateBinary(); 
 	xSemaphoreGive(xNowPeersMana);
 	
+	xUpdateEffect = xSemaphoreCreateBinary(); 
+	xSemaphoreGive(xUpdateEffect); 
+	
 	xWifiAPStart = xSemaphoreCreateBinary();
 	
 	xWifiSTAStart = xSemaphoreCreateBinary(); 
 	
 	xTcpSwitchBufSend = xSemaphoreCreateBinary();
+	
+	xUpdatedEffect = xSemaphoreCreateBinary(); 
 	
 	my_init_project();
 	
@@ -905,6 +913,12 @@ void task_file_effect()
 						
 					
 					}
+					
+					xSemaphoreTake(xUpdatedEffect, 0);
+					
+					xSemaphoreGive(xUpdateEffect);
+					
+					xSemaphoreTake(xUpdatedEffect, portMAX_DELAY); 
 				}
 				else
 				{
@@ -923,8 +937,8 @@ void task_file_effect()
 					}
 					else if (file_req.source == F_NOW_SOURCE)
 					{
-					
-					
+						
+						
 					}
 					if (fd_tmp >= 0) 
 					{
@@ -978,15 +992,54 @@ void task_send_tcp()
 	}
 }
 /**
- *	@brief	task init infomation for the effect 
+ *	@brief	task init infomation for the effect
  *	
  */
 void task_init_effect() 
 {
+	effect_manage_t eff_tmp;
+	int fd; 
 	
 	while (1)
 	{
-		
+		if (xSemaphoreTake(xUpdateEffect, portMAX_DELAY) == pdPASS)
+		{
+			struct stat st;
+			int ret = stat(PATH_EFFECT, &st);
+			if (ret >= 0)
+			{
+				fd = open(PATH_EFFECT, O_RDWR | O_CREAT, 0666);
+				if (fd >= 0)
+				{
+					uint32_t len_file = lseek(fd, 0, SEEK_END); 
+					if (len_file >= 1 )
+					{
+						lseek(fd, 0, SEEK_SET);
+						read(fd, &eff_tmp.brNess, 1);
+					}
+					if (len_file >= 2)
+					{
+						lseek(fd, 1, SEEK_SET);
+						read(fd, &eff_tmp.speedEf, 1);
+					}
+					if (len_file >= 3)
+					{
+						lseek(fd, 2, SEEK_SET); 
+						read(fd, &eff_tmp.numGroup, 1); 
+					}
+					
+					if (len_file >= (3 + 4 * eff_tmp.numGroup))
+					{
+						eff_tmp.offStartGr = malloc(sizeof(uint32_t) * eff_tmp.numGroup);
+						lseek(fd, 3, SEEK_SET); 
+						read(fd, eff_tmp.offStartGr, eff_tmp.numGroup * sizeof(uint32_t));
+						
+					}
+					
+				}
+			}
+			xSemaphoreGive(xUpdatedEffect);
+		}
 	}
 }
 
