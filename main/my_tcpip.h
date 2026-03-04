@@ -73,7 +73,7 @@ typedef struct
 	
 	struct
 	{ 	
-		
+	 
 	} recv;
 	
 	struct

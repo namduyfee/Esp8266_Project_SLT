@@ -107,14 +107,13 @@ void app_main(void) {
 	
 	my_init_project();
 	
-	
-//	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
+	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
 	
 	xTaskCreate(task_file_effect, "task_tcp_file_bin", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 	xTaskCreate(task_select_master, "task_select_master", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 		 
-//	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
+	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 	xTaskCreate(task_send_tcp, "task_send_tcp", 1024, NULL, 4, NULL);
 	
@@ -1030,10 +1029,9 @@ void task_init_effect()
 					
 					if (len_file >= (3 + 4 * eff_tmp.numGroup))
 					{
-						eff_tmp.offStartGr = malloc(sizeof(uint32_t) * eff_tmp.numGroup);
-						lseek(fd, 3, SEEK_SET); 
-						read(fd, eff_tmp.offStartGr, eff_tmp.numGroup * sizeof(uint32_t));
-						
+//						eff_tmp.offStartGr = malloc(sizeof(uint32_t) * eff_tmp.numGroup);
+//						lseek(fd, 3, SEEK_SET); 
+//						read(fd, eff_tmp.offStartGr, eff_tmp.numGroup * sizeof(uint32_t));
 					}
 					
 				}
