@@ -16,6 +16,7 @@
 #include "nvs_flash.h"
 #include "tcpip_adapter.h"
 #include "esp_wifi.h"
+#include "my_nvs.h"
 
 #define MAX_RETRY_CONNECT 7
 #define REQEST_FROM_USER 100
@@ -24,14 +25,12 @@ typedef struct wifi
 {
 	uint8_t ap_macaddr[6]; 
 	uint8_t sta_macaddr[6];
-	uint8_t gateway_addr[6]; 
-	bool is_gateway;
 	
 } wifi_t;
 
 void init_wifi(void);
 
-void my_start_wifi(wifi_t* wifi);  
+void my_start_wifi(void);   
 
 #endif
 

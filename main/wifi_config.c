@@ -3,51 +3,38 @@
 #include "esp_now_config.h"
 #include "my_lib.h"
 
-extern esp_err_t wifi_event_handler(void *ctx, system_event_t *event);
+static void wifi_event_handler(void* arg,esp_event_base_t event_base,int32_t event_id,void* event_data); 
 
 void init_wifi(void)
 {
-	esp_event_loop_init(wifi_event_handler, NULL);
+
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	esp_wifi_init(&cfg);
+	esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL);
+	
 }
 
-void my_start_wifi(wifi_t* wifi)
+void my_start_wifi(void)
 {
 	init_wifi();
 	
-	esp_wifi_get_mac(ESP_IF_WIFI_STA, wifi->sta_macaddr); 
-	esp_wifi_get_mac(ESP_IF_WIFI_AP, wifi->ap_macaddr); 
+	esp_wifi_get_mac(ESP_IF_WIFI_STA, SLT.wifi.sta_macaddr); 
+	esp_wifi_get_mac(ESP_IF_WIFI_AP, SLT.wifi.ap_macaddr); 
 	
-	struct stat st;
-	int ret = stat(PATH_GWAY_PEERS, &st);
-	int fd = -1;
+	nvs_handle handle; 
 	
-	if (ret >= 0)
+	if (nvs_open(NVS_ESPNOW_NAMESP, NVS_READONLY, &handle) == ESP_OK)
 	{
-		fd = open(PATH_GWAY_PEERS, O_RDONLY | O_CREAT, 0666);
-	}
-	
-	if (fd >= 0)
-	{
-		uint32_t len = lseek(fd, 0, SEEK_END);
-		
-		if (len >= POS_ADDR_GATEWAY + 6)
+		size_t size = sizeof(SLT.espnow.gw_peer);
+		if (nvs_get_blob(handle, NVS_GW_PEER_INF, &SLT.espnow.gw_peer, &size) == ESP_OK)
 		{
-			SLT.espnow.gateway_added = true; 
-			
-			lseek(fd, POS_ADDR_GATEWAY, SEEK_SET);
-			read(fd, wifi->gateway_addr, 6);
-			
-			if (is_same_macadrr(wifi->gateway_addr, wifi->ap_macaddr))
+			if (is_same_macadrr(SLT.espnow.gw_peer.mac, SLT.wifi.ap_macaddr)
+			    && SLT.espnow.gw_peer.id == SLT.espnow.my_id)
 			{
-				
-				wifi->is_gateway = true; 
-
 				esp_wifi_set_mode(WIFI_MODE_AP);
 				
 				char result[32];
-				snprintf(result, sizeof(result), "SLT_ESP%d", SLT.espnow.my_pos);
+				snprintf(result, sizeof(result), "SLT_ESP%d", SLT.espnow.my_id);
 				
 				wifi_config_t ap_config = {
 					.ap = {
@@ -55,26 +42,46 @@ void my_start_wifi(wifi_t* wifi)
 					.password = "12345678",
 					.channel = CONFIG_ESPNOW_CHANNEL, 
 					.authmode = WIFI_AUTH_WPA_WPA2_PSK		
-					}	
+				}	
 				};
 				memcpy(ap_config.ap.ssid, result, strlen(result));
 				ap_config.ap.ssid_len = strlen(result);
 				
 				esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);		
 				esp_wifi_start();
-				close(fd);
+				
+				nvs_close(handle);
 				return;
 			}
+			nvs_close(handle);
 		}
-		close(fd);
 	}
-	wifi->is_gateway = false;
+ 
+
 	esp_wifi_set_mode(WIFI_MODE_STA);
 	esp_wifi_start();
 	esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0);
 	
-	if (SLT.espnow.gateway_added == true)
-	{
+}
+
+
+static void wifi_event_handler(void* arg, esp_event_base_t event_base,
+								int32_t event_id, void* event_data)
+{
+	switch (event_id) {
 		
+	case WIFI_EVENT_AP_START: {
+			xSemaphoreGive(xWifiAPStart); 
+			break;
+		}
+		
+	case WIFI_EVENT_STA_START: {
+			xSemaphoreGive(xWifiSTAStart); 
+			break;
+		}
+        
+	default:
+		break;
 	}
+	
 }

@@ -2,113 +2,40 @@
 TCP:
 
 * delete, open, close:
-- 'TCP' + CMD (D O C)
--> trả về 'TCP' + CMD (TCP_ACK | TCP_NACK)
-
-
-* read
-- 'TCP' + CMD (READ) + offset + tot size + max segment size
--> trả về 'TCP' + CMD (TCP_ACK | TCP_NACK)
-
-* return read 
-'TCP' + CMD (RETURN READ) + offset + data
-...
-
-* end return read 
-- 'TCP' + CMD (END RETURN READ) + checksum (của tất cả data)
+- 'TCP' + CMD (D O C).
 -> trả về 'TCP' + CMD (TCP_ACK | TCP_NACK)
 
 * start write
-- 'TCP' + CMD (start write) + offset_start + tot size
--> trả về TCP + CMD (TCP_ACK | TCP_NACK) + max segment size
+- 'TCP' + CMD (TCP_ST_WRITE) + position node ( == 0xff <=> all node ) + offset_start + tot size
+-> trả về TCP + CMD (TCP_ACK | TCP_NACK) + max segment size (max segment size tcp of esp node).
 
 * wirte
-- 'TCP' + CMD (WRITE) + offset + data
+- 'TCP' + CMD (WRITE) + position node + offset + data
 ...
 
 * end write
-- 'TCP' + CMD (END WRITE) + checksum (của tất cả data)
+- 'TCP' + CMD (END WRITE) + position node + checksum (của tất cả data vừa gửi cho node)
 -> trả về 'TCP' + CMD (TCP_ACK | TCP_NACK)
 
+
 ESPNOW:
-form:
-NOW + CMD + payload + checksum
 
-
-* if CMD = open close delete
+* open close delete
 sender retry + timeout: NOW + CMD + checksum
 
-receiver retry + timeout -> NOW + CMD + state (1 | 0) + checksum
+receiver retry + timeout -> NOW + CMD (NOW_ACK | NOW_NACK) + checksum
 
-* if CMD = read
-sender retry + timeout: NOW + CMD (READ) + offset + size + checksum
+* starte WRITE
+sender retry + timeout : NOW + CMD (NOW_ST_WRITE) + offset start + tot size + checksum 
+-> NOW + (NOW_ACK | NOW_NACK) + max segment size (max segment size tcp of esp node) + checksum 
 
-receiver retry + timeout -> NOW + CMD (RETURN READ) + tổng số gói sẽ gửi + state (1 | 0) + offset + size + checksum
-sender 				  : NOW + CMD (ACK) + checksum
-receiver: 
-- gửi liên tục segment:
-stt + data + checksum
-...
-- retry + timeout : NOW + CMD (end frame) + checksum
-Sender:
-- NOW + ACK | NACK + if NACK [array segment resend] + checksum
-
-+ if ACK ; retry + timeout 
-+ if NACK; retry + timerout | recv new segment
-
-* if WRITE
-
-sender retry + timeout : NOW + ST_WRITE + checksum 
--> NOW + ACK + WRITE + checksum 
-
+* wrtie
 NOW + CMD (WRITE) + offset + data + checksum
-recev 				  : NOW + ACK + checksum
-
-sender: 
-- gửi liên tục segment:
-stt + offset + size + data + checksum
 ...
-- retry + timeout : NOW + CMD (end frame) + checksum
-Recv:
-- NOW + ACK | NACK + if NACK [array segment resend] + checksum
 
-+ if ACK ; retry + timeout
-+ if NACK; retry + timerout | recv new segment
-
-
-- cần 1 biến để biết busy; mối peer sẽ được cấp 1 biến này tương ứng 
-- một biến lưu mode gửi; mỗi peer cx có biến này. 
-
-- quét qua tất cả các add và đọc busy của mối peer nếu mode_send khác none thì 
-
-câu hỏi là nên gửi 1 hay nhiều peer tại một chu kì truyền. 
-
-- cách thức 2 gửi queue : 
-
-if( read_queue == pass) 
-{
-
-}
-
-- giải quyết tcp 
-+ định dạng gói tin
-+ truyền; nhận đúng frame yêu cầu. 
-
-
-- 
-
-
-
-
-
-
-
-
-
-
-
-
-
+* end write
+NOW + CMD (END WRITE) + checksum (của tất cả data vừa gửi cho node) + checksum (của segment này)
+-> NOW + (NOW_ACK | NOW_NACK) + checksum
 
 
 

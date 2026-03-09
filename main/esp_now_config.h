@@ -16,10 +16,13 @@
 #include "esp_now.h"
 #include "my_tcpip.h"
 
+#define MAX_PEER 20
+
 #define NOW_POS_PEER_BRC (0xFF)
 #define NOW_POS_ALL_PEER (0xFE)
 
-#define PATH_GWAY_PEERS "/spiffs/gway_peers.bin"				/**< store gateway addr, info peers*/
+#define PATH_PEERS_ADDED "/spiffs/peers_added.bin"				/**< info peers is added */
+#define PATH_GWAY_ADDR	 "/spiffs/gway_addr.bin"				/**< gateway address */
 
 #define TIME_BRC	5000
 #define MAX_BRC_CNT 100
@@ -35,10 +38,8 @@
 
 #define NOW_INDEX_DATA (NOW_INDEX_CMD + NOW_LEN_CMD)
 
-#define NOW_INDEX_POS (NOW_INDEX_CMD + NOW_LEN_CMD)
-#define NOW_LEN_POS 1
-
 #define NOW_LEN_CRC 2
+
 
 typedef enum
 {
@@ -73,6 +74,12 @@ typedef enum
 
 typedef struct
 {
+	uint8_t mac[6];
+	uint8_t id;
+} peer_info_t;
+
+typedef struct
+{
 	void* data;
 	uint32_t len;		/**< total byte */
 	
@@ -81,65 +88,33 @@ typedef struct
 typedef struct
 {
 	buf_espnow_t buf;
-	uint8_t addr[6];
+	uint8_t addr[6];			/**< addrest source */
 	
 } espnow_recv_queue_t;
 
 typedef struct
 {
-	uint8_t position;
+	uint8_t dest_id;			/**< destination id */
 	buf_espnow_t buf;
-	uint32_t retry_cnt;			/**< number of times the sent callback is called */
+	uint32_t timeout;			/**< timeout if can not send */
 	
 } espnow_send_queue_t;
 
-typedef struct espnow_send_buf
-{
-	buf_espnow_t buf;
-	uint32_t retry_cnt;			/**< number of times the sent callback is called */
-	struct espnow_send_buf* next;
-	
-} espnow_send_node_t;
-
-typedef struct Peer
-{
-	esp_now_peer_info_t info;
-	struct
-	{
-		espnow_send_node_t* p_hnode;
-		
-	} send;
-	
-	struct
-	{
-		buf_espnow_t* buf;
-		uint8_t tot_buf;
-	} recv;
-	
-	uint8_t position;				/**< position of peer in system */
-	
-} Peer_Typedef;
-
 typedef struct My_Esp_Now
 {	
-	bool gateway_added; 
-	Peer_Typedef* p_peer; 
-	bool can_send;
-	uint32_t tot_pos_added;				/**< total position added */ 
-	uint8_t my_pos;
-	bool is_broadcast;
+	peer_info_t gw_peer;
+	peer_info_t peer_list[MAX_PEER]; 
+	uint8_t cnt_id_added;				/**< total position added */
 	
+	uint8_t my_id;
+	bool can_send;
 } My_Esp_Now_Typedef;
 
 
 void init_espnow(void); 
-uint8_t espnow_add_peer(uint8_t* peer_addr, uint8_t position, bool save, const char* path);    
+void espnow_add_peer(uint8_t* peer_addr, uint8_t id);     
 bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);  
 void clear_all_peer(void);
 uint16_t crc16_modbus(uint16_t crc, uint8_t *buf, uint32_t len);  
-int espnow_send_write_file(uint16_t* crc, void* buf, uint32_t len, off_t start_offset, uint8_t pos_peer);
-buf_espnow_t espnow_make_seg_cmd(command_espnow_t cmd, void* buf, uint32_t len);  
-int espnow_make_node_send(Peer_Typedef* p_peer, espnow_send_queue_t q_send);  
-void espnow_swt_node_send(Peer_Typedef* p_peer); 
-void espnow_free_all_node(Peer_Typedef* p_peer);
+
 #endif
