@@ -17,23 +17,17 @@ typedef struct
 	My_Esp_Now_Typedef espnow; 
 	wifi_t wifi;
 	effect_manage_t effMana; 
-	
 	file_mana_t eff_file;
 	
 } Object;
 
 extern Object SLT; 
-
 extern QueueHandle_t xEffLoadf;
 extern QueueHandle_t xNowRecv;
-
 extern QueueHandle_t xNowSend;	
-
 extern SemaphoreHandle_t xTcpSwitchBufSend;
-
-extern SemaphoreHandle_t xWifiAPStart;
-
-extern SemaphoreHandle_t xWifiSTAStart;
+extern SemaphoreHandle_t xNowCanSend; 
+extern SemaphoreHandle_t xNowCanUpdateSend;
 
 #endif
 

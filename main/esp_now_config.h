@@ -16,16 +16,14 @@
 #include "esp_now.h"
 #include "my_tcpip.h"
 
+#define TIME_BRC	5000
 #define MAX_PEER 20
 
-#define NOW_POS_PEER_BRC (0xFF)
-#define NOW_POS_ALL_PEER (0xFE)
+#define NOW_ID_BRC (0xFF)
 
 #define PATH_PEERS_ADDED "/spiffs/peers_added.bin"				/**< info peers is added */
 #define PATH_GWAY_ADDR	 "/spiffs/gway_addr.bin"				/**< gateway address */
 
-#define TIME_BRC	5000
-#define MAX_BRC_CNT 100
 #define MAC_ADDR_LEN 6
 #define CONFIG_ESPNOW_CHANNEL 1
 #define NOW_SEND_CYCLE_MS 100
@@ -36,7 +34,7 @@
 #define NOW_INDEX_CMD (NOW_INDEX_HEADER + NOW_LEN_HEADER)
 #define NOW_LEN_CMD 1
 
-#define NOW_INDEX_DATA (NOW_INDEX_CMD + NOW_LEN_CMD)
+#define NOW_INDEX_PAYLOAD (NOW_INDEX_CMD + NOW_LEN_CMD)
 
 #define NOW_LEN_CRC 2
 
@@ -80,7 +78,7 @@ typedef struct
 
 typedef struct
 {
-	void* data;
+	uint8_t* data;
 	uint32_t len;		/**< total byte */
 	
 } buf_espnow_t;
@@ -107,7 +105,7 @@ typedef struct My_Esp_Now
 	uint8_t cnt_id_added;				/**< total position added */
 	
 	uint8_t my_id;
-	bool can_send;
+	
 } My_Esp_Now_Typedef;
 
 
@@ -116,5 +114,7 @@ void espnow_add_peer(uint8_t* peer_addr, uint8_t id);
 bool is_same_macadrr(const uint8_t *mac1, const uint8_t *mac2);  
 void clear_all_peer(void);
 uint16_t crc16_modbus(uint16_t crc, uint8_t *buf, uint32_t len);  
+
+buf_espnow_t espnow_make_frame_send(void* payload, uint32_t len_payload, command_espnow_t cmd);  
 
 #endif

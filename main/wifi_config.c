@@ -28,7 +28,7 @@ void my_start_wifi(void)
 		size_t size = sizeof(SLT.espnow.gw_peer);
 		if (nvs_get_blob(handle, NVS_GW_PEER_INF, &SLT.espnow.gw_peer, &size) == ESP_OK)
 		{
-			if (is_same_macadrr(SLT.espnow.gw_peer.mac, SLT.wifi.ap_macaddr)
+			if (is_same_macadrr(SLT.espnow.gw_peer.mac, SLT.wifi.ap_macaddr) == true
 			    && SLT.espnow.gw_peer.id == SLT.espnow.my_id)
 			{
 				esp_wifi_set_mode(WIFI_MODE_AP);
@@ -53,8 +53,8 @@ void my_start_wifi(void)
 				nvs_close(handle);
 				return;
 			}
-			nvs_close(handle);
 		}
+		nvs_close(handle);
 	}
  
 
@@ -71,12 +71,10 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	switch (event_id) {
 		
 	case WIFI_EVENT_AP_START: {
-			xSemaphoreGive(xWifiAPStart); 
 			break;
 		}
 		
 	case WIFI_EVENT_STA_START: {
-			xSemaphoreGive(xWifiSTAStart); 
 			break;
 		}
         

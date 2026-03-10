@@ -29,8 +29,7 @@ Object SLT = {
 	.espnow = {
 
 		.cnt_id_added = 0,
-		.my_id = 1,
-		.can_send = true,
+		.my_id = 10,
 	},
 	.server = {
 		.tpcb = NULL,
@@ -44,12 +43,12 @@ Object SLT = {
 
 SemaphoreHandle_t xNowPeersMana; 
 SemaphoreHandle_t xTcpSwitchBufSend;
-SemaphoreHandle_t xWifiAPStart; 
-SemaphoreHandle_t xWifiSTAStart;
 SemaphoreHandle_t xUpdateEffect;
 SemaphoreHandle_t xUpdatedEffect;
+SemaphoreHandle_t xNowCanSend; 
+SemaphoreHandle_t xNowCanUpdateSend; 
 
-
+	
 QueueHandle_t xEffLoadf;					/**< get data from tcp recv callback */
 QueueHandle_t xNowRecv;						/**< get data from espnow recv callback */
 QueueHandle_t xNowSend;						 
@@ -57,11 +56,19 @@ QueueHandle_t xSendTcp;
 
 void my_init_project(void)
 {
-	esp_event_loop_create_default(); 
-	
-	nvs_flash_init();
+	 
+	esp_err_t err = nvs_flash_init();
+
+	if (err == ESP_ERR_NVS_NO_FREE_PAGES)
+	{
+		nvs_flash_erase();
+		nvs_flash_init();
+	}
+
 	
 	spiffs_init();
+	
+	esp_event_loop_create_default();
 	
 	config_GPIO_OUT();
 	config_input_pullup_gpio(); 
@@ -80,6 +87,7 @@ void my_init_project(void)
 
 void app_main(void) {
 	
+	
 	xEffLoadf = xQueueCreate(30, sizeof(file_request_t));
 	
 	xNowRecv = xQueueCreate(20, sizeof(espnow_recv_queue_t));
@@ -94,23 +102,25 @@ void app_main(void) {
 	xUpdateEffect = xSemaphoreCreateBinary(); 
 	xSemaphoreGive(xUpdateEffect); 
 	
-	xWifiAPStart = xSemaphoreCreateBinary();
-	
-	xWifiSTAStart = xSemaphoreCreateBinary(); 
-	
 	xTcpSwitchBufSend = xSemaphoreCreateBinary();
 	
 	xUpdatedEffect = xSemaphoreCreateBinary(); 
 	
+	xNowCanSend = xSemaphoreCreateBinary(); 
+	xSemaphoreGive(xNowCanSend);
+	
+	xNowCanUpdateSend = xSemaphoreCreateBinary(); 
+	xSemaphoreGive(xNowCanUpdateSend);
+	
 	my_init_project();
 	
-//	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
+	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
 	
 	xTaskCreate(task_file_effect, "task_tcp_file_bin", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 	xTaskCreate(task_select_master, "task_select_master", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 		 
-//	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
+	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 	xTaskCreate(task_send_tcp, "task_send_tcp", 1024, NULL, 4, NULL);
 	
@@ -132,7 +142,6 @@ void app_main(void) {
  */
 void task_select_master()
 {
-	xSemaphoreTake(xWifiAPStart, 0); 
 	
 	while (1)
 	{
@@ -156,19 +165,19 @@ void task_select_master()
 				if (xSemaphoreTake(xNowPeersMana, portMAX_DELAY) == pdPASS)
 				{
 					nvs_handle handle; 
-	
+					
 					if (nvs_open(NVS_ESPNOW_NAMESP, NVS_READWRITE, &handle) == ESP_OK)
 					{
 						peer_info_t tm_gw_peer;
 					
 						tm_gw_peer.id = SLT.espnow.my_id; 
 						memcpy(tm_gw_peer.mac, SLT.wifi.ap_macaddr, MAC_ADDR_LEN); 
-					
+
 						size_t size = sizeof(tm_gw_peer);
 						if (nvs_set_blob(handle, NVS_GW_PEER_INF, &tm_gw_peer, size) == ESP_OK)
 						{
-							SLT.espnow.gw_peer.id = SLT.espnow.my_id; 
-							memcpy(SLT.espnow.gw_peer.mac, SLT.wifi.ap_macaddr, MAC_ADDR_LEN);
+							SLT.espnow.gw_peer.id = tm_gw_peer.id; 
+							memcpy(SLT.espnow.gw_peer.mac, tm_gw_peer.mac, MAC_ADDR_LEN);
 						
 							/** switch sta to ap */
 							wifi_mode_t mode;
@@ -192,7 +201,7 @@ void task_select_master()
 									.password = "12345678",
 									.channel = CONFIG_ESPNOW_CHANNEL, 
 									.authmode = WIFI_AUTH_WPA_WPA2_PSK		
-								}
+									}
 								}; 
 								memcpy(ap_config.ap.ssid, result, strlen(result));
 								ap_config.ap.ssid_len = strlen(result);
@@ -203,13 +212,17 @@ void task_select_master()
 							}
 							
 							init_espnow();
-						
+							
 							/** send request broadcast */
-					
-							//if (send_q.buf.data != NULL && send_q.buf.len > 0)
-							//	xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+							uint8_t payload = SLT.espnow.my_id; 
+							
+							espnow_send_queue_t send_q; 
+							send_q.dest_id = NOW_ID_BRC;
+							send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_BRC); 
+							if (send_q.buf.data != NULL && send_q.buf.len > 0)
+								xQueueSend(xNowSend, &send_q, portMAX_DELAY);
 						}
-					
+						
 						nvs_commit(handle); 
 						nvs_close(handle); 
 					}
@@ -229,10 +242,9 @@ void task_select_master()
  *
  *
  */
+
 void task_esp_now_recv()
 {
-	
-	xSemaphoreTake(xWifiSTAStart, 0);
 	
 	TickType_t last_tick_br = xTaskGetTickCount(); 
 	bool first_br = true;
@@ -269,7 +281,7 @@ void task_esp_now_recv()
 								size_t size = sizeof(tm_gw_peer);
 								
 								memcpy(tm_gw_peer.mac, espnow_recv.addr, MAC_ADDR_LEN); 
-								tm_gw_peer.id = data[NOW_INDEX_DATA]; 
+								tm_gw_peer.id = data[NOW_INDEX_PAYLOAD]; 
 								
 								if (nvs_set_blob(handle, NVS_GW_PEER_INF, &tm_gw_peer, size) == ESP_OK)
 								{
@@ -299,7 +311,18 @@ void task_esp_now_recv()
 							
 							
 							xSemaphoreGive(xNowPeersMana);
-							// send to gateway 
+							
+							set_duty_pwm(&SLT.Pwm, 1, 255); 
+							set_duty_pwm(&SLT.Pwm, 3, 255);
+							
+							/** send request add peer to gateway */
+							uint8_t payload = SLT.espnow.my_id; 
+							
+							espnow_send_queue_t send_q; 
+							send_q.dest_id = SLT.espnow.gw_peer.id;
+							send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_ADD_PEER); 
+							if (send_q.buf.data != NULL && send_q.buf.len > 0)
+								xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(1000));
 						}
 							
 						first_br = false;
@@ -310,7 +333,10 @@ void task_esp_now_recv()
 					{
 						if (xSemaphoreTake(xNowPeersMana, portMAX_DELAY) == pdPASS)
 						{
-							espnow_add_peer(espnow_recv.addr, data[NOW_INDEX_DATA]);
+							set_duty_pwm(&SLT.Pwm, 1, 255); 
+							set_duty_pwm(&SLT.Pwm, 3, 255);
+							
+							espnow_add_peer(espnow_recv.addr, data[NOW_INDEX_PAYLOAD]);
 							
 							xSemaphoreGive(xNowPeersMana);
 						}
@@ -344,14 +370,11 @@ void task_esp_now_recv()
  */
 void task_esp_now_send() 
 {
-	uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; 
+	uint8_t address_brc[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; 
 	TickType_t br_lasttick = xTaskGetTickCount();
-	
-	SLT.espnow.can_send = true;
-	
-	espnow_send_queue_t rd_queue;
-	
 	bool is_broadcast = false; 
+	
+	espnow_send_queue_t queue_current = {.buf.data = NULL, .buf.len = 0};
 	
 	while (1)
 	{	
@@ -360,19 +383,62 @@ void task_esp_now_send()
 		{
 			if (is_broadcast == true)
 			{
-
-				vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
+				if (xTaskGetTickCount() - br_lasttick > pdMS_TO_TICKS(TIME_BRC))
+				{
+					is_broadcast = false;
+					if (queue_current.buf.data != NULL && queue_current.buf.len > 0) 
+					{
+						free(queue_current.buf.data);
+						queue_current.buf.data = NULL; 
+						queue_current.buf.len = 0; 
+					}
+					xSemaphoreGive(xNowCanUpdateSend);
+				}
+				else
+				{
+					esp_now_send(address_brc, queue_current.buf.data, queue_current.buf.len);
+					vTaskDelay(pdMS_TO_TICKS(100));
+				}
 			}
 			else
 			{
-				if (xQueueReceive(xNowSend, &rd_queue, portMAX_DELAY) == pdPASS)
+				if (xSemaphoreTake(xNowCanUpdateSend, 0) == pdPASS)
 				{
-	//				if()
+					if (queue_current.buf.data != NULL && queue_current.buf.len > 0)
+					{
+						free(queue_current.buf.data);
+						queue_current.buf.data = NULL; 
+						queue_current.buf.len = 0;
+					}
+					if (xQueueReceive(xNowSend, &queue_current, 0) != pdPASS)
+						xSemaphoreGive(xNowCanUpdateSend); 
+				}
+				
+				if (queue_current.dest_id == NOW_ID_BRC)
+				{
+					is_broadcast = true; 
+					br_lasttick = xTaskGetTickCount();
+				}
+				else
+				{
+					if (xSemaphoreTake(xNowCanSend, 0) == pdPASS)
+					{
+						if (queue_current.buf.data != NULL && queue_current.buf.len > 0)
+						{
+							esp_err_t ret = esp_now_send(address_brc, queue_current.buf.data, queue_current.buf.len);
+							if (ret != ESP_OK)
+							{
+								xSemaphoreGive(xNowCanSend); 
+							}
+						}
+						else 
+							xSemaphoreGive(xNowCanSend);
+					}
 				}
 			}
-			xSemaphoreGive(xNowPeersMana);			
+			xSemaphoreGive(xNowPeersMana);	
 		}
-		
+		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
 	}
 }
 

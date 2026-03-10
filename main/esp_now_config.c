@@ -45,16 +45,16 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 
 static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status) 
 {
-	uint8_t br_addr[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+	uint8_t add_brc[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+	if (is_same_macadrr(add_brc, mac_addr) == true)
+		return; 
 	
 	if (status == ESP_NOW_SEND_SUCCESS) 
 	{
-		if (memcmp(br_addr, mac_addr, 6) == 0) 
-		{
-		}
+		xSemaphoreGive(xNowCanUpdateSend);
 	}
 	
-	SLT.espnow.can_send = true;
+	xSemaphoreGive(xNowCanSend);
 }
 
 void init_espnow(void) 
@@ -124,6 +124,7 @@ static void init_my_esp_now(void)
 
 void clear_all_peer(void)
 {
+
 	SLT.espnow.cnt_id_added = 0;
 	nvs_handle handle; 
 	if (nvs_open(NVS_ESPNOW_NAMESP, NVS_READWRITE, &handle) == ESP_OK)
@@ -167,6 +168,7 @@ void espnow_add_peer(uint8_t* peer_addr, uint8_t id)
 			{
 				memcpy(SLT.espnow.peer_list[i].mac, peer_addr, MAC_ADDR_LEN);
 				nvs_set_blob(handle, NVS_ADDED_PEERS_INF, SLT.espnow.peer_list, size);
+				nvs_commit(handle);
 				id_exist = true;
 			}
 		
@@ -182,10 +184,10 @@ void espnow_add_peer(uint8_t* peer_addr, uint8_t id)
 				
 				SLT.espnow.cnt_id_added++;
 				nvs_set_u8(handle, NVS_COUNT_PEER, SLT.espnow.cnt_id_added);
+				nvs_commit(handle);
 			}
 			
 		}
-		nvs_commit(handle);
 		nvs_close(handle);
 	}
 }
@@ -217,5 +219,29 @@ uint16_t crc16_modbus(uint16_t crc, uint8_t *buf, uint32_t len)
 	return crc;
 }
 
-
-
+buf_espnow_t espnow_make_frame_send(void* payload, uint32_t len_payload, command_espnow_t cmd)
+{
+	buf_espnow_t buf = {.data = NULL, .len = 0};
+	
+	if (payload == NULL || len_payload == 0)
+		return buf;
+	
+	
+	buf.len = NOW_LEN_HEADER + NOW_LEN_CMD + len_payload + NOW_LEN_CRC; 
+	buf.data = malloc(buf.len);
+	
+	if (buf.data == NULL)
+		return buf; 
+	
+	buf.data[0] = 'N'; buf.data[1] = 'O'; buf.data[2] = 'W';
+	buf.data[NOW_INDEX_CMD] = cmd; 
+	
+	memcpy(&buf.data[NOW_INDEX_PAYLOAD], payload, len_payload); 
+	
+	uint16_t crc = crc16_modbus(0xffff, buf.data, buf.len - NOW_LEN_CRC); 
+	
+	buf.data[buf.len - 2] = crc & 0xff; 
+	buf.data[buf.len - 1] = (crc >> 8) & 0xff;
+	
+	return buf; 
+}
