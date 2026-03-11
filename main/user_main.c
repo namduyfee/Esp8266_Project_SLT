@@ -33,9 +33,7 @@ Object SLT = {
 	},
 	.server = {
 		.tpcb = NULL,
-		.port = 80,
 		.count_client = 0,
-		.max_client = 1,
 		.p_client = NULL,
 	}
 	
@@ -161,6 +159,7 @@ void task_select_master()
 			if (count >= 100)
 			{
 				/* handle when button is pressed */
+				bool can_brc_espnow = false;
 				
 				if (xSemaphoreTake(xNowPeersMana, portMAX_DELAY) == pdPASS)
 				{
@@ -169,11 +168,11 @@ void task_select_master()
 					if (nvs_open(NVS_ESPNOW_NAMESP, NVS_READWRITE, &handle) == ESP_OK)
 					{
 						peer_info_t tm_gw_peer;
-					
+						size_t size = sizeof(tm_gw_peer);
+						
 						tm_gw_peer.id = SLT.espnow.my_id; 
 						memcpy(tm_gw_peer.mac, SLT.wifi.ap_macaddr, MAC_ADDR_LEN); 
 
-						size_t size = sizeof(tm_gw_peer);
 						if (nvs_set_blob(handle, NVS_GW_PEER_INF, &tm_gw_peer, size) == ESP_OK)
 						{
 							SLT.espnow.gw_peer.id = tm_gw_peer.id; 
@@ -210,25 +209,30 @@ void task_select_master()
 								esp_wifi_start();
 							
 							}
+							nvs_commit(handle);
 							
 							init_espnow();
 							
-							/** send request broadcast */
-							uint8_t payload = SLT.espnow.my_id; 
-							
-							espnow_send_queue_t send_q; 
-							send_q.dest_id = NOW_ID_BRC;
-							send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_BRC); 
-							if (send_q.buf.data != NULL && send_q.buf.len > 0)
-								xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+							can_brc_espnow = true; 
 						}
 						
-						nvs_commit(handle); 
 						nvs_close(handle); 
 					}
-					
 					xSemaphoreGive(xNowPeersMana);
 				}
+				
+				if (can_brc_espnow == true)
+				{
+					/** send request broadcast */
+					uint8_t payload = SLT.espnow.my_id; 
+							
+					espnow_send_queue_t send_q; 
+					send_q.dest_id = NOW_ID_BRC;
+					send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_BRC); 
+					if (send_q.buf.data != NULL && send_q.buf.len > 0)
+						xQueueSend(xNowSend, &send_q, portMAX_DELAY);		
+				}
+				
 			}
 		}		
 		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
@@ -245,7 +249,7 @@ void task_select_master()
 
 void task_esp_now_recv()
 {
-	
+	uint32_t tem = 0; 
 	TickType_t last_tick_br = xTaskGetTickCount(); 
 	bool first_br = true;
 	
@@ -269,9 +273,13 @@ void task_esp_now_recv()
 					 *		- switch from apsta mode to sta mode
 					 *		- send request add peer to master
 					 */
-					if (data[NOW_INDEX_CMD] == NOW_BRC && (first_br == true || 
-					                                       (xTaskGetTickCount() - last_tick_br > pdMS_TO_TICKS(TIME_BRC + 2000))))
-					{ 
+
+					if ( data[NOW_INDEX_CMD] == NOW_BRC && 
+					    (first_br == true || (xTaskGetTickCount() - last_tick_br > pdMS_TO_TICKS(TIME_BRC + 2000)))
+					   )
+					{
+						bool send_add_req_to_gw = false; 
+						
 						if (xSemaphoreTake(xNowPeersMana, portMAX_DELAY) == pdPASS)
 						{
 							nvs_handle handle;
@@ -300,21 +308,26 @@ void task_esp_now_recv()
 										esp_wifi_start();
 										esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0);
 									}
+									
+									nvs_commit(handle);
+									
 									init_espnow();
 									
-									espnow_add_peer(SLT.espnow.gw_peer.mac, SLT.espnow.gw_peer.id); 
+									espnow_add_peer(SLT.espnow.gw_peer.mac, SLT.espnow.gw_peer.id);
+									
+									send_add_req_to_gw = true; 
 								}
 								
-								nvs_commit(handle); 
 								nvs_close(handle); 
+
+								first_br = false;
+								last_tick_br = xTaskGetTickCount();
 							}
-							
-							
 							xSemaphoreGive(xNowPeersMana);
-							
-							set_duty_pwm(&SLT.Pwm, 1, 255); 
-							set_duty_pwm(&SLT.Pwm, 3, 255);
-							
+						}
+						
+						if (send_add_req_to_gw == true)
+						{
 							/** send request add peer to gateway */
 							uint8_t payload = SLT.espnow.my_id; 
 							
@@ -322,23 +335,27 @@ void task_esp_now_recv()
 							send_q.dest_id = SLT.espnow.gw_peer.id;
 							send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_ADD_PEER); 
 							if (send_q.buf.data != NULL && send_q.buf.len > 0)
-								xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(1000));
+								xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(3000));
 						}
-							
-						first_br = false;
-						last_tick_br = xTaskGetTickCount();
 					}
 					
 					else if (data[NOW_INDEX_CMD] == NOW_ADD_PEER)
 					{
+
 						if (xSemaphoreTake(xNowPeersMana, portMAX_DELAY) == pdPASS)
 						{
-							set_duty_pwm(&SLT.Pwm, 1, 255); 
-							set_duty_pwm(&SLT.Pwm, 3, 255);
-							
 							espnow_add_peer(espnow_recv.addr, data[NOW_INDEX_PAYLOAD]);
-							
+				
 							xSemaphoreGive(xNowPeersMana);
+						}
+						
+						for (uint8_t i = 0; i < 10; i++)
+						{
+							espnow_send_queue_t send_q; 
+							send_q.dest_id = data[NOW_INDEX_PAYLOAD];
+							send_q.buf = espnow_make_frame_send(&i, sizeof(i), NOW_WRF); 
+							if (send_q.buf.data != NULL && send_q.buf.len > 0)
+								xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(1000));
 						}
 					}
 					else if (data[NOW_INDEX_CMD] == NOW_ST_WRF)
@@ -347,7 +364,18 @@ void task_esp_now_recv()
 					}
 					else if (data[NOW_INDEX_CMD] == NOW_WRF)
 					{
-
+						tem |= (1 << data[NOW_INDEX_PAYLOAD]);
+						
+						if (tem == 0b1111111111)
+						{
+							set_duty_pwm(&SLT.Pwm, 1, 255); 
+							set_duty_pwm(&SLT.Pwm, 3, 255);	
+						}
+						else
+						{
+							set_duty_pwm(&SLT.Pwm, 1, 0); 
+							set_duty_pwm(&SLT.Pwm, 3, 0);
+						}
 					}
 				}
 				if (espnow_recv.buf.data != NULL) {
@@ -410,29 +438,39 @@ void task_esp_now_send()
 						queue_current.buf.data = NULL; 
 						queue_current.buf.len = 0;
 					}
-					if (xQueueReceive(xNowSend, &queue_current, 0) != pdPASS)
-						xSemaphoreGive(xNowCanUpdateSend); 
+					if (xQueueReceive(xNowSend, &queue_current, 0) == pdPASS) 
+					{
+						if (queue_current.dest_id == NOW_ID_BRC)
+						{
+							is_broadcast = true; 
+							br_lasttick = xTaskGetTickCount();
+						}
+					}
+					else
+					{
+						xSemaphoreGive(xNowCanUpdateSend);
+					}
 				}
 				
-				if (queue_current.dest_id == NOW_ID_BRC)
-				{
-					is_broadcast = true; 
-					br_lasttick = xTaskGetTickCount();
-				}
-				else
+				if (is_broadcast == false)
 				{
 					if (xSemaphoreTake(xNowCanSend, 0) == pdPASS)
 					{
+						esp_err_t ret = -1;
+						
 						if (queue_current.buf.data != NULL && queue_current.buf.len > 0)
 						{
-							esp_err_t ret = esp_now_send(address_brc, queue_current.buf.data, queue_current.buf.len);
-							if (ret != ESP_OK)
+							for (int i = 0; i < SLT.espnow.cnt_id_added; i++)
 							{
-								xSemaphoreGive(xNowCanSend); 
+								if (queue_current.dest_id == SLT.espnow.peer_list[i].id)
+								{
+									ret = esp_now_send(SLT.espnow.peer_list[i].mac, queue_current.buf.data, queue_current.buf.len);
+									break;
+								}
 							}
 						}
-						else 
-							xSemaphoreGive(xNowCanSend);
+						if (ret != ESP_OK)
+							xSemaphoreGive(xNowCanSend); 
 					}
 				}
 			}
