@@ -94,7 +94,7 @@ typedef struct
 {
 	uint8_t dest_id;			/**< destination id */
 	buf_espnow_t buf;
-	uint32_t timeout;			/**< timeout if can not send */
+	uint32_t tmout_ms;			/**< timeout if can not send */
 	
 } espnow_send_queue_t;
 

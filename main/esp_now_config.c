@@ -37,7 +37,7 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 		{
 			memcpy(tm.buf.data, data, len - 2);
 			
-			if (xQueueSendToBack(xNowRecv, &tm, pdMS_TO_TICKS(200)) != pdPASS)
+			if (xQueueSendToBack(xNowRecv, &tm, pdMS_TO_TICKS(00)) != pdPASS)
 				free(tm.buf.data); 
 		}
 	}
@@ -47,11 +47,12 @@ static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
 	uint8_t add_brc[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	if (is_same_macadrr(add_brc, mac_addr) == true)
-		return; 
+		return;
 	
 	if (status == ESP_NOW_SEND_SUCCESS) 
 	{
-		xSemaphoreGive(xNowCanUpdateSend);
+		xSemaphoreGive(xNowSent);
+		return; 
 	}
 	
 	xSemaphoreGive(xNowCanSend);

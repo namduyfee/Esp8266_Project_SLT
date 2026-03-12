@@ -29,7 +29,7 @@ Object SLT = {
 	.espnow = {
 
 		.cnt_id_added = 0,
-		.my_id = 10,
+		.my_id = 1,
 	},
 	.server = {
 		.tpcb = NULL,
@@ -44,7 +44,7 @@ SemaphoreHandle_t xTcpSwitchBufSend;
 SemaphoreHandle_t xUpdateEffect;
 SemaphoreHandle_t xUpdatedEffect;
 SemaphoreHandle_t xNowCanSend; 
-SemaphoreHandle_t xNowCanUpdateSend; 
+SemaphoreHandle_t xNowSent; 
 
 	
 QueueHandle_t xEffLoadf;					/**< get data from tcp recv callback */
@@ -107,8 +107,8 @@ void app_main(void) {
 	xNowCanSend = xSemaphoreCreateBinary(); 
 	xSemaphoreGive(xNowCanSend);
 	
-	xNowCanUpdateSend = xSemaphoreCreateBinary(); 
-	xSemaphoreGive(xNowCanUpdateSend);
+	xNowSent = xSemaphoreCreateBinary(); 
+	xSemaphoreGive(xNowSent);
 	
 	my_init_project();
 	
@@ -333,6 +333,7 @@ void task_esp_now_recv()
 							
 							espnow_send_queue_t send_q; 
 							send_q.dest_id = SLT.espnow.gw_peer.id;
+							send_q.tmout_ms = 1000;
 							send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_ADD_PEER); 
 							if (send_q.buf.data != NULL && send_q.buf.len > 0)
 								xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(3000));
@@ -351,31 +352,42 @@ void task_esp_now_recv()
 						
 						for (uint8_t i = 0; i < 10; i++)
 						{
-							espnow_send_queue_t send_q; 
+							uint8_t payload[50]; 
+							memset(payload, i, sizeof(payload));
+							
+							espnow_send_queue_t send_q;
+							send_q.tmout_ms = 2000; 
 							send_q.dest_id = data[NOW_INDEX_PAYLOAD];
-							send_q.buf = espnow_make_frame_send(&i, sizeof(i), NOW_WRF); 
+							send_q.buf = espnow_make_frame_send(payload, sizeof(payload), NOW_WRF); 
 							if (send_q.buf.data != NULL && send_q.buf.len > 0)
-								xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(1000));
+								xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(3000));
 						}
 					}
 					else if (data[NOW_INDEX_CMD] == NOW_ST_WRF)
 					{
-
+						
 					}
 					else if (data[NOW_INDEX_CMD] == NOW_WRF)
 					{
-						tem |= (1 << data[NOW_INDEX_PAYLOAD]);
-						
-						if (tem == 0b1111111111)
-						{
-							set_duty_pwm(&SLT.Pwm, 1, 255); 
-							set_duty_pwm(&SLT.Pwm, 3, 255);	
-						}
-						else
+						tem++;
+
+						if (tem == 10)
 						{
 							set_duty_pwm(&SLT.Pwm, 1, 0); 
 							set_duty_pwm(&SLT.Pwm, 3, 0);
 						}
+						else if (tem < 10)
+						{
+							set_duty_pwm(&SLT.Pwm, 1, 255); 
+							set_duty_pwm(&SLT.Pwm, 3, 0);
+						}
+						else if (tem > 10)
+						{
+							set_duty_pwm(&SLT.Pwm, 1, 255); 
+							set_duty_pwm(&SLT.Pwm, 3, 255);
+						}
+					
+
 					}
 				}
 				if (espnow_recv.buf.data != NULL) {
@@ -399,8 +411,7 @@ void task_esp_now_recv()
 void task_esp_now_send() 
 {
 	uint8_t address_brc[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; 
-	TickType_t br_lasttick = xTaskGetTickCount();
-	bool is_broadcast = false; 
+	TickType_t lasttick = xTaskGetTickCount();
 	
 	espnow_send_queue_t queue_current = {.buf.data = NULL, .buf.len = 0};
 	
@@ -409,70 +420,65 @@ void task_esp_now_send()
 
 		if (xSemaphoreTake(xNowPeersMana, 0) == pdPASS)
 		{
-			if (is_broadcast == true)
+
+			if (xQueueReceive(xNowSend, &queue_current, 0) == pdPASS)
 			{
-				if (xTaskGetTickCount() - br_lasttick > pdMS_TO_TICKS(TIME_BRC))
+				
+				if (queue_current.dest_id == NOW_ID_BRC)
 				{
-					is_broadcast = false;
-					if (queue_current.buf.data != NULL && queue_current.buf.len > 0) 
+					lasttick = xTaskGetTickCount(); 
+					while (xTaskGetTickCount() - lasttick < pdMS_TO_TICKS(TIME_BRC))
 					{
-						free(queue_current.buf.data);
-						queue_current.buf.data = NULL; 
-						queue_current.buf.len = 0; 
+						esp_now_send(address_brc, queue_current.buf.data, queue_current.buf.len);
+						vTaskDelay(pdMS_TO_TICKS(100));
 					}
-					xSemaphoreGive(xNowCanUpdateSend);
 				}
 				else
 				{
-					esp_now_send(address_brc, queue_current.buf.data, queue_current.buf.len);
-					vTaskDelay(pdMS_TO_TICKS(100));
-				}
-			}
-			else
-			{
-				if (xSemaphoreTake(xNowCanUpdateSend, 0) == pdPASS)
-				{
-					if (queue_current.buf.data != NULL && queue_current.buf.len > 0)
+					
+					bool id_exist = false;
+					peer_info_t des_peer; 
+					
+					for (int i = 0; i < SLT.espnow.cnt_id_added; i++)
 					{
-						free(queue_current.buf.data);
-						queue_current.buf.data = NULL; 
-						queue_current.buf.len = 0;
-					}
-					if (xQueueReceive(xNowSend, &queue_current, 0) == pdPASS) 
-					{
-						if (queue_current.dest_id == NOW_ID_BRC)
+						if (queue_current.dest_id == SLT.espnow.peer_list[i].id)
 						{
-							is_broadcast = true; 
-							br_lasttick = xTaskGetTickCount();
+							id_exist = true; 
+							des_peer = SLT.espnow.peer_list[i];
+							break; 
 						}
 					}
-					else
+					
+					if (id_exist == true)
 					{
-						xSemaphoreGive(xNowCanUpdateSend);
+						
+						xSemaphoreTake(xNowSent, 0);
+						xSemaphoreGive(xNowCanSend);
+						
+						lasttick = xTaskGetTickCount();
+						while (xTaskGetTickCount() - lasttick < pdMS_TO_TICKS(queue_current.tmout_ms))
+						{
+							esp_err_t ret = esp_now_send(des_peer.mac, queue_current.buf.data, queue_current.buf.len);
+							if (ret == ESP_OK)
+							{
+								xSemaphoreTake(xNowCanSend, portMAX_DELAY);
+								if (xSemaphoreTake(xNowSent, 0) == pdPASS)
+								{
+									
+								}
+							}
+
+							vTaskDelay(pdMS_TO_TICKS(5));
+						}
 					}
 				}
 				
-				if (is_broadcast == false)
+				if (queue_current.buf.data != NULL) 
 				{
-					if (xSemaphoreTake(xNowCanSend, 0) == pdPASS)
-					{
-						esp_err_t ret = -1;
-						
-						if (queue_current.buf.data != NULL && queue_current.buf.len > 0)
-						{
-							for (int i = 0; i < SLT.espnow.cnt_id_added; i++)
-							{
-								if (queue_current.dest_id == SLT.espnow.peer_list[i].id)
-								{
-									ret = esp_now_send(SLT.espnow.peer_list[i].mac, queue_current.buf.data, queue_current.buf.len);
-									break;
-								}
-							}
-						}
-						if (ret != ESP_OK)
-							xSemaphoreGive(xNowCanSend); 
-					}
+					free(queue_current.buf.data);
+					queue_current.buf.data = NULL; 
 				}
+				
 			}
 			xSemaphoreGive(xNowPeersMana);	
 		}

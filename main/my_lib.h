@@ -27,7 +27,7 @@ extern QueueHandle_t xNowRecv;
 extern QueueHandle_t xNowSend;	
 extern SemaphoreHandle_t xTcpSwitchBufSend;
 extern SemaphoreHandle_t xNowCanSend; 
-extern SemaphoreHandle_t xNowCanUpdateSend;
+extern SemaphoreHandle_t xNowSent;
 
 #endif
 
