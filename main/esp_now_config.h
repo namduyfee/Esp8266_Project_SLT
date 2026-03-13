@@ -106,6 +106,8 @@ typedef struct My_Esp_Now
 	
 	uint8_t my_id;
 	
+	bool send_success;
+	
 } My_Esp_Now_Typedef;
 
 

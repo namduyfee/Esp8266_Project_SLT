@@ -43,8 +43,7 @@ SemaphoreHandle_t xNowPeersMana;
 SemaphoreHandle_t xTcpSwitchBufSend;
 SemaphoreHandle_t xUpdateEffect;
 SemaphoreHandle_t xUpdatedEffect;
-SemaphoreHandle_t xNowCanSend; 
-SemaphoreHandle_t xNowSent; 
+SemaphoreHandle_t xNowSendDone; 
 
 	
 QueueHandle_t xEffLoadf;					/**< get data from tcp recv callback */
@@ -104,11 +103,8 @@ void app_main(void) {
 	
 	xUpdatedEffect = xSemaphoreCreateBinary(); 
 	
-	xNowCanSend = xSemaphoreCreateBinary(); 
-	xSemaphoreGive(xNowCanSend);
+	xNowSendDone = xSemaphoreCreateBinary(); 
 	
-	xNowSent = xSemaphoreCreateBinary(); 
-	xSemaphoreGive(xNowSent);
 	
 	my_init_project();
 	
@@ -376,12 +372,12 @@ void task_esp_now_recv()
 							set_duty_pwm(&SLT.Pwm, 1, 0); 
 							set_duty_pwm(&SLT.Pwm, 3, 0);
 						}
-						else if (tem < 10)
+						else if (tem > 10)
 						{
 							set_duty_pwm(&SLT.Pwm, 1, 255); 
 							set_duty_pwm(&SLT.Pwm, 3, 0);
 						}
-						else if (tem > 10)
+						else if (tem < 10)
 						{
 							set_duty_pwm(&SLT.Pwm, 1, 255); 
 							set_duty_pwm(&SLT.Pwm, 3, 255);
@@ -452,23 +448,29 @@ void task_esp_now_send()
 					if (id_exist == true)
 					{
 						
-						xSemaphoreTake(xNowSent, 0);
-						xSemaphoreGive(xNowCanSend);
-						
 						lasttick = xTaskGetTickCount();
+
 						while (xTaskGetTickCount() - lasttick < pdMS_TO_TICKS(queue_current.tmout_ms))
 						{
-							esp_err_t ret = esp_now_send(des_peer.mac, queue_current.buf.data, queue_current.buf.len);
+							bool can_break = false;
+
+							xSemaphoreTake(xNowSendDone, 0);
+
+							esp_err_t ret = esp_now_send(des_peer.mac,
+								queue_current.buf.data,
+								queue_current.buf.len);
+
 							if (ret == ESP_OK)
 							{
-								xSemaphoreTake(xNowCanSend, portMAX_DELAY);
-								if (xSemaphoreTake(xNowSent, 0) == pdPASS)
+								if (xSemaphoreTake(xNowSendDone, portMAX_DELAY) == pdPASS)
 								{
-									
+									if (SLT.espnow.send_success)
+										can_break = true;
 								}
 							}
-
-							vTaskDelay(pdMS_TO_TICKS(5));
+							vTaskDelay(pdMS_TO_TICKS(10));
+							if (can_break)
+								break;
 						}
 					}
 				}

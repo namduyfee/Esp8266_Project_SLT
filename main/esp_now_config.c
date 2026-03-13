@@ -43,19 +43,16 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 	}
 }
 
-static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status) 
+static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
-	uint8_t add_brc[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-	if (is_same_macadrr(add_brc, mac_addr) == true)
+	uint8_t add_brc[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
+	if (is_same_macadrr(add_brc, mac_addr))
 		return;
 	
-	if (status == ESP_NOW_SEND_SUCCESS) 
-	{
-		xSemaphoreGive(xNowSent);
-		return; 
-	}
+	SLT.espnow.send_success = (status == ESP_NOW_SEND_SUCCESS);
+	xSemaphoreGive(xNowSendDone);
 	
-	xSemaphoreGive(xNowCanSend);
 }
 
 void init_espnow(void) 

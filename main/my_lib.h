@@ -26,8 +26,7 @@ extern QueueHandle_t xEffLoadf;
 extern QueueHandle_t xNowRecv;
 extern QueueHandle_t xNowSend;	
 extern SemaphoreHandle_t xTcpSwitchBufSend;
-extern SemaphoreHandle_t xNowCanSend; 
-extern SemaphoreHandle_t xNowSent;
+extern SemaphoreHandle_t xNowSendDone; 
 
 #endif
 
