@@ -42,7 +42,6 @@ Object SLT = {
 SemaphoreHandle_t xNowPeersMana; 
 SemaphoreHandle_t xTcpSwitchBufSend;
 SemaphoreHandle_t xUpdateEffect;
-SemaphoreHandle_t xUpdatedEffect;
 SemaphoreHandle_t xNowSendDone; 
 
 	
@@ -100,8 +99,6 @@ void app_main(void) {
 	xSemaphoreGive(xUpdateEffect); 
 	
 	xTcpSwitchBufSend = xSemaphoreCreateBinary();
-	
-	xUpdatedEffect = xSemaphoreCreateBinary(); 
 	
 	xNowSendDone = xSemaphoreCreateBinary(); 
 	
@@ -880,11 +877,8 @@ void task_file_effect()
 					
 					}
 					
-					xSemaphoreTake(xUpdatedEffect, 0);
-					
 					xSemaphoreGive(xUpdateEffect);
 					
-					xSemaphoreTake(xUpdatedEffect, portMAX_DELAY); 
 				}
 				else
 				{
@@ -941,7 +935,7 @@ void task_send_tcp()
 		
 		while (tcpip_callback(tcp_send_cb, tcp_send_buf) != ERR_OK)
 		{
-			vTaskDelay(pdMS_TO_TICKS(5));
+			vTaskDelay(pdMS_TO_TICKS(10));
 		}
 		
 		xSemaphoreTake(xTcpSwitchBufSend, portMAX_DELAY);
@@ -958,18 +952,22 @@ void task_send_tcp()
 	}
 }
 /**
- *	@brief	task init infomation for the effect
- *	
- */
+ *	@brief	send data effect to all node after receive tcp
+ *	@detail
+ *		each node : 'NOW' + NOW_ST_WRF + (4B)tot number of packet + (4B)offset_start + (4B)tot size + (2B)checksum (this packet)
+ *					'NOW' + NOW_WRF + (4B)number packet + (4B)offset + (4B)size + data + checksum (this packet)
+ *					....
+ *					'NOW' + NOW_END_WRF + (2B)checksum (of tot data) + checksum (this packet)	
+ */			
 void task_init_effect() 
 {
-	effect_manage_t eff_tmp;
 	int fd; 
 	
 	while (1)
 	{
 		if (xSemaphoreTake(xUpdateEffect, portMAX_DELAY) == pdPASS)
 		{
+			uint32_t size_tmp = 1000; 
 			struct stat st;
 			int ret = stat(PATH_EFFECT, &st);
 			if (ret >= 0)
@@ -977,33 +975,49 @@ void task_init_effect()
 				fd = open(PATH_EFFECT, O_RDWR | O_CREAT, 0666);
 				if (fd >= 0)
 				{
-					uint32_t len_file = lseek(fd, 0, SEEK_END); 
-					if (len_file >= 1 )
-					{
-						lseek(fd, 0, SEEK_SET);
-						read(fd, &eff_tmp.brNess, 1);
-					}
-					if (len_file >= 2)
-					{
-						lseek(fd, 1, SEEK_SET);
-						read(fd, &eff_tmp.speedEf, 1);
-					}
-					if (len_file >= 3)
-					{
-						lseek(fd, 2, SEEK_SET); 
-						read(fd, &eff_tmp.numGroup, 1); 
-					}
+					/** send start write */
+					uint32_t tot_packet = size_tmp % ESP_NOW_MAX_DATA_LEN == 0 ? (size_tmp / ESP_NOW_MAX_DATA_LEN) :
+																				 (size_tmp / ESP_NOW_MAX_DATA_LEN) + 1;
+					uint8_t payload[12];
+					uint32_t offset = 0;
+					memcpy(payload, &tot_packet, 4);
+					memcpy(&payload[4], &offset, 4);
+					memcpy(&payload[8], &size_tmp, 4);
 					
-					if (len_file >= (3 + 4 * eff_tmp.numGroup))
-					{
-//						eff_tmp.offStartGr = malloc(sizeof(uint32_t) * eff_tmp.numGroup);
-//						lseek(fd, 3, SEEK_SET); 
-//						read(fd, eff_tmp.offStartGr, eff_tmp.numGroup * sizeof(uint32_t));
+					espnow_send_queue_t send_q;
+					send_q.dest_id = 10;
+					send_q.buf = espnow_make_frame_send(payload, 8, NOW_ST_WRF);
+					if (send_q.buf.data != NULL && send_q.buf.len > 0)
+						xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+					
+					lseek(fd, 0, SEEK_SET);
+					while (size_tmp > 0)
+					{ 
+						uint32_t len_read = (ESP_NOW_MAX_DATA_LEN - NOW_LEN_HEADER - NOW_LEN_CMD - NOW_LEN_CRC - 4) 
+							< size_tmp ?
+							(ESP_NOW_MAX_DATA_LEN - NOW_LEN_HEADER - NOW_LEN_CMD - NOW_LEN_CRC - 4) : size_tmp;
+						
+						uint8_t* buf = malloc(len_read + 4);
+						uint32_t offset = lseek(fd, 0, SEEK_CUR);
+						memcpy(buf, &offset, sizeof(offset));
+						
+						read(fd, &buf[4], len_read);
+							
+						espnow_send_queue_t send_q; 
+						send_q.dest_id = 10;
+						send_q.buf = espnow_make_frame_send(buf, len_read + 4, NOW_WRF); 
+						if (send_q.buf.data != NULL && send_q.buf.len > 0)
+							xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+						
+						if (buf != NULL)
+							free(buf);
+						
+						size_tmp -= len_read; 
+						
 					}
 					
 				}
 			}
-			xSemaphoreGive(xUpdatedEffect);
 		}
 	}
 }

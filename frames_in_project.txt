@@ -6,15 +6,15 @@ TCP:
 -> trả về 'TCP' + CMD (TCP_ACK | TCP_NACK)
 
 * start write
-- 'TCP' + CMD (TCP_ST_WRITE) + position node ( == 0xff <=> all node ) + offset_start + tot size
--> trả về TCP + CMD (TCP_ACK | TCP_NACK) + max segment size (max segment size tcp of esp node).
+- 'TCP' + CMD (TCP_ST_WRITE) + offset_start + tot size
+-> trả về TCP + CMD (TCP_ACK | TCP_NACK) + max segment size.
 
 * wirte
-- 'TCP' + CMD (WRITE) + position node + offset + data
+- 'TCP' + CMD (WRITE) + offset + data
 ...
 
 * end write
-- 'TCP' + CMD (END WRITE) + position node + checksum (của tất cả data vừa gửi cho node)
+- 'TCP' + CMD (END WRITE) + checksum (của tất cả data vừa gửi cho node)
 -> trả về 'TCP' + CMD (TCP_ACK | TCP_NACK)
 
 
@@ -26,11 +26,11 @@ sender retry + timeout: NOW + CMD + checksum
 receiver retry + timeout -> NOW + CMD (NOW_ACK | NOW_NACK) + checksum
 
 * starte WRITE
-sender retry + timeout : NOW + CMD (NOW_ST_WRITE) + offset start + tot size + checksum 
--> NOW + (NOW_ACK | NOW_NACK) + max segment size (max segment size tcp of esp node) + checksum 
+sender retry + timeout : NOW + CMD (NOW_ST_WRITE) + offset start + tot size + tot packet + checksum 
+-> NOW + (NOW_ACK | NOW_NACK) + checksum
 
 * wrtie
-NOW + CMD (WRITE) + offset + data + checksum
+NOW + CMD (WRITE) + sequence number + offset + data + checksum
 ...
 
 * end write

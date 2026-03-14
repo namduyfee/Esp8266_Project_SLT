@@ -181,87 +181,95 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 	recv_buf.len = p->tot_len; 
 	
 	
-	if (((char*)recv_buf.data)[0] == 'T' && ((char*)recv_buf.data)[1] == 'C' && 
-	    ((char*)recv_buf.data)[2] == 'P')
+	if (recv_buf.data[0] == 'T' && recv_buf.data[1] == 'C' && 
+	    recv_buf.data[2] == 'P')
 	{
+		
 		file_request_t eff = {
 			.cmd = F_NONE,
 			.source = F_TCP_SOURCE
 		};
 		
-		if (((char*)recv_buf.data)[3] == TCP_OPF)
+		if (recv_buf.data[3] == TCP_OPF)
 		{
 			eff.cmd = F_OP; 
 		}
 		
-		else if (((char*)recv_buf.data)[3] == TCP_CLSF)
+		else if (recv_buf.data[3] == TCP_CLSF)
 		{
 			eff.cmd = F_CLS; 
 		}
-		else if (((char*)recv_buf.data)[3] == TCP_DLTF)
+		else if (recv_buf.data[3] == TCP_DLTF)
 		{
 			eff.cmd = F_DLT; 
 		}		
-		else if (((char*)recv_buf.data)[3] == TCP_RDF)
+		else if (recv_buf.data[3] == TCP_RDF)
 		{
 			eff.cmd = F_RD;
-				
-			if (recv_buf.len >= 8)
+			
+			uint8_t index_offset = 4;
+			if (recv_buf.len >= (index_offset + 4))
 			{
-				eff.read.offset = (((uint8_t*)recv_buf.data)[7] << 24) | 
-								  (((uint8_t*)recv_buf.data)[6] << 16) | 
-								  (((uint8_t*)recv_buf.data)[5] << 8)  | 
-								  (((uint8_t*)recv_buf.data)[4] << 0);			
+				eff.read.offset = (recv_buf.data[index_offset + 3] << 24) | 
+								  (recv_buf.data[index_offset + 2] << 16) | 
+								  (recv_buf.data[index_offset + 1] << 8)  | 
+								  (recv_buf.data[index_offset] << 0);			
 			}
 			else 
 				eff.read.offset = 0; 	
 
-			
-			if (recv_buf.len >= 12)
+			uint8_t index_len = 8;
+			if (recv_buf.len >= (index_len + 4))
 			{
-				eff.read.len = (((uint8_t*)recv_buf.data)[11] << 24) | 
-							   (((uint8_t*)recv_buf.data)[10] << 16) | 
-							   (((uint8_t*)recv_buf.data)[9] << 8)   | 
-							   (((uint8_t*)recv_buf.data)[8] << 0);	
+				eff.read.len = (recv_buf.data[index_len + 3] << 24) | 
+							   (recv_buf.data[index_len + 2] << 16) | 
+							   (recv_buf.data[index_len + 1] << 8)  | 
+							   (recv_buf.data[index_len] << 0);	
 			}
 			else 
 				eff.read.len = 0;
 			
 		}
-		else if (((char*)recv_buf.data)[3] == TCP_ST_WRF)
+		else if (recv_buf.data[3] == TCP_ST_WRF)
 		{
-			
 			eff.cmd = F_ST_WR;
-			if (recv_buf.len >= 8)
+				
+			uint8_t index_offset = 4;
+			if (recv_buf.len >= (index_offset + 4))
 			{
-				eff.write_start.offset = (((uint8_t*)recv_buf.data)[7] << 24) | 
-										 (((uint8_t*)recv_buf.data)[6] << 16) | 
-										 (((uint8_t*)recv_buf.data)[5] << 8)  | 
-										 (((uint8_t*)recv_buf.data)[4] << 0); 
+					
+				eff.write_start.offset =	(recv_buf.data[index_offset + 3] << 24) | 
+											(recv_buf.data[index_offset + 2] << 16) | 
+											(recv_buf.data[index_offset + 1] << 8)  | 
+											(recv_buf.data[index_offset] << 0);
 			}
 			else 
 				eff.write_start.offset = 0; 
 			
-			if (recv_buf.len >= 12)
+			
+			uint8_t index_tot_len = 8;
+			if (recv_buf.len >= (index_tot_len + 4))
 			{
-				eff.write_start.tot_len = (((uint8_t*)recv_buf.data)[11] << 24) | 
-										  (((uint8_t*)recv_buf.data)[10] << 16) | 
-										  (((uint8_t*)recv_buf.data)[9] << 8)   | 
-										  (((uint8_t*)recv_buf.data)[8] << 0);
+				eff.write_start.tot_len = (recv_buf.data[index_tot_len + 3] << 24) | 
+										  (recv_buf.data[index_tot_len + 2] << 16) | 
+										  (recv_buf.data[index_tot_len + 1] << 8)  | 
+										  (recv_buf.data[index_tot_len] << 0);	
 			}
 			else 
-				eff.write_start.tot_len = 0; 
+				eff.write_start.tot_len = 0;
+ 
 		}
-		else if (((char*)recv_buf.data)[3] == TCP_WRF)
+		else if (recv_buf.data[3] == TCP_WRF)
 		{
 			eff.cmd = F_WR;
-				
-			if (recv_buf.len >= 8)
+			
+			uint8_t index_offset = 4;	
+			if (recv_buf.len >= (index_offset + 4))
 			{
-				eff.write.offset = (((uint8_t*)recv_buf.data)[7] << 24) | 
-								   (((uint8_t*)recv_buf.data)[6] << 16) | 
-								   (((uint8_t*)recv_buf.data)[5] << 8)  | 
-								   (((uint8_t*)recv_buf.data)[4] << 0);	
+				eff.write.offset = (recv_buf.data[index_offset + 3] << 24) | 
+								   (recv_buf.data[index_offset + 2] << 16) | 
+								   (recv_buf.data[index_offset + 1] << 8)  | 
+								   (recv_buf.data[index_offset] << 0);	
 			}
 			else 
 				eff.write.offset = 0;
@@ -282,7 +290,7 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 			}
 			
 		}
-		else if (((char*)recv_buf.data)[3] == TCP_END_WRF)
+		else if (recv_buf.data[3] == TCP_END_WRF)
 		{
 			
 			eff.cmd = F_END_WR; 

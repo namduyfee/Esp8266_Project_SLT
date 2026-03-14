@@ -25,7 +25,6 @@
 #define TCP_POLL_CYCLE 2
 #define TCP_AUTO_DIS_MS 30000
 
-
 typedef enum
 {
 	TCP_NONE    = 0,
