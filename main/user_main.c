@@ -43,7 +43,7 @@ SemaphoreHandle_t xNowPeersMana;
 SemaphoreHandle_t xTcpSwitchBufSend;
 SemaphoreHandle_t xUpdateEffect;
 SemaphoreHandle_t xNowSendDone; 
-
+SemaphoreHandle_t xNowReturnState;
 	
 QueueHandle_t xEffLoadf;					/**< get data from tcp recv callback */
 QueueHandle_t xNowRecv;						/**< get data from espnow recv callback */
@@ -102,6 +102,7 @@ void app_main(void) {
 	
 	xNowSendDone = xSemaphoreCreateBinary(); 
 	
+	xNowReturnState = xSemaphoreCreateBinary();
 	
 	my_init_project();
 	
@@ -242,7 +243,6 @@ void task_select_master()
 
 void task_esp_now_recv()
 {
-	uint32_t tem = 0; 
 	TickType_t last_tick_br = xTaskGetTickCount(); 
 	bool first_br = true;
 	
@@ -267,9 +267,8 @@ void task_esp_now_recv()
 					 *		- send request add peer to master
 					 */
 
-					if ( data[NOW_INDEX_CMD] == NOW_BRC && 
-					    (first_br == true || (xTaskGetTickCount() - last_tick_br > pdMS_TO_TICKS(TIME_BRC + 2000)))
-					   )
+					if (data[NOW_INDEX_CMD] == NOW_BRC && 
+					    (first_br == true || (xTaskGetTickCount() - last_tick_br > pdMS_TO_TICKS(TIME_BRC + 2000))))
 					{
 						bool send_add_req_to_gw = false; 
 						
@@ -335,53 +334,57 @@ void task_esp_now_recv()
 					
 					else if (data[NOW_INDEX_CMD] == NOW_ADD_PEER)
 					{
-
 						if (xSemaphoreTake(xNowPeersMana, portMAX_DELAY) == pdPASS)
 						{
 							espnow_add_peer(espnow_recv.addr, data[NOW_INDEX_PAYLOAD]);
 				
 							xSemaphoreGive(xNowPeersMana);
 						}
+					}
+					else if (data[NOW_INDEX_CMD] == NOW_OPF)
+					{
+						set_duty_pwm(&SLT.Pwm, 1, 0);
 						
-						for (uint8_t i = 0; i < 10; i++)
-						{
-							uint8_t payload[50]; 
-							memset(payload, i, sizeof(payload));
-							
-							espnow_send_queue_t send_q;
-							send_q.tmout_ms = 2000; 
-							send_q.dest_id = data[NOW_INDEX_PAYLOAD];
-							send_q.buf = espnow_make_frame_send(payload, sizeof(payload), NOW_WRF); 
-							if (send_q.buf.data != NULL && send_q.buf.len > 0)
-								xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(3000));
-						}
+						espnow_send_queue_t send_q;
+						send_q.dest_id = SLT.espnow.gw_peer.id;
+						send_q.tmout_ms = 1000;
+						send_q .buf = espnow_make_frame_send(NULL, 0, NOW_ACK); 
+						if (send_q.buf.data != NULL && send_q.buf.len > 0)
+							xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(3000));
+						
 					}
 					else if (data[NOW_INDEX_CMD] == NOW_ST_WRF)
 					{
+						 
+						set_duty_pwm(&SLT.Pwm, 3, 0);
+						espnow_send_queue_t send_q; 
+						send_q.dest_id = SLT.espnow.gw_peer.id;
+						send_q.tmout_ms = 1000;
+						send_q .buf = espnow_make_frame_send(NULL, 0, NOW_ACK); 
+						if (send_q.buf.data != NULL && send_q.buf.len > 0)
+							xQueueSend(xNowSend, &send_q, pdMS_TO_TICKS(3000));
 						
 					}
 					else if (data[NOW_INDEX_CMD] == NOW_WRF)
 					{
-						tem++;
-
-						if (tem == 10)
-						{
-							set_duty_pwm(&SLT.Pwm, 1, 0); 
-							set_duty_pwm(&SLT.Pwm, 3, 0);
-						}
-						else if (tem > 10)
-						{
-							set_duty_pwm(&SLT.Pwm, 1, 255); 
-							set_duty_pwm(&SLT.Pwm, 3, 0);
-						}
-						else if (tem < 10)
-						{
-							set_duty_pwm(&SLT.Pwm, 1, 255); 
-							set_duty_pwm(&SLT.Pwm, 3, 255);
-						}
-					
 
 					}
+					else if (data[NOW_INDEX_CMD] == NOW_END_WRF)
+					{
+
+						
+					}
+					else if (data[NOW_INDEX_CMD] == NOW_ACK)
+					{
+						SLT.espnow.state_return = NOW_ACK;
+						xSemaphoreGive(xNowReturnState); 
+					}
+					else if (data[NOW_INDEX_CMD] == NOW_NACK)
+					{
+						SLT.espnow.state_return = NOW_NACK;
+						xSemaphoreGive(xNowReturnState);
+					}
+					
 				}
 				if (espnow_recv.buf.data != NULL) {
 					free(espnow_recv.buf.data);	
@@ -955,7 +958,7 @@ void task_send_tcp()
  *	@brief	send data effect to all node after receive tcp
  *	@detail
  *		each node : 'NOW' + NOW_ST_WRF + (4B)tot number of packet + (4B)offset_start + (4B)tot size + (2B)checksum (this packet)
- *					'NOW' + NOW_WRF + (4B)number packet + (4B)offset + (4B)size + data + checksum (this packet)
+ *					'NOW' + NOW_WRF + (4B)number packet + (4B)offset + data + checksum (this packet)
  *					....
  *					'NOW' + NOW_END_WRF + (2B)checksum (of tot data) + checksum (this packet)	
  */			
@@ -971,51 +974,91 @@ void task_init_effect()
 			struct stat st;
 			int ret = stat(PATH_EFFECT, &st);
 			if (ret >= 0)
-			{
+			{	
 				fd = open(PATH_EFFECT, O_RDWR | O_CREAT, 0666);
 				if (fd >= 0)
-				{
-					/** send start write */
-					uint32_t tot_packet = size_tmp % ESP_NOW_MAX_DATA_LEN == 0 ? (size_tmp / ESP_NOW_MAX_DATA_LEN) :
-																				 (size_tmp / ESP_NOW_MAX_DATA_LEN) + 1;
-					uint8_t payload[12];
-					uint32_t offset = 0;
-					memcpy(payload, &tot_packet, 4);
-					memcpy(&payload[4], &offset, 4);
-					memcpy(&payload[8], &size_tmp, 4);
+				{	
+					/** send open file request */
 					
-					espnow_send_queue_t send_q;
-					send_q.dest_id = 10;
-					send_q.buf = espnow_make_frame_send(payload, 8, NOW_ST_WRF);
-					if (send_q.buf.data != NULL && send_q.buf.len > 0)
-						xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+					 
 					
-					lseek(fd, 0, SEEK_SET);
-					while (size_tmp > 0)
-					{ 
-						uint32_t len_read = (ESP_NOW_MAX_DATA_LEN - NOW_LEN_HEADER - NOW_LEN_CMD - NOW_LEN_CRC - 4) 
-							< size_tmp ?
-							(ESP_NOW_MAX_DATA_LEN - NOW_LEN_HEADER - NOW_LEN_CMD - NOW_LEN_CRC - 4) : size_tmp;
+					xSemaphoreTake(xNowReturnState, 0);
 						
-						uint8_t* buf = malloc(len_read + 4);
-						uint32_t offset = lseek(fd, 0, SEEK_CUR);
-						memcpy(buf, &offset, sizeof(offset));
-						
-						read(fd, &buf[4], len_read);
+					espnow_send_queue_t open_q;
+					open_q.dest_id = 10;
+					open_q.tmout_ms = 1000;
+					open_q.buf = espnow_make_frame_send(NULL, 0, NOW_OPF);
+					if (open_q.buf.data != NULL && open_q.buf.len > 0)
+						xQueueSend(xNowSend, &open_q, portMAX_DELAY);
+					set_duty_pwm(&SLT.Pwm, 1, 255);
+					if (xSemaphoreTake(xNowReturnState, pdMS_TO_TICKS(3000)) == pdPASS)
+					{
+						set_duty_pwm(&SLT.Pwm, 1, 0);
+						if (SLT.espnow.state_return == NOW_ACK)
+						{
+							/** send start write */
+							uint32_t tot_packet =	size_tmp % ESP_NOW_MAX_DATA_LEN == 0 ? 
+													(size_tmp / ESP_NOW_MAX_DATA_LEN) :
+													(size_tmp / ESP_NOW_MAX_DATA_LEN) + 1;
 							
-						espnow_send_queue_t send_q; 
-						send_q.dest_id = 10;
-						send_q.buf = espnow_make_frame_send(buf, len_read + 4, NOW_WRF); 
-						if (send_q.buf.data != NULL && send_q.buf.len > 0)
-							xQueueSend(xNowSend, &send_q, portMAX_DELAY);
-						
-						if (buf != NULL)
-							free(buf);
-						
-						size_tmp -= len_read; 
-						
-					}
+							uint8_t payload[12];
+							uint32_t offset = 0;
+							memcpy(payload, &tot_packet, 4);
+							memcpy(&payload[4], &offset, 4);
+							memcpy(&payload[8], &size_tmp, 4);
 					
+							xSemaphoreTake(xNowReturnState, 0);
+							
+							espnow_send_queue_t send_q;
+							send_q.dest_id = 10;
+							send_q.tmout_ms = 1000;
+							send_q.buf = espnow_make_frame_send(payload, 8, NOW_ST_WRF);
+							if (send_q.buf.data != NULL && send_q.buf.len > 0)
+								xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+							
+							set_duty_pwm(&SLT.Pwm, 3, 255);
+							
+							if (xSemaphoreTake(xNowReturnState, pdMS_TO_TICKS(3000)) == pdPASS)
+							{
+								if (SLT.espnow.state_return == NOW_ACK)
+								{
+									set_duty_pwm(&SLT.Pwm, 3, 0);
+									uint32_t number_packet = 0;
+									uint32_t offset = 0; 
+									
+									lseek(fd, 0, SEEK_SET);
+									while (size_tmp > 0)
+									{
+										uint32_t len_read = (ESP_NOW_MAX_DATA_LEN - NOW_LEN_HEADER - NOW_LEN_CMD - NOW_LEN_CRC - sizeof(number_packet) - sizeof(offset)) 
+											< size_tmp ?
+											(ESP_NOW_MAX_DATA_LEN - NOW_LEN_HEADER - NOW_LEN_CMD - NOW_LEN_CRC - sizeof(number_packet) - sizeof(offset)) : size_tmp;
+						
+										uint8_t* buf = malloc(len_read + sizeof(number_packet) + sizeof(offset));
+										
+										offset = lseek(fd, 0, SEEK_CUR);
+										
+										memcpy(buf, &number_packet, sizeof(number_packet));
+										memcpy(&buf[4], &offset, sizeof(offset));
+										read(fd, &buf[8], len_read);
+										
+										espnow_send_queue_t send_q; 
+										send_q.dest_id = 10;
+										send_q.buf = espnow_make_frame_send(buf, len_read + 4, NOW_WRF); 
+										if (send_q.buf.data != NULL && send_q.buf.len > 0)
+											xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+						
+										if (buf != NULL)
+											free(buf);
+										
+										size_tmp -= len_read;
+										number_packet++;
+									}
+								}
+								
+							}
+						} 
+					}
+					close(fd); 
 				}
 			}
 		}

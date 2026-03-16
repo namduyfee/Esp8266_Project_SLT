@@ -221,20 +221,17 @@ buf_espnow_t espnow_make_frame_send(void* payload, uint32_t len_payload, command
 {
 	buf_espnow_t buf = {.data = NULL, .len = 0};
 	
-	if (payload == NULL || len_payload == 0)
-		return buf;
-	
-	
 	buf.len = NOW_LEN_HEADER + NOW_LEN_CMD + len_payload + NOW_LEN_CRC; 
 	buf.data = malloc(buf.len);
 	
-	if (buf.data == NULL)
+	if (buf.data == NULL || buf.len == 0)
 		return buf; 
 	
 	buf.data[0] = 'N'; buf.data[1] = 'O'; buf.data[2] = 'W';
 	buf.data[NOW_INDEX_CMD] = cmd; 
 	
-	memcpy(&buf.data[NOW_INDEX_PAYLOAD], payload, len_payload); 
+	if (payload != NULL && len_payload != 0)
+		memcpy(&buf.data[NOW_INDEX_PAYLOAD], payload, len_payload); 
 	
 	uint16_t crc = crc16_modbus(0xffff, buf.data, buf.len - NOW_LEN_CRC); 
 	

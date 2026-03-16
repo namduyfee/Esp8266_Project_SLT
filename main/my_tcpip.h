@@ -58,7 +58,7 @@ typedef struct
 	struct tcp_pcb* tpcb_server;
 	struct tcp_pcb* tpcb;				/**< tcp client is creat */
 	TickType_t lastTick; 				/**< auto disconnect tcp */
-
+	
 } tcp_client_t;
 
 typedef struct

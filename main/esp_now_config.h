@@ -41,30 +41,17 @@
 
 typedef enum
 {
-	NOW_NONE				= 0,	
-	NOW_ADD_PEER,
-	NOW_GET_PEER,
+	NOW_NONE				= 0,
 	NOW_BRC,					/**< broadcast */
-	NOW_FB_BRC,					/**< feedback broadcast */
+	NOW_ADD_PEER,
 	
 	NOW_OPF,					/**< open file   */
 	NOW_CLSF,					/**< close file  */
 	NOW_DLTF,					/**< delete file */
-	NOW_RDF,					/**< read file	 */
 	
-	NOW_ST_WRF,
+	NOW_ST_WRF,					/** start write request */
 	NOW_WRF,					/**< write file  */
-	NOW_END_WRF,
-	
-	NOW_RET_OPF,				/**< return open file	*/
-	NOW_RET_CLSF,				/**< return close file	*/
-	NOW_RET_DLTF,				/**< return delete file	*/
-	
-	NOW_ST_RET_RDF,
-	NOW_RET_RDF,				/**< return read file	*/
-	NOW_END_RET_RDF,
-	
-	NOW_RET_WRF,				/**< return write file	*/
+	NOW_END_WRF,				/** end write file */
 	
 	NOW_ACK,
 	NOW_NACK
@@ -100,13 +87,15 @@ typedef struct
 
 typedef struct My_Esp_Now
 {	
-	peer_info_t gw_peer;
-	peer_info_t peer_list[MAX_PEER]; 
-	uint8_t cnt_id_added;				/**< total position added */
+	peer_info_t gw_peer;				/**< gate way info */
+	peer_info_t peer_list[MAX_PEER];	/**< info peers added */
+	uint8_t cnt_id_added;				/**< total id added */
 	
 	uint8_t my_id;
 	
 	bool send_success;
+	
+	uint8_t state_return;				/**< state ack or nack, return from receiver */
 	
 } My_Esp_Now_Typedef;
 
