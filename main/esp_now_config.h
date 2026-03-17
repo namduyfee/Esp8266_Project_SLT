@@ -29,15 +29,17 @@
 #define NOW_SEND_CYCLE_MS 100
 
 #define NOW_INDEX_HEADER 0
-#define NOW_LEN_HEADER 3
+#define NOW_SIZE_HEADER 3
 
-#define NOW_INDEX_CMD (NOW_INDEX_HEADER + NOW_LEN_HEADER)
-#define NOW_LEN_CMD 1
+#define NOW_INDEX_CMD (NOW_INDEX_HEADER + NOW_SIZE_HEADER)
+#define NOW_SIZE_CMD 1
 
-#define NOW_INDEX_PAYLOAD (NOW_INDEX_CMD + NOW_LEN_CMD)
+#define NOW_INDEX_PAYLOAD (NOW_INDEX_CMD + NOW_SIZE_CMD)
 
-#define NOW_LEN_CRC 2
+#define NOW_SIZE_CRC 2
 
+#define NOW_SIZE_OFFSET 4
+#define NOW_SIZE_NUM_PACKET 4
 
 typedef enum
 {
@@ -84,6 +86,13 @@ typedef struct
 	uint32_t tmout_ms;			/**< timeout if can not send */
 	
 } espnow_send_queue_t;
+typedef struct
+{
+	uint32_t offset;
+	uint8_t* data;
+	uint32_t len;
+	
+} espnow_wrf_packet_t;
 
 typedef struct My_Esp_Now
 {	
@@ -96,6 +105,17 @@ typedef struct My_Esp_Now
 	bool send_success;
 	
 	uint8_t state_return;				/**< state ack or nack, return from receiver */
+	
+	struct
+	{
+		espnow_wrf_packet_t* p_packet;
+		uint32_t tot_packet;
+		uint32_t offset_st; 
+		uint32_t tot_size;
+		uint16_t checksum; 
+		
+	} mana_wrf_mess;
+	
 	
 } My_Esp_Now_Typedef;
 

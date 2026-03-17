@@ -25,7 +25,7 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 	}
 		
 	if (( (uint16_t)(data[len - 1] << 8) | data[len - 2]) == 
-	crc16_modbus(0xffff, (uint8_t*)data, len - NOW_LEN_CRC))
+	crc16_modbus(0xffff, (uint8_t*)data, len - NOW_SIZE_CRC))
 	{
 		espnow_recv_queue_t tm;
 		
@@ -221,7 +221,7 @@ buf_espnow_t espnow_make_frame_send(void* payload, uint32_t len_payload, command
 {
 	buf_espnow_t buf = {.data = NULL, .len = 0};
 	
-	buf.len = NOW_LEN_HEADER + NOW_LEN_CMD + len_payload + NOW_LEN_CRC; 
+	buf.len = NOW_SIZE_HEADER + NOW_SIZE_CMD + len_payload + NOW_SIZE_CRC; 
 	buf.data = malloc(buf.len);
 	
 	if (buf.data == NULL || buf.len == 0)
@@ -233,7 +233,7 @@ buf_espnow_t espnow_make_frame_send(void* payload, uint32_t len_payload, command
 	if (payload != NULL && len_payload != 0)
 		memcpy(&buf.data[NOW_INDEX_PAYLOAD], payload, len_payload); 
 	
-	uint16_t crc = crc16_modbus(0xffff, buf.data, buf.len - NOW_LEN_CRC); 
+	uint16_t crc = crc16_modbus(0xffff, buf.data, buf.len - NOW_SIZE_CRC); 
 	
 	buf.data[buf.len - 2] = crc & 0xff; 
 	buf.data[buf.len - 1] = (crc >> 8) & 0xff;
