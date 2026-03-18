@@ -41,6 +41,7 @@
 #define NOW_SIZE_OFFSET 4
 #define NOW_SIZE_NUM_PACKET 4
 
+/** CMD size is use with 1byte not 4byte that default of enum */
 typedef enum
 {
 	NOW_NONE				= 0,
@@ -68,7 +69,7 @@ typedef struct
 typedef struct
 {
 	uint8_t* data;
-	uint32_t len;		/**< total byte */
+	uint32_t tot_byte;		/**< total byte */
 	
 } buf_espnow_t;
 
@@ -90,7 +91,7 @@ typedef struct
 {
 	uint32_t offset;
 	uint8_t* data;
-	uint32_t len;
+	uint32_t tot_byte;
 	
 } espnow_wrf_packet_t;
 
@@ -111,11 +112,17 @@ typedef struct My_Esp_Now
 		espnow_wrf_packet_t* p_packet;
 		uint32_t tot_packet;
 		uint32_t offset_st; 
-		uint32_t tot_size;
+		uint32_t tot_byte;
 		uint16_t checksum; 
 		
-	} mana_wrf_mess;
+	} mana_recv_wrf_mess;
 	
+	struct
+	{
+		uint32_t num_pack;
+		uint32_t* pack;
+		
+	} wrf_resend;
 	
 } My_Esp_Now_Typedef;
 

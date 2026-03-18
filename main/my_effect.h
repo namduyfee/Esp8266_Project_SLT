@@ -12,6 +12,7 @@
 #include "esp_event_loop.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_now_config.h"
 
 #define PATH_EFFECT "/spiffs/effect.bin"
 #define PATH_EFFECT_TMP "/spiffs/effect_tmp.bin"
@@ -38,6 +39,10 @@ typedef struct
 	uint8_t numGroup;		/**< number of Group */
 	uint32_t* offStartGr;	/**< list of offset start of group, total number of elements = numGroup */
 	group_t* p_group;		/**< current group */
+	
+	uint8_t number_node;	/**< number of node in eff*/
+	uint32_t offset_start_node[MAX_PEER];	/**< array offset start in file of each node*/
+	uint32_t tot_size_node[MAX_PEER];		/**< total byte in file of each node */
 	
 } effect_manage_t;
 

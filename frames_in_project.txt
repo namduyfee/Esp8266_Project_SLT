@@ -23,11 +23,11 @@ ESPNOW:
 * open close delete
 sender retry + timeout: NOW + CMD + checksum
 
-receiver retry + timeout -> NOW + CMD (NOW_ACK | NOW_NACK) + checksum
+receiver retry + timeout -> NOW + CMD (NOW_ACK | NOW_NACK) + CMD(O C D request) + checksum
 
 * starte WRITE
 sender retry + timeout : NOW + CMD (NOW_ST_WRITE) + offset start + tot size + tot packet + checksum 
--> NOW + (NOW_ACK | NOW_NACK) + checksum
+-> NOW + (NOW_ACK | NOW_NACK) + CMD (start write) + checksum
 
 * wrtie
 NOW + CMD (WRITE) + sequence number + offset + data + checksum
@@ -35,16 +35,5 @@ NOW + CMD (WRITE) + sequence number + offset + data + checksum
 
 * end write
 NOW + CMD (END WRITE) + checksum (của tất cả data vừa gửi cho node) + checksum (của segment này)
--> NOW + (NOW_ACK | NOW_NACK) + checksum
-
-
-
-
-
-
-
-
-
-
-
+-> NOW + (NOW_ACK | NOW_NACK) + CMD (end write) + checksum
 

@@ -32,7 +32,7 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 		memcpy(tm.addr, mac_addr, MAC_ADDR_LEN);
 		
 		tm.buf.data = malloc(len - 2);		/**< last 2 bytes are crc and it checked */
-		tm.buf.len     = len - 2;
+		tm.buf.tot_byte     = len - 2;
 		if (tm.buf.data != NULL)
 		{
 			memcpy(tm.buf.data, data, len - 2);
@@ -219,12 +219,12 @@ uint16_t crc16_modbus(uint16_t crc, uint8_t *buf, uint32_t len)
 
 buf_espnow_t espnow_make_frame_send(void* payload, uint32_t len_payload, command_espnow_t cmd)
 {
-	buf_espnow_t buf = {.data = NULL, .len = 0};
+	buf_espnow_t buf = {.data = NULL, .tot_byte = 0};
 	
-	buf.len = NOW_SIZE_HEADER + NOW_SIZE_CMD + len_payload + NOW_SIZE_CRC; 
-	buf.data = malloc(buf.len);
+	buf.tot_byte = NOW_SIZE_HEADER + NOW_SIZE_CMD + len_payload + NOW_SIZE_CRC; 
+	buf.data = malloc(buf.tot_byte);
 	
-	if (buf.data == NULL || buf.len == 0)
+	if (buf.data == NULL || buf.tot_byte == 0)
 		return buf; 
 	
 	buf.data[0] = 'N'; buf.data[1] = 'O'; buf.data[2] = 'W';
@@ -233,10 +233,10 @@ buf_espnow_t espnow_make_frame_send(void* payload, uint32_t len_payload, command
 	if (payload != NULL && len_payload != 0)
 		memcpy(&buf.data[NOW_INDEX_PAYLOAD], payload, len_payload); 
 	
-	uint16_t crc = crc16_modbus(0xffff, buf.data, buf.len - NOW_SIZE_CRC); 
+	uint16_t crc = crc16_modbus(0xffff, buf.data, buf.tot_byte - NOW_SIZE_CRC); 
 	
-	buf.data[buf.len - 2] = crc & 0xff; 
-	buf.data[buf.len - 1] = (crc >> 8) & 0xff;
+	buf.data[buf.tot_byte - 2] = crc & 0xff; 
+	buf.data[buf.tot_byte - 1] = (crc >> 8) & 0xff;
 	
 	return buf; 
 }
