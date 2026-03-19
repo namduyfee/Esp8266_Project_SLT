@@ -68,14 +68,11 @@ err_t init_server_tpcp(uint16_t port, uint8_t max_client)
 
 static err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 {
-	pwm_stop(0);
-	
 	tcp_server_t* server = (tcp_server_t*)arg;
 	
 	if (server->count_client >= server->max_client)
 	{
 		tcp_close(newpcb);
-		pwm_start();  
 		return ERR_MEM;
 	}
 	
@@ -84,7 +81,6 @@ static err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 	
 	if (newclient != NULL)
 	{
-		 
 		newclient->tpcb = newpcb; 
 		newclient->tpcb_server = server->tpcb;
 		newclient->lastTick = xTaskGetTickCount(); 
@@ -103,7 +99,6 @@ static err_t server_accept_tcp(void* arg, struct tcp_pcb* newpcb, err_t err)
 	}
 		
 	tcp_close(newpcb);
-	pwm_start();
 	return ERR_MEM;
 	
 } 
@@ -124,11 +119,8 @@ static void tcp_error_cb(void *arg, err_t err)
 	
 	if (SLT.server.count_client > 0)
 		SLT.server.count_client--;
-	if (SLT.server.count_client <= 0)
-		pwm_start();
 	
 }
-
 /**
  * @brief	tcp poll callback
  */
@@ -336,8 +328,7 @@ static err_t tcp_close_client(struct tcp_pcb *cl_tpcb, tcp_client_t* client)
 		if (tcp_close(cl_tpcb) == ERR_OK) {
 			if (SLT.server.count_client > 0)
 				SLT.server.count_client--;
-			if (SLT.server.count_client <= 0)
-				pwm_start();
+
 			return ERR_OK;
 		}
 	}

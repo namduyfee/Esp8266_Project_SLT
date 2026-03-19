@@ -29,7 +29,7 @@ Object SLT = {
 	.espnow = {
 
 		.cnt_id_added = 0,
-		.my_id = 10,
+		.my_id = 0,
 		.mana_recv_wrf_mess = {
 				
 			.p_packet = NULL,
@@ -208,6 +208,7 @@ void task_select_master()
 							
 								esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);		
 								esp_wifi_start();
+								vTaskDelay(pdMS_TO_TICKS(5));
 							
 							}
 							nvs_commit(handle);
@@ -311,6 +312,7 @@ void task_esp_now_recv()
 										esp_wifi_set_mode(WIFI_MODE_STA);
 										esp_wifi_start();
 										esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, 0);
+										vTaskDelay(pdMS_TO_TICKS(5));
 									}
 									
 									nvs_commit(handle);
@@ -397,7 +399,7 @@ void task_esp_now_recv()
 							}
 							SLT.espnow.mana_recv_wrf_mess.checksum = 0xffff;
 							
-							/** send ack */
+							/** send ack st write */
 							uint8_t ack_of_cmd = NOW_ST_WRF;
 							
 							espnow_send_queue_t ack_q; 
@@ -413,26 +415,27 @@ void task_esp_now_recv()
 					}
 					else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_WRF)
 					{
-						uint32_t number_packet; memcpy(&number_packet, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD], sizeof(uint32_t));
-						uint32_t offset; memcpy(&offset, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD + 4], sizeof(uint32_t)); 
+						uint32_t packet_number; memcpy(&packet_number, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD], NOW_SZOF_PACKET_NUM);
+						uint32_t offset; memcpy(&offset, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD + 4], NOW_SZOF_OFFSET); 
 						
-						if (number_packet < SLT.espnow.mana_recv_wrf_mess.tot_packet && 
-						    SLT.espnow.mana_recv_wrf_mess.p_packet[number_packet].data == NULL)
+						if (packet_number < SLT.espnow.mana_recv_wrf_mess.tot_packet && 
+						    SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data == NULL)
 						{
-							SLT.espnow.mana_recv_wrf_mess.p_packet[number_packet].offset = offset;
-							SLT.espnow.mana_recv_wrf_mess.p_packet[number_packet].tot_byte = espnow_recv.buf.tot_byte - NOW_SIZE_HEADER - NOW_SIZE_CMD 
-																						- NOW_SIZE_NUM_PACKET - NOW_SIZE_OFFSET; 
+							SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].offset = offset;
+							SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].tot_byte = espnow_recv.buf.tot_byte 
+																							 - NOW_SZOF_HEADER - NOW_SZOF_CMD 
+																							 - NOW_SZOF_PACKET_NUM - NOW_SZOF_OFFSET; 
 							
-							SLT.espnow.mana_recv_wrf_mess.p_packet[number_packet].data = 
-								malloc(SLT.espnow.mana_recv_wrf_mess.p_packet[number_packet].tot_byte);
+							SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data = 
+								malloc(SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].tot_byte);
 							
-							memcpy(SLT.espnow.mana_recv_wrf_mess.p_packet[number_packet].data,
+							memcpy(SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data,
 								&espnow_recv.buf.data[NOW_INDEX_PAYLOAD + 8],
-								SLT.espnow.mana_recv_wrf_mess.p_packet[number_packet].tot_byte);
+								SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].tot_byte);
 							
 							SLT.espnow.mana_recv_wrf_mess.checksum = crc16_modbus(SLT.espnow.mana_recv_wrf_mess.checksum,
-								SLT.espnow.mana_recv_wrf_mess.p_packet[number_packet].data,
-								SLT.espnow.mana_recv_wrf_mess.p_packet[number_packet].tot_byte); 							
+								SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data,
+								SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].tot_byte); 							
 						}
 						
 					}
@@ -443,20 +446,20 @@ void task_esp_now_recv()
 						{
 							bool recv_all = true;
 							uint32_t* packet_resend = NULL;
-							uint32_t num_packet_resend = 0;
+							uint32_t tot_packet_resend = 0;
 							for (int i = 0; i <  SLT.espnow.mana_recv_wrf_mess.tot_packet; i++)
 							{
 								if (SLT.espnow.mana_recv_wrf_mess.p_packet[i].data == NULL)
 								{
 									if (packet_resend == NULL) 
 									{
-										num_packet_resend = 1;
-										packet_resend = malloc(sizeof(uint32_t) * num_packet_resend); 
+										tot_packet_resend = 1;
+										packet_resend = malloc(NOW_SZOF_PACKET_NUM * tot_packet_resend); 
 									}
 									else
 									{
-										num_packet_resend++;
-										packet_resend = realloc(packet_resend, sizeof(uint32_t) * num_packet_resend);
+										tot_packet_resend++;
+										packet_resend = realloc(packet_resend, NOW_SZOF_PACKET_NUM * tot_packet_resend);
 									}
 									recv_all = false;
 								}
@@ -481,6 +484,8 @@ void task_esp_now_recv()
 										xQueueSend(xNowSend, &ack_q, pdMS_TO_TICKS(3000));
 									
 									set_duty_pwm(&SLT.Pwm, 1, 0);
+									set_duty_pwm(&SLT.Pwm, 3, 0);
+									
 								}
 								else
 								{
@@ -488,14 +493,16 @@ void task_esp_now_recv()
 									uint8_t nack_of_cmd = NOW_END_WRF;
 									uint32_t resend_all_packet = 0xffffffff;
 									
-									uint8_t payload[sizeof(nack_of_cmd) + sizeof(resend_all_packet)]; 
+									uint32_t tot_byte_pl = sizeof(nack_of_cmd) + sizeof(resend_all_packet);
+									uint8_t payload[tot_byte_pl]; 
+									
 									memcpy(&payload, &nack_of_cmd, sizeof(nack_of_cmd));
 									memcpy(&payload[sizeof(nack_of_cmd)], &resend_all_packet, sizeof(resend_all_packet));
 									
 									espnow_send_queue_t nack_q;
 									nack_q.dest_id = SLT.espnow.gw_peer.id;
 									nack_q.tmout_ms = 1000;
-									nack_q.buf = espnow_make_frame_send(payload, sizeof(payload), NOW_NACK);
+									nack_q.buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_NACK);
 									if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
 										xQueueSend(xNowSend, &nack_q, pdMS_TO_TICKS(3000));
 									
@@ -508,15 +515,17 @@ void task_esp_now_recv()
 								if (packet_resend != NULL)
 								{
 									uint8_t nack_of_cmd = NOW_END_WRF;
-								
-									uint8_t payload[sizeof(nack_of_cmd) + num_packet_resend];
+									
+									uint32_t tot_byte_pl = sizeof(nack_of_cmd) + tot_packet_resend * NOW_SZOF_PACKET_NUM; 
+									uint8_t payload[tot_byte_pl];
+									
 									memcpy(&payload, &nack_of_cmd, sizeof(nack_of_cmd));
-									memcpy(&payload[sizeof(nack_of_cmd)], packet_resend, num_packet_resend);
+									memcpy(&payload[sizeof(nack_of_cmd)], packet_resend, tot_packet_resend * NOW_SZOF_PACKET_NUM);
 								
 									espnow_send_queue_t nack_q;
 									nack_q.dest_id = SLT.espnow.gw_peer.id;
 									nack_q.tmout_ms = 1000;
-									nack_q.buf = espnow_make_frame_send(payload, sizeof(payload), NOW_NACK);
+									nack_q.buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_NACK);
 									if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
 										xQueueSend(xNowSend, &nack_q, pdMS_TO_TICKS(3000));
 									
@@ -537,14 +546,15 @@ void task_esp_now_recv()
 						if (espnow_recv.buf.data[NOW_INDEX_PAYLOAD] == NOW_END_WRF)
 						{
 							
-							SLT.espnow.wrf_resend.num_pack = (espnow_recv.buf.tot_byte - NOW_SIZE_HEADER
-								- NOW_SIZE_CMD - NOW_SIZE_CMD) / sizeof(uint32_t);		/**< a NOW_SIZE_CMD for NOW_NACK, a NOW_SIZE_CMD for NOW_END_WRF */
+							SLT.espnow.wrf_resend.tot_req_pack = (espnow_recv.buf.tot_byte - NOW_SZOF_HEADER
+								- NOW_SZOF_CMD - NOW_SZOF_CMD) / NOW_SZOF_PACKET_NUM;		/**< a NOW_SIZE_CMD for NOW_NACK, a NOW_SIZE_CMD for NOW_END_WRF */
 								
-							SLT.espnow.wrf_resend.pack = malloc(SLT.espnow.wrf_resend.num_pack * sizeof(uint32_t));
+							SLT.espnow.wrf_resend.request = malloc(SLT.espnow.wrf_resend.tot_req_pack * NOW_SZOF_PACKET_NUM);
 							
 							
-							memcpy(SLT.espnow.wrf_resend.pack, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD + NOW_SIZE_CMD], 
-								SLT.espnow.wrf_resend.num_pack * sizeof(uint32_t));
+							memcpy(SLT.espnow.wrf_resend.request,
+								&espnow_recv.buf.data[NOW_INDEX_PAYLOAD + NOW_SZOF_CMD], 
+								SLT.espnow.wrf_resend.tot_req_pack * NOW_SZOF_PACKET_NUM);
 						}
 						SLT.espnow.state_return = NOW_NACK;
 						xSemaphoreGive(xNowReturnState);
@@ -1177,12 +1187,12 @@ void task_update_effect_node()
 							if (SLT.espnow.state_return == NOW_ACK)
 							{
 								/** send start write file to des_id */
-								uint32_t max_len_data = ESP_NOW_MAX_DATA_LEN - NOW_SIZE_HEADER - NOW_SIZE_CMD - NOW_SIZE_CRC
-														- NOW_SIZE_OFFSET - NOW_SIZE_NUM_PACKET;
+								uint32_t max_byte_data = ESP_NOW_MAX_DATA_LEN - NOW_SZOF_HEADER - NOW_SZOF_CMD - NOW_SZOF_CRC
+														- NOW_SZOF_OFFSET - NOW_SZOF_PACKET_NUM;
 								
-								uint32_t tot_packet =	SLT.effMana.tot_size_node[des_id] % max_len_data == 0 ?
-														(SLT.effMana.tot_size_node[des_id] / max_len_data) :
-														(SLT.effMana.tot_size_node[des_id] / max_len_data) + 1;
+								uint32_t tot_packet =	SLT.effMana.tot_size_node[des_id] % max_byte_data == 0 ?
+														(SLT.effMana.tot_size_node[des_id] / max_byte_data) :
+														(SLT.effMana.tot_size_node[des_id] / max_byte_data) + 1;
 								
 								uint8_t payload_st_write[sizeof(tot_packet) + sizeof(SLT.effMana.offset_start_node[des_id])
 									+ sizeof(SLT.effMana.tot_size_node[des_id])];
@@ -1221,67 +1231,111 @@ void task_update_effect_node()
 									
 										while (SLT.effMana.tot_size_node[des_id] > 0)
 										{
-											uint32_t len_read = max_len_data < SLT.effMana.tot_size_node[des_id] ? max_len_data : 
+											uint32_t tot_byte_read = max_byte_data < SLT.effMana.tot_size_node[des_id] ? max_byte_data : 
 												SLT.effMana.tot_size_node[des_id];
 						
-											uint8_t* buf = malloc(len_read + NOW_SIZE_NUM_PACKET + NOW_SIZE_OFFSET);
+											uint8_t* buf = malloc(tot_byte_read + NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET);
 										
 											offset = lseek(fd, 0, SEEK_CUR);
 										
-											memcpy(buf, &packet_number, sizeof(packet_number));
-											memcpy(&buf[4], &offset, sizeof(offset));
-											read(fd, &buf[8], len_read);
+											memcpy(buf, &packet_number, NOW_SZOF_PACKET_NUM);
+											memcpy(&buf[4], &offset, NOW_SZOF_OFFSET);
+											read(fd, &buf[8], tot_byte_read);
 										
 											offset_packet[packet_number] = offset;
-											sizedata_packet[packet_number] = len_read;
+											sizedata_packet[packet_number] = tot_byte_read;
 										
-											checksum = crc16_modbus(checksum, &buf[8], len_read);
+											checksum = crc16_modbus(checksum, &buf[8], tot_byte_read);
 											
 											espnow_send_queue_t write_q;
 											write_q.dest_id = des_id;
 											write_q.tmout_ms = 1000;
-											write_q.buf = espnow_make_frame_send(buf, NOW_SIZE_NUM_PACKET + NOW_SIZE_OFFSET + len_read, NOW_WRF); 
+											write_q.buf = espnow_make_frame_send(buf, NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET + tot_byte_read, NOW_WRF); 
 											if (write_q.buf.data != NULL && write_q.buf.tot_byte > 0)
 												xQueueSend(xNowSend, &write_q, portMAX_DELAY);
 										
 											if (buf != NULL)
 												free(buf);
 										
-											SLT.effMana.tot_size_node[des_id] -= len_read;
+											SLT.effMana.tot_size_node[des_id] -= tot_byte_read;
 											packet_number++;
 										}
-										
-										/** send write end to des_id */
-										xSemaphoreTake(xNowReturnState, 0);
-										espnow_send_queue_t end_write_q; 
-										end_write_q.dest_id = des_id;
-										end_write_q.tmout_ms = 1000;
-										end_write_q.buf = espnow_make_frame_send(&checksum, sizeof(checksum), NOW_END_WRF); 
-										if (end_write_q.buf.data != NULL && end_write_q.buf.tot_byte > 0)
-											xQueueSend(xNowSend, &end_write_q, portMAX_DELAY);
-										
-										if (xSemaphoreTake(xNowReturnState, pdMS_TO_TICKS(3000)) == pdPASS)
+										uint32_t lastick = xTaskGetTickCount();
+										while (xTaskGetTickCount() - lastick < pdMS_TO_TICKS(4000))
 										{
-//											if (SLT.espnow.state_return == NOW_NACK)
-//											{
-//												if()
-//											}
+											bool can_break = false;
+											
+											/** send write end to des_id */
+											xSemaphoreTake(xNowReturnState, 0);
+											espnow_send_queue_t end_write_q; 
+											end_write_q.dest_id = des_id;
+											end_write_q.tmout_ms = 1000;
+											end_write_q.buf = espnow_make_frame_send(&checksum, sizeof(checksum), NOW_END_WRF); 
+											if (end_write_q.buf.data != NULL && end_write_q.buf.tot_byte > 0)
+												xQueueSend(xNowSend, &end_write_q, portMAX_DELAY);
+										
+											if (xSemaphoreTake(xNowReturnState, pdMS_TO_TICKS(3000)) == pdPASS)
+											{
+												/** resend write packet */
+												if (SLT.espnow.state_return == NOW_NACK)
+												{
+													if (SLT.espnow.wrf_resend.request != NULL && SLT.espnow.wrf_resend.request[0] == 0xffffffff) 
+													{ 
+														i--;
+														can_break = true;
+													}
+													else if (SLT.espnow.wrf_resend.request != NULL && SLT.espnow.wrf_resend.request[0] != 0xffffffff)
+													{
+														for (int i = 0; i < SLT.espnow.wrf_resend.tot_req_pack; i++)
+														{
+															uint32_t packet_number = SLT.espnow.wrf_resend.request[i];
+														
+															lseek(fd, offset_packet[packet_number], SEEK_SET);
+															uint8_t* buf = malloc(sizedata_packet[packet_number] + NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET);
+															
+															memcpy(buf, &packet_number, NOW_SZOF_PACKET_NUM);
+															memcpy(&buf[4], &offset_packet[packet_number], NOW_SZOF_OFFSET);
+															read(fd, &buf[8], sizedata_packet[packet_number]);
+														
+															espnow_send_queue_t write_q;
+															write_q.dest_id = des_id;
+															write_q.tmout_ms = 1000;
+															write_q.buf = espnow_make_frame_send(buf,
+																NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET + sizedata_packet[packet_number],
+																NOW_WRF);
+															if (write_q.buf.data != NULL && write_q.buf.tot_byte > 0)
+																xQueueSend(xNowSend, &write_q, portMAX_DELAY);
+															if (buf != NULL)
+																free(buf);
+														
+														}
+													}
+												}
+												else if(SLT.espnow.state_return == NOW_ACK)
+												{
+													can_break = true;
+												}
+											}
+											else
+											{
+												i--;
+												can_break = true;
+											}
+											
+											if (can_break == true)
+												break;
 										}
-										else
-										{
-											i--;
-										}
-									
 									}
 								
 								}
 							}
 						}
 					}
-					
 					close(fd); 
 				}
 			}
+			set_duty_pwm(&SLT.Pwm, 3, 255);
+			set_duty_pwm(&SLT.Pwm, 1, 255);
 		}
 	}
 }

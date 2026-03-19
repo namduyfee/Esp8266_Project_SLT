@@ -29,17 +29,17 @@
 #define NOW_SEND_CYCLE_MS 100
 
 #define NOW_INDEX_HEADER 0
-#define NOW_SIZE_HEADER 3
+#define NOW_SZOF_HEADER 3
 
-#define NOW_INDEX_CMD (NOW_INDEX_HEADER + NOW_SIZE_HEADER)
-#define NOW_SIZE_CMD 1
+#define NOW_INDEX_CMD (NOW_INDEX_HEADER + NOW_SZOF_HEADER)
+#define NOW_SZOF_CMD 1
 
-#define NOW_INDEX_PAYLOAD (NOW_INDEX_CMD + NOW_SIZE_CMD)
+#define NOW_INDEX_PAYLOAD (NOW_INDEX_CMD + NOW_SZOF_CMD)
 
-#define NOW_SIZE_CRC 2
+#define NOW_SZOF_CRC 2
 
-#define NOW_SIZE_OFFSET 4
-#define NOW_SIZE_NUM_PACKET 4
+#define NOW_SZOF_OFFSET 4
+#define NOW_SZOF_PACKET_NUM 4
 
 /** CMD size is use with 1byte not 4byte that default of enum */
 typedef enum
@@ -119,8 +119,8 @@ typedef struct My_Esp_Now
 	
 	struct
 	{
-		uint32_t num_pack;
-		uint32_t* pack;
+		uint32_t tot_req_pack;
+		uint32_t* request;
 		
 	} wrf_resend;
 	

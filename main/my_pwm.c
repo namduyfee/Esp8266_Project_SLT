@@ -11,11 +11,7 @@ void my_pwm_start(Pwm_Typedef* Pwm)
 		if (Pwm->gpio_channel[i] == CHANNEL_NOT_USED)
 			break;
 		
-		Pwm->duty[i] = DEFAUL_DUTY + 20 * i;
-		if (Pwm->duty[i] > 255)
-			Pwm->duty[i] = 255;
-		else if (Pwm->duty[i] < 0)
-			Pwm->duty[i] = 0;
+		Pwm->duty[i] = DEFAUL_DUTY + 1 * i;
 		
 		Pwm->period[i] = duty_to_period(Pwm->duty[i]);
 		
@@ -24,9 +20,6 @@ void my_pwm_start(Pwm_Typedef* Pwm)
 	
 	if (Pwm->num_channel_en != 0)
 	{
-		
-//		Pwm->duty[Pwm->num_channel_en - 1] = 0;
-//		Pwm->period[Pwm->num_channel_en - 1] = duty_to_period(Pwm->duty[Pwm->num_channel_en - 1]);
 		
 		pwm_init(PWM_PERIOD, Pwm->period, Pwm->num_channel_en, Pwm->gpio_channel);
 		pwm_start();
@@ -58,7 +51,6 @@ void set_duties_pwm(Pwm_Typedef* Pwm, uint8_t* duty, uint8_t len)
 		return;
 	else
 	{
-		
 		for (int i = 0; i < (Pwm->num_channel_en < len ? Pwm->num_channel_en : len); i++)
 		{
 			Pwm->duty[i] = duty[i]; 
@@ -71,9 +63,9 @@ void set_duties_pwm(Pwm_Typedef* Pwm, uint8_t* duty, uint8_t len)
 
 uint32_t duty_to_period(uint8_t duty)
 {
-	if (duty >= 255)
+	if (duty == 255)
 		return PWM_PERIOD;
-	else if (duty <= 0)
+	if (duty == 0)
 		return 0;
 	
 	return (duty * PWM_PERIOD) / MAX_DUTY;
