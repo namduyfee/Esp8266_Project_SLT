@@ -94,6 +94,12 @@ typedef struct
 	uint32_t tot_byte;
 	
 } espnow_wrf_packet_t;
+typedef struct
+{
+	uint32_t tot_req_pack;
+	uint32_t* request;
+		
+} espnow_wrf_resend;
 
 typedef struct My_Esp_Now
 {	
@@ -105,24 +111,15 @@ typedef struct My_Esp_Now
 	
 	bool send_success;
 	
-	uint8_t state_return;				/**< state ack or nack, return from receiver */
-	
+	uint8_t state_return;
 	struct
 	{
 		espnow_wrf_packet_t* p_packet;
 		uint32_t tot_packet;
 		uint32_t offset_st; 
 		uint32_t tot_byte;
-		uint16_t checksum; 
 		
 	} mana_recv_wrf_mess;
-	
-	struct
-	{
-		uint32_t tot_req_pack;
-		uint32_t* request;
-		
-	} wrf_resend;
 	
 } My_Esp_Now_Typedef;
 

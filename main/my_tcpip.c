@@ -170,7 +170,7 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 	}
 	
 	pbuf_copy_partial(p, recv_buf.data, p->tot_len, 0);
-	recv_buf.len = p->tot_len; 
+	recv_buf.tot_byte = p->tot_len; 
 	
 	
 	if (recv_buf.data[0] == 'T' && recv_buf.data[1] == 'C' && 
@@ -200,7 +200,7 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 			eff.cmd = F_RD;
 			
 			uint8_t index_offset = 4;
-			if (recv_buf.len >= (index_offset + 4))
+			if (recv_buf.tot_byte >= (index_offset + 4))
 			{
 				eff.read.offset = (recv_buf.data[index_offset + 3] << 24) | 
 								  (recv_buf.data[index_offset + 2] << 16) | 
@@ -211,15 +211,15 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 				eff.read.offset = 0; 	
 
 			uint8_t index_len = 8;
-			if (recv_buf.len >= (index_len + 4))
+			if (recv_buf.tot_byte >= (index_len + 4))
 			{
-				eff.read.len = (recv_buf.data[index_len + 3] << 24) | 
+				eff.read.tot_byte = (recv_buf.data[index_len + 3] << 24) | 
 							   (recv_buf.data[index_len + 2] << 16) | 
 							   (recv_buf.data[index_len + 1] << 8)  | 
 							   (recv_buf.data[index_len] << 0);	
 			}
 			else 
-				eff.read.len = 0;
+				eff.read.tot_byte = 0;
 			
 		}
 		else if (recv_buf.data[3] == TCP_ST_WRF)
@@ -227,7 +227,7 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 			eff.cmd = F_ST_WR;
 				
 			uint8_t index_offset = 4;
-			if (recv_buf.len >= (index_offset + 4))
+			if (recv_buf.tot_byte >= (index_offset + 4))
 			{
 					
 				eff.write_start.offset =	(recv_buf.data[index_offset + 3] << 24) | 
@@ -240,15 +240,15 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 			
 			
 			uint8_t index_tot_len = 8;
-			if (recv_buf.len >= (index_tot_len + 4))
+			if (recv_buf.tot_byte >= (index_tot_len + 4))
 			{
-				eff.write_start.tot_len = (recv_buf.data[index_tot_len + 3] << 24) | 
+				eff.write_start.tot_byte = (recv_buf.data[index_tot_len + 3] << 24) | 
 										  (recv_buf.data[index_tot_len + 2] << 16) | 
 										  (recv_buf.data[index_tot_len + 1] << 8)  | 
 										  (recv_buf.data[index_tot_len] << 0);	
 			}
 			else 
-				eff.write_start.tot_len = 0;
+				eff.write_start.tot_byte = 0;
  
 		}
 		else if (recv_buf.data[3] == TCP_WRF)
@@ -256,7 +256,7 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 			eff.cmd = F_WR;
 			
 			uint8_t index_offset = 4;	
-			if (recv_buf.len >= (index_offset + 4))
+			if (recv_buf.tot_byte >= (index_offset + 4))
 			{
 				eff.write.offset = (recv_buf.data[index_offset + 3] << 24) | 
 								   (recv_buf.data[index_offset + 2] << 16) | 
@@ -266,19 +266,19 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 			else 
 				eff.write.offset = 0;
 			
-			if (recv_buf.len > 8)
+			if (recv_buf.tot_byte > 8)
 			{
-				eff.write.buf.len = recv_buf.len - 8; 
-				eff.write.buf.data = malloc(sizeof(uint8_t) * eff.write.buf.len);
+				eff.write.buf.tot_byte = recv_buf.tot_byte - 8; 
+				eff.write.buf.data = malloc(sizeof(uint8_t) * eff.write.buf.tot_byte);
 				if (eff.write.buf.data != NULL)
 				{
-					memcpy(eff.write.buf.data, (uint8_t*)recv_buf.data + 8, eff.write.buf.len); 
+					memcpy(eff.write.buf.data, (uint8_t*)recv_buf.data + 8, eff.write.buf.tot_byte); 
 				}
 			}
 			else
 			{
 				eff.write.buf.data = NULL; 
-				eff.write.buf.len = 0; 
+				eff.write.buf.tot_byte = 0; 
 			}
 			
 		}
@@ -291,7 +291,7 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 		}
 		
 		if (eff.cmd != F_NONE)
-			xQueueSendToBack(xEffLoadf, &eff, portMAX_DELAY);
+			xQueueSendToBack(xEffLoadf, &eff, pdMS_TO_TICKS(4000));
 	}
 	
 	
@@ -357,7 +357,7 @@ void tcp_send_cb(void* arg)
 	if (pcb == NULL || pcb->state == CLOSED)
 		return;
 
-	err_t ret = tcp_write(pcb, buf->data, buf->len, TCP_WRITE_FLAG_COPY);
+	err_t ret = tcp_write(pcb, buf->data, buf->tot_byte, TCP_WRITE_FLAG_COPY);
 
 	if (ret == ERR_OK)
 	{
@@ -407,7 +407,7 @@ tcp_buf_t* tcp_make_ret(tcp_command_t ret_cmd, void* data, uint32_t byte_data)
 	}
 	
 	tSendBuf->data = retCmd;
-	tSendBuf->len = byte_of_frame;
+	tSendBuf->tot_byte = byte_of_frame;
 	
 	return tSendBuf; 
 }
@@ -439,7 +439,7 @@ tcp_buf_t* tcp_make_ret_read(void*data, uint32_t len, uint32_t offset)
 	}
 	
 	tSendBuf->data = retCmd;
-	tSendBuf->len = len + TCP_LEN_HEADER_RET_READ;
+	tSendBuf->tot_byte = len + TCP_LEN_HEADER_RET_READ;
 	
 	return tSendBuf;
 }

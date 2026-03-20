@@ -48,7 +48,7 @@ typedef enum
 typedef struct
 {
 	uint8_t* data;
-	uint32_t len;			/**< total bytes of memory that is pointed by data */
+	uint32_t tot_byte;
 	
 } tcp_buf_t; 
 

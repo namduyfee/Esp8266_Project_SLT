@@ -41,7 +41,7 @@ typedef enum
 typedef struct
 {
 	void* data;
-	uint32_t len;			/**< total bytes of memory that is pointed by data */
+	uint32_t tot_byte;
 	
 } file_buf_t;
 
@@ -54,7 +54,7 @@ typedef struct
 		struct
 		{
 			off_t offset;
-			uint32_t tot_len;				/**< total byte to write */
+			uint32_t tot_byte;				/**< total byte to write */
 		} write_start;
 		struct
 		{
@@ -69,7 +69,7 @@ typedef struct
 		struct
 		{
 			off_t offset;
-			uint32_t len;				/**< total length message */
+			uint32_t tot_byte;				/**< total length message */
 		} read;
 	};
 
@@ -81,7 +81,7 @@ typedef struct
 	struct
 	{
 		off_t offset_start;				/**< the fisrt offset is written after recv message */
-		int tot_len;					/**< total length message */
+		int tot_byte;
 		int remaining;					/**< remaining bytes to write */
 		uint16_t checksum;
 		
