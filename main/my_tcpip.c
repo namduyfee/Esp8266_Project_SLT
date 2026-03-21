@@ -47,8 +47,6 @@ err_t init_server_tpcp(uint16_t port, uint8_t max_client)
 	
 	if (!server_listen_tpcb)
 	{
-		tcp_close(server_listen_tpcb);
-		SLT.server.tpcb = 0;
 		return ERR_MEM;
 	}
 	

@@ -47,7 +47,14 @@ void my_start_wifi(void)
 				memcpy(ap_config.ap.ssid, result, strlen(result));
 				ap_config.ap.ssid_len = strlen(result);
 				
-				esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);		
+				esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);
+//				tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP);
+//				tcpip_adapter_ip_info_t ip_info;
+//				IP4_ADDR(&ip_info.ip, 192, 168, 4, 1);
+//				IP4_ADDR(&ip_info.gw, 192, 168, 4, 1);
+//				IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
+//				tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
+//				tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP);
 				esp_wifi_start();
 				
 				nvs_close(handle);
