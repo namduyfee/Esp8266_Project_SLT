@@ -1,6 +1,6 @@
 
 #include "my_pwm.h"
-
+#include "gpio_config.h"
 /********* global variables ***********/
 
 void my_pwm_start(Pwm_Typedef* Pwm)

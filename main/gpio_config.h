@@ -17,6 +17,8 @@
 void config_input_pullup_gpio(void);
 void config_GPIO_OUT(void);
 
+/*======= LIST PIN OF GPIO_NUM_x ========*/
+
 /*	GPIO_NUM_0		D3
  *	GPIO_NUM_1 
  *	GPIO_NUM_2		D4
@@ -38,7 +40,22 @@ void config_GPIO_OUT(void);
  *
  **/
 
-#define BUT_SEL_MASTER GPIO_NUM_0
+
+/*======= PWM PIN =========*/
+
+// Not use GPIO_NUM_2 for pwm
+#define CHANNEL_NOT_USED 100
+#define GPIO_PWM_CHAN_0	GPIO_NUM_0
+#define GPIO_PWM_CHAN_1	GPIO_NUM_1
+#define GPIO_PWM_CHAN_2	GPIO_NUM_3
+#define GPIO_PWM_CHAN_3	GPIO_NUM_4
+#define GPIO_PWM_CHAN_4	GPIO_NUM_5
+#define GPIO_PWM_CHAN_5	GPIO_NUM_13
+#define GPIO_PWM_CHAN_6	GPIO_NUM_14
+#define GPIO_PWM_CHAN_7	GPIO_NUM_15
+
+/*======= PIN SELECT MASTER =======*/
+#define BUT_SEL_MASTER GPIO_NUM_12
 
 #define PRES_SEL_MASTER 0
 

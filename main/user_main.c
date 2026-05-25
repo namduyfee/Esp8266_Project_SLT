@@ -13,14 +13,14 @@ void task_update_effect_node();
 Object SLT = {
 	.Pwm = {
 		.gpio_channel = {
-		GPIO_CHANNEL_0,
-		GPIO_CHANNEL_1,
-		GPIO_CHANNEL_2,
-		GPIO_CHANNEL_3,
-		GPIO_CHANNEL_4,
-		GPIO_CHANNEL_5,
-		GPIO_CHANNEL_6,
-		GPIO_CHANNEL_7
+		GPIO_PWM_CHAN_0,
+		GPIO_PWM_CHAN_1,
+		GPIO_PWM_CHAN_2,
+		GPIO_PWM_CHAN_3,
+		GPIO_PWM_CHAN_4,
+		GPIO_PWM_CHAN_5,
+		GPIO_PWM_CHAN_6,
+		GPIO_PWM_CHAN_7
 	},
 		.duty = {0, 0, 0, 0, 0, 0, 0, 0},
 		.num_channel_en = 0

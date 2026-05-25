@@ -16,23 +16,6 @@
 
 #include "driver/pwm.h"
 
-/*
- * To make a GPIOx to PWM only assign PWM_GPIO_X into any position in array g_gpio_pwm_channel[] (this array in file pwm-timer1.c)
- * Not use GPIO_NUM2 for pwm
- **/
-#define CHANNEL_NOT_USED 100
-
-#define GPIO_CHANNEL_0	GPIO_NUM_4		// D2
-#define GPIO_CHANNEL_1	GPIO_NUM_5		// D1
-#define GPIO_CHANNEL_2	GPIO_NUM_13		// D7
-#define GPIO_CHANNEL_3	GPIO_NUM_14		// D5
-#define GPIO_CHANNEL_4	GPIO_NUM_12		// D6
-#define GPIO_CHANNEL_5	GPIO_NUM_15		// D8
-#define GPIO_CHANNEL_6	CHANNEL_NOT_USED
-#define GPIO_CHANNEL_7	CHANNEL_NOT_USED		// D3
-//#define GPIO_CHANNEL_7	GPIO_NUM_0		// D3 
-
-
 
 #define PWM_PERIOD 1000	// 1khz
 #define MAX_NUM_CHANNEL 8
