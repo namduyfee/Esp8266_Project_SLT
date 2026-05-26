@@ -9,6 +9,7 @@ void task_file_effect();
 void task_select_master(); 
 void task_send_tcp();
 void task_update_effect_node(); 
+void task_make_effect();
 
 Object SLT = {
 	.Pwm = {
@@ -128,6 +129,8 @@ void app_main(void) {
 	
 	xTaskCreate(task_update_effect_node, "task_update_effect_node", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
+	xTaskCreate(task_make_effect, "task_make_effect", MIN_SIZE_OP_FILE, NULL, 4, NULL);
+	
 }
 
 /**
@@ -210,13 +213,15 @@ void task_select_master()
 								ap_config.ap.ssid_len = strlen(result);
 							
 								esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);
-//								tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP);
-//								tcpip_adapter_ip_info_t ip_info;
-//								IP4_ADDR(&ip_info.ip, 192, 168, 4, 1);
-//								IP4_ADDR(&ip_info.gw, 192, 168, 4, 1);
-//								IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
-//								tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
-//								tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP);
+								
+								tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP);
+								tcpip_adapter_ip_info_t ip_info;
+								IP4_ADDR(&ip_info.ip, 192, 168, 4, 1);
+								IP4_ADDR(&ip_info.gw, 192, 168, 4, 1);
+								IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
+								tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
+								tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP);
+								
 								esp_wifi_start();
 								vTaskDelay(pdMS_TO_TICKS(5));
 							
@@ -1473,7 +1478,7 @@ void task_update_effect_node()
 										uint32_t offset = 0; 
 									
 										uint16_t checksum = 0xffff;
-									
+										
 										lseek(fd, 0, SEEK_SET);
 									
 										uint32_t offset_packet[tot_packet]; 
@@ -1603,4 +1608,32 @@ void task_update_effect_node()
 		}
 	}
 }
+
+void task_make_effect()
+{
+	
+	while (1)
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			uint8_t duty[MAX_NUM_CHANNEL]; memset(duty, 0, sizeof(duty));
+			duty[0] = 255; duty[2] = 255;
+			
+			if (i == 0)
+				duty[0] = 0;
+			else if (i == 1)
+				duty[2] = 0;
+			else 
+				duty[7] = 255;
+			
+			set_duties_pwm(&SLT.Pwm, duty, sizeof(duty));
+			vTaskDelay(pdMS_TO_TICKS(500));
+			
+		}
+		
+		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
+	}
+}
+
+
 
