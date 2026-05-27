@@ -1407,17 +1407,17 @@ void task_update_effect_node()
 				fd = open(PATH_EFFECT, O_RDWR | O_CREAT, 0666);
 				if (fd >= 0)
 				{
-//					// read number node
-//					lseek(fd, 0, SEEK_SET); 
-//					read(fd, &SLT.effMana.number_node, sizeof(SLT.effMana.number_node));
-//					// read array offset start node
-//					read(fd, SLT.effMana.offset_start_node, sizeof(uint32_t) * SLT.effMana.number_node);
-//					// read array size node
-//					read(fd, SLT.effMana.tot_size_node, sizeof(uint32_t) * SLT.effMana.number_node); 
+					// read number node
+					lseek(fd, 0, SEEK_SET); 
+					read(fd, &SLT.effMana.number_node, sizeof(SLT.effMana.number_node));
+					// read array offset start node
+					read(fd, SLT.effMana.offset_start_node, sizeof(uint32_t) * SLT.effMana.number_node);
+					// read array size node
+					read(fd, SLT.effMana.tot_size_node, sizeof(uint32_t) * SLT.effMana.number_node); 
 					
-					SLT.effMana.number_node = 2;
-					SLT.effMana.offset_start_node[0] = 0; SLT.effMana.offset_start_node[1] = 0;
-					SLT.effMana.tot_size_node[0] = 15000; SLT.effMana.tot_size_node[1] = 15000;
+//					SLT.effMana.number_node = 2;
+//					SLT.effMana.offset_start_node[0] = 0; SLT.effMana.offset_start_node[1] = 0;
+//					SLT.effMana.tot_size_node[0] = 15000; SLT.effMana.tot_size_node[1] = 15000;
 					
 					for (int i = 0; i < SLT.effMana.number_node; i++)	// datatype i = int, because i-- is can called in code
 					{
