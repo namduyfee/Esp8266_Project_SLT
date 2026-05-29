@@ -30,22 +30,22 @@ Object SLT = {
 	.espnow = {
 
 		.cnt_id_added = 0,
-		.my_id = 0,
+		.my_id = 2,
 		.mana_recv_wrf_mess = {
 				
-			.p_packet = NULL,
-			.tot_packet = 0,
-			.offset_st = 0,
-			.tot_byte = 0		
+		.p_packet = NULL,
+		.tot_packet = 0,
+		.offset_st = 0,
+		.tot_byte = 0		
 
-		},
+	},
 	},
 	.server = {
 		.tpcb = NULL,
 		.count_client = 0,
 		.p_client = NULL,
-	}
-	
+	},
+
 };
 
 SemaphoreHandle_t xNowPeersMana; 
@@ -53,7 +53,10 @@ SemaphoreHandle_t xTcpSwitchBufSend;
 SemaphoreHandle_t xUpdateEffNode;
 SemaphoreHandle_t xNowSendDone; 
 SemaphoreHandle_t xNowReturnState;
-	
+
+SemaphoreHandle_t xLoadEffect;
+
+
 QueueHandle_t xEffLoadf;					/**< get data from tcp recv callback */
 QueueHandle_t xNowRecv;						/**< get data from espnow recv callback */
 QueueHandle_t xNowSend;						 
@@ -114,6 +117,9 @@ void app_main(void) {
 	xNowSendDone = xSemaphoreCreateBinary(); 
 	
 	xNowReturnState = xSemaphoreCreateBinary();
+	
+	xLoadEffect = xSemaphoreCreateBinary();
+	//xSemaphoreGive(xLoadEffect);
 	
 	my_init_project();
 	
@@ -515,11 +521,11 @@ void task_esp_now_recv()
 								tem += SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].tot_byte;
 								if (tem > 100000)
 								{
-									set_duty_pwm(&SLT.Pwm, 3, 255);
+									//set_duty_pwm(&SLT.Pwm, 3, 255);
 								}
 								else if (tem > 8000)
 								{
-									set_duty_pwm(&SLT.Pwm, 3, 0);
+									//set_duty_pwm(&SLT.Pwm, 3, 0);
 								}
 								memcpy(SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data,
 									&espnow_recv.buf.data[NOW_INDEX_PAYLOAD + 8],
@@ -1162,7 +1168,7 @@ void task_file_effect()
 						{
 							if (fd_tmp >= 0)
 							{
-								
+
 								lseek(fd_tmp, file_req.write.offset - SLT.eff_file.write.offset_start, SEEK_SET);
 								
 								ssize_t to_write = SLT.eff_file.write.remaining <= file_req.write.buf.tot_byte ?
@@ -1279,10 +1285,12 @@ void task_file_effect()
 								if (p_buf != NULL)
 									free(p_buf); 
 							}
+						
+						// send effect to other node
+						xSemaphoreGive(xUpdateEffNode);
 					}
 					else if (file_req.source == F_NOW_SOURCE)
 					{
-						set_duty_pwm(&SLT.Pwm, 1, 255);
 						
 						/** send ack write end espnow */
 						uint8_t ack_of_cmd = NOW_END_WRF;
@@ -1294,14 +1302,14 @@ void task_file_effect()
 						if (ack_q.buf.data != NULL && ack_q.buf.tot_byte > 0)
 							xQueueSend(xNowSend, &ack_q, pdMS_TO_TICKS(3000));
 					}
-					
-					xSemaphoreGive(xUpdateEffNode);
-					
+					// load new effect to run
+					xSemaphoreGive(xLoadEffect);
 				}
 				else
 				{
 					if (file_req.source == F_TCP_SOURCE)
 					{
+
 						tcp_buf_t* p_buf = tcp_make_ret(TCP_NACK, NULL, 0);
 					
 						if (p_buf != NULL)
@@ -1407,6 +1415,7 @@ void task_update_effect_node()
 				fd = open(PATH_EFFECT, O_RDWR | O_CREAT, 0666);
 				if (fd >= 0)
 				{
+					
 					// read number node
 					lseek(fd, 0, SEEK_SET); 
 					read(fd, &SLT.effMana.number_node, sizeof(SLT.effMana.number_node));
@@ -1415,23 +1424,25 @@ void task_update_effect_node()
 					// read array size node
 					read(fd, SLT.effMana.tot_size_node, sizeof(uint32_t) * SLT.effMana.number_node); 
 					
-//					SLT.effMana.number_node = 2;
-//					SLT.effMana.offset_start_node[0] = 0; SLT.effMana.offset_start_node[1] = 0;
-//					SLT.effMana.tot_size_node[0] = 15000; SLT.effMana.tot_size_node[1] = 15000;
 					
 					for (int i = 0; i < SLT.effMana.number_node; i++)	// datatype i = int, because i-- is can called in code
 					{
 						
-						if (i == SLT.espnow.my_id)
+						lseek(fd, SLT.effMana.offset_start_node[i], SEEK_SET);
+						
+						uint8_t id_node = 0;
+						read(fd, &id_node, sizeof(id_node));
+						
+						
+						if (id_node == SLT.espnow.my_id)
 							continue;
 						
-						uint32_t des_id = i;
 						
-						/** send open file request to des_id */
+						/** send open file request to id_node */
 						xSemaphoreTake(xNowReturnState, 0);
 						
 						espnow_send_queue_t open_q;
-						open_q.dest_id = des_id;
+						open_q.dest_id = id_node;
 						open_q.tmout_ms = 1000;
 						open_q.buf = espnow_make_frame_send(NULL, 0, NOW_OPF);
 						if (open_q.buf.data != NULL && open_q.buf.tot_byte > 0)
@@ -1442,28 +1453,33 @@ void task_update_effect_node()
 							if (SLT.espnow.state_return == NOW_ACK)
 							{
 								/** send start write file to des_id */
+								
 								uint32_t max_byte_data = ESP_NOW_MAX_DATA_LEN - NOW_SZOF_HEADER - NOW_SZOF_CMD - NOW_SZOF_CRC
 														- NOW_SZOF_OFFSET - NOW_SZOF_PACKET_NUM;
 								
-								uint32_t tot_packet =	SLT.effMana.tot_size_node[des_id] % max_byte_data == 0 ?
-														(SLT.effMana.tot_size_node[des_id] / max_byte_data) :
-														(SLT.effMana.tot_size_node[des_id] / max_byte_data) + 1;
+								uint32_t offset_st_write_node = 0;
+								uint32_t tot_size_write_node = SLT.effMana.tot_size_node[i] - sizeof(id_node); 
 								
-								uint8_t payload_st_write[sizeof(tot_packet) + sizeof(SLT.effMana.offset_start_node[des_id])
-									+ sizeof(SLT.effMana.tot_size_node[des_id])];
+								uint32_t tot_packet_node =	tot_size_write_node % max_byte_data == 0 ?
+															(tot_size_write_node / max_byte_data) :
+															(tot_size_write_node / max_byte_data) + 1;
 								
-								memcpy(payload_st_write, &tot_packet, sizeof(tot_packet));
+								 
+								uint8_t payload_st_write[sizeof(tot_size_write_node) + sizeof(offset_st_write_node)
+									+ sizeof(tot_packet_node)];
 								
-								memcpy(&payload_st_write[4], &SLT.effMana.offset_start_node[des_id], 
-									sizeof(SLT.effMana.offset_start_node[des_id]));
+								memcpy(payload_st_write, &tot_packet_node, sizeof(tot_packet_node));
 								
-								memcpy(&payload_st_write[8],&SLT.effMana.tot_size_node[des_id],
-									sizeof(SLT.effMana.tot_size_node[des_id]));
+								memcpy(&payload_st_write[4], &offset_st_write_node,
+									sizeof(offset_st_write_node));
+								
+								memcpy(&payload_st_write[8],&tot_size_write_node,
+									sizeof(tot_size_write_node));
 								
 								xSemaphoreTake(xNowReturnState, 0);
 								
 								espnow_send_queue_t write_st_q;
-								write_st_q.dest_id = des_id;
+								write_st_q.dest_id = id_node;
 								write_st_q.tmout_ms = 1000;
 								write_st_q.buf = espnow_make_frame_send(payload_st_write, 8, NOW_ST_WRF);
 								if (write_st_q.buf.data != NULL && write_st_q.buf.tot_byte > 0)
@@ -1473,51 +1489,69 @@ void task_update_effect_node()
 								{
 									if (SLT.espnow.state_return == NOW_ACK)
 									{
+										
 										/** send write packets to des_id */
+										
 										uint32_t packet_number = 0;
-										uint32_t offset = 0; 
-									
+										
+										uint32_t offset_write_node = offset_st_write_node; 
+										uint32_t offset_read_data = SLT.effMana.offset_start_node[i] + sizeof(id_node); 
+										
 										uint16_t checksum = 0xffff;
 										
-										lseek(fd, 0, SEEK_SET);
+										uint32_t offset_write_packet[tot_packet_node];
+										uint32_t offset_read_packet[tot_packet_node];
+										uint32_t sizedata_packet[tot_packet_node];
 									
-										uint32_t offset_packet[tot_packet]; 
-										uint32_t sizedata_packet[tot_packet];
-									
-										while (SLT.effMana.tot_size_node[des_id] > 0)
+										while (tot_size_write_node > 0)
 										{
-											uint32_t tot_byte_read = max_byte_data < SLT.effMana.tot_size_node[des_id] ? max_byte_data : 
-												SLT.effMana.tot_size_node[des_id];
-						
+											uint32_t tot_byte_read = max_byte_data < tot_size_write_node ? max_byte_data : 
+												tot_size_write_node;
+											
 											uint8_t* buf = malloc(tot_byte_read + NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET);
-										
-											offset = lseek(fd, 0, SEEK_CUR);
-										
+											
+											if (buf == NULL)
+												continue;
+											
 											memcpy(buf, &packet_number, NOW_SZOF_PACKET_NUM);
-											memcpy(&buf[4], &offset, NOW_SZOF_OFFSET);
+											memcpy(&buf[4], &offset_write_node, NOW_SZOF_OFFSET);
+											
+											lseek(fd, offset_read_data, SEEK_SET);
 											read(fd, &buf[8], tot_byte_read);
-										
-											offset_packet[packet_number] = offset;
+											
+											offset_write_packet[packet_number] = offset_write_node;
+											offset_read_packet[packet_number] = offset_read_data;
 											sizedata_packet[packet_number] = tot_byte_read;
-										
+											
 											checksum = crc16_modbus(checksum, &buf[8], tot_byte_read);
 											
-											if (packet_number != 1 && packet_number != 2)
-											{
-												espnow_send_queue_t write_q;
-												write_q.dest_id = des_id;
-												write_q.tmout_ms = 1000;
-												write_q.buf = espnow_make_frame_send(buf, NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET + tot_byte_read, NOW_WRF); 
-												if (write_q.buf.data != NULL && write_q.buf.tot_byte > 0)
-													xQueueSend(xNowSend, &write_q, portMAX_DELAY);	
-
-											}
-										
+											// test miss packet
+//											if (packet_number != 1 && packet_number != 2)
+//											{
+//												espnow_send_queue_t write_q;
+//												write_q.dest_id = id_node;
+//												write_q.tmout_ms = 1000;
+//												write_q.buf = espnow_make_frame_send(buf, NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET + tot_byte_read, NOW_WRF); 
+//												if (write_q.buf.data != NULL && write_q.buf.tot_byte > 0)
+//													xQueueSend(xNowSend, &write_q, portMAX_DELAY);
+//
+//											}
+											
+											espnow_send_queue_t write_q;
+											write_q.dest_id = id_node;
+											write_q.tmout_ms = 1000;
+											write_q.buf = espnow_make_frame_send(buf, NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET + tot_byte_read, NOW_WRF); 
+											if (write_q.buf.data != NULL && write_q.buf.tot_byte > 0)
+												xQueueSend(xNowSend, &write_q, portMAX_DELAY);											
+											
+											
+											offset_write_node += tot_byte_read;
+											offset_read_data += tot_byte_read;
+											tot_size_write_node -= tot_byte_read;
+											packet_number++;
+											
 											if (buf != NULL)
 												free(buf);
-											
-											SLT.effMana.tot_size_node[des_id] -= tot_byte_read;
-											packet_number++;
 										}
 										uint32_t lastick = xTaskGetTickCount();
 										while (xTaskGetTickCount() - lastick < pdMS_TO_TICKS(4000))
@@ -1527,7 +1561,7 @@ void task_update_effect_node()
 											/** send write end to des_id */
 											xSemaphoreTake(xNowReturnState, 0);
 											espnow_send_queue_t end_write_q; 
-											end_write_q.dest_id = des_id;
+											end_write_q.dest_id = id_node;
 											end_write_q.tmout_ms = 1000;
 											end_write_q.buf = espnow_make_frame_send(&checksum, sizeof(checksum), NOW_END_WRF); 
 											if (end_write_q.buf.data != NULL && end_write_q.buf.tot_byte > 0)
@@ -1559,14 +1593,15 @@ void task_update_effect_node()
 															{
 																uint32_t packet_number = resend_q.request[j];
 																
-																lseek(fd, offset_packet[packet_number], SEEK_SET);
 																uint8_t* buf = malloc(sizedata_packet[packet_number] + NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET);
 															
 																memcpy(buf, &packet_number, NOW_SZOF_PACKET_NUM);
-																memcpy(&buf[4], &offset_packet[packet_number], NOW_SZOF_OFFSET);
+																memcpy(&buf[4], &offset_write_packet[packet_number], NOW_SZOF_OFFSET);
+																
+																lseek(fd, offset_read_packet[packet_number], SEEK_SET);
 																read(fd, &buf[8], sizedata_packet[packet_number]);
 																espnow_send_queue_t write_q;
-																write_q.dest_id = des_id;
+																write_q.dest_id = id_node;
 																write_q.tmout_ms = 1000;
 																write_q.buf = espnow_make_frame_send(buf,
 																	NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET + sizedata_packet[packet_number],
@@ -1605,33 +1640,62 @@ void task_update_effect_node()
 					close(fd); 
 				}
 			}
+			
+			xSemaphoreGive(xLoadEffect);
 		}
 	}
 }
 
 void task_make_effect()
 {
+	bool loaded_effect = false;
 	
 	while (1)
 	{
-		for (int i = 0; i < 3; i++)
+		if (xSemaphoreTake(xLoadEffect, 0) == pdTRUE)
+		{
+			int fd = open(PATH_EFFECT, O_RDWR | O_CREAT, 0666);
+			
+			if (fd >= 0)
+			{
+				
+				
+			}
+			// load effect
+			loaded_effect = true;
+		}
+		
+		if (loaded_effect == true)
+		{
+			// run effect
+			for (int i = 0; i < 3; i++)
+			{
+				uint8_t duty[MAX_NUM_CHANNEL]; memset(duty, 0, sizeof(duty));
+				duty[0] = 255; duty[2] = 255;
+			
+				if (i == 0)
+					duty[0] = 0;
+				else if (i == 1)
+					duty[2] = 0;
+				else 
+					duty[7] = 255;
+			
+				set_duties_pwm(&SLT.Pwm, duty, sizeof(duty));
+				vTaskDelay(pdMS_TO_TICKS(500));
+			
+			}			
+		}
+		else
 		{
 			uint8_t duty[MAX_NUM_CHANNEL]; memset(duty, 0, sizeof(duty));
 			duty[0] = 255; duty[2] = 255;
-			
-			if (i == 0)
-				duty[0] = 0;
-			else if (i == 1)
-				duty[2] = 0;
-			else 
-				duty[7] = 255;
-			
 			set_duties_pwm(&SLT.Pwm, duty, sizeof(duty));
 			vTaskDelay(pdMS_TO_TICKS(500));
-			
 		}
+
 		
 		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
+		
 	}
 }
 
