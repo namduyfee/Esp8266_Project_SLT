@@ -9,7 +9,9 @@ void task_file_effect();
 void task_select_master(); 
 void task_send_tcp();
 void task_update_effect_node(); 
-void task_make_effect();
+void task_setup_effect();
+void task_effect(); 
+
 
 Object SLT = {
 	.Pwm = {
@@ -62,6 +64,7 @@ QueueHandle_t xNowRecv;						/**< get data from espnow recv callback */
 QueueHandle_t xNowSend;						 
 QueueHandle_t xSendTcp;
 QueueHandle_t xNowResendWrf;
+QueueHandle_t xEffRequest;
 
 void my_init_project(void)
 {
@@ -96,7 +99,7 @@ void my_init_project(void)
 
 void app_main(void) {
 	
-	
+	/** Queue creat */
 	xEffLoadf = xQueueCreate(30, sizeof(file_request_t));
 	
 	xNowRecv = xQueueCreate(20, sizeof(espnow_recv_queue_t));
@@ -107,6 +110,9 @@ void app_main(void) {
 	
 	xNowResendWrf = xQueueCreate(10, sizeof(espnow_wrf_resend)); 
 	
+	xEffRequest = xQueueCreate(10, sizeof(effect_request_t)); 
+	
+	/** Semaphore creat */
 	xNowPeersMana = xSemaphoreCreateBinary(); 
 	xSemaphoreGive(xNowPeersMana);
 	
@@ -121,6 +127,7 @@ void app_main(void) {
 	xLoadEffect = xSemaphoreCreateBinary();
 	//xSemaphoreGive(xLoadEffect);
 	
+	/** Task creat */
 	my_init_project();
 	
 	xTaskCreate(task_esp_now_send, "task_esp_now_send", 1024, NULL, 4, NULL);
@@ -135,7 +142,10 @@ void app_main(void) {
 	
 	xTaskCreate(task_update_effect_node, "task_update_effect_node", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
-	xTaskCreate(task_make_effect, "task_make_effect", MIN_SIZE_OP_FILE, NULL, 4, NULL);
+	xTaskCreate(task_setup_effect, "task_setup_effect", MIN_SIZE_OP_FILE, NULL, 4, NULL);
+	
+	xTaskCreate(task_effect, "task_effect", 1024, NULL, 4, NULL);
+	
 	
 }
 
@@ -1402,7 +1412,11 @@ void task_send_tcp()
  */			
 void task_update_effect_node() 
 {
-	int fd; 
+	int fd = -1; 
+	
+	uint8_t number_node;	/**< number of node in eff*/
+	uint32_t offset_start_node[MAX_PEER];	/**< array offset start in file of each node*/
+	uint32_t tot_size_node[MAX_PEER];		/**< total byte in file of each node */
 	
 	while (1)
 	{
@@ -1418,17 +1432,17 @@ void task_update_effect_node()
 					
 					// read number node
 					lseek(fd, 0, SEEK_SET); 
-					read(fd, &SLT.effMana.number_node, sizeof(SLT.effMana.number_node));
+					read(fd, &number_node, sizeof(number_node));
 					// read array offset start node
-					read(fd, SLT.effMana.offset_start_node, sizeof(uint32_t) * SLT.effMana.number_node);
+					read(fd, offset_start_node, sizeof(uint32_t) * number_node);
 					// read array size node
-					read(fd, SLT.effMana.tot_size_node, sizeof(uint32_t) * SLT.effMana.number_node); 
+					read(fd, tot_size_node, sizeof(uint32_t) * number_node); 
 					
 					
-					for (int i = 0; i < SLT.effMana.number_node; i++)	// datatype i = int, because i-- is can called in code
+					for (int i = 0; i < number_node; i++)	// datatype i = int, because i-- is can called in code
 					{
 						
-						lseek(fd, SLT.effMana.offset_start_node[i], SEEK_SET);
+						lseek(fd, offset_start_node[i], SEEK_SET);
 						
 						uint8_t id_node = 0;
 						read(fd, &id_node, sizeof(id_node));
@@ -1458,7 +1472,7 @@ void task_update_effect_node()
 														- NOW_SZOF_OFFSET - NOW_SZOF_PACKET_NUM;
 								
 								uint32_t offset_st_write_node = 0;
-								uint32_t tot_size_write_node = SLT.effMana.tot_size_node[i] - sizeof(id_node); 
+								uint32_t tot_size_write_node = tot_size_node[i] - sizeof(id_node); 
 								
 								uint32_t tot_packet_node =	tot_size_write_node % max_byte_data == 0 ?
 															(tot_size_write_node / max_byte_data) :
@@ -1495,7 +1509,7 @@ void task_update_effect_node()
 										uint32_t packet_number = 0;
 										
 										uint32_t offset_write_node = offset_st_write_node; 
-										uint32_t offset_read_data = SLT.effMana.offset_start_node[i] + sizeof(id_node); 
+										uint32_t offset_read_data = offset_start_node[i] + sizeof(id_node); 
 										
 										uint16_t checksum = 0xffff;
 										
@@ -1638,6 +1652,7 @@ void task_update_effect_node()
 						}
 					}
 					close(fd); 
+					fd = -1;
 				}
 			}
 			
@@ -1646,9 +1661,12 @@ void task_update_effect_node()
 	}
 }
 
-void task_make_effect()
+void task_setup_effect()
 {
-	bool loaded_effect = false;
+	SLT.effMana.offStartGr = NULL;  SLT.effMana.totByteGr = NULL;
+	SLT.effMana.p_group = NULL; SLT.effMana.p_group = NULL;
+	
+	effect_request_t eff_req_tmp;
 	
 	while (1)
 	{
@@ -1659,45 +1677,112 @@ void task_make_effect()
 			if (fd >= 0)
 			{
 				
+
+				lseek(fd, 0, SEEK_SET);
+				
+				read(fd, &SLT.effMana.brNess, sizeof(SLT.effMana.brNess));
+				read(fd, &SLT.effMana.speedEf, sizeof(SLT.effMana.speedEf)); 
+				read(fd, &SLT.effMana.numGroup, sizeof(SLT.effMana.numGroup)); 
+				
+				/** free old memory and allocate new memory for array offset*/
+				if (SLT.effMana.offStartGr != NULL) 
+				{
+					free(SLT.effMana.offStartGr);
+					SLT.effMana.offStartGr = NULL;
+				}
+				SLT.effMana.offStartGr = malloc(sizeof(uint32_t) * SLT.effMana.numGroup);
+				if (SLT.effMana.offStartGr != NULL)
+					read(fd, &SLT.effMana.offStartGr, sizeof(uint32_t) * SLT.effMana.numGroup);
+				
+				/** free old memory and allocate new memory for array totbyte group*/
+				if (SLT.effMana.totByteGr != NULL)
+				{
+					free(SLT.effMana.totByteGr);
+					SLT.effMana.totByteGr = NULL;
+				}
+				SLT.effMana.totByteGr = malloc(sizeof(uint32_t) * SLT.effMana.numGroup);
+				if (SLT.effMana.totByteGr != NULL)
+					read(fd, &SLT.effMana.totByteGr, sizeof(uint32_t) * SLT.effMana.numGroup);
+				
+				/** free old memory and allocate new memory for array group */
+				if (SLT.effMana.p_group != NULL) {
+					free(SLT.effMana.p_group);
+					SLT.effMana.p_group = NULL;
+				}
+				SLT.effMana.p_group = malloc(SLT.effMana.numGroup * sizeof(group_t));
+				
+				/** read infor for each group */
+				for (int i = 0; i < SLT.effMana.numGroup; i++)
+				{
+					lseek(fd, SLT.effMana.offStartGr[i], SEEK_SET);
+					read(fd, &SLT.effMana.p_group[i].numState, sizeof(SLT.effMana.p_group[i].numState));
+					
+//					SLT.
+//					read(fd, &SLT.effMana.p_group[i].p_timExistOfSta, )
+//					SLT.effMana.p_group[i] 
+					
+				}
+				
 				
 			}
-			// load effect
-			loaded_effect = true;
+			close(fd);
 		}
 		
-		if (loaded_effect == true)
-		{
-			// run effect
-			for (int i = 0; i < 3; i++)
-			{
-				uint8_t duty[MAX_NUM_CHANNEL]; memset(duty, 0, sizeof(duty));
-				duty[0] = 255; duty[2] = 255;
-			
-				if (i == 0)
-					duty[0] = 0;
-				else if (i == 1)
-					duty[2] = 0;
-				else 
-					duty[7] = 255;
-			
-				set_duties_pwm(&SLT.Pwm, duty, sizeof(duty));
-				vTaskDelay(pdMS_TO_TICKS(500));
-			
-			}			
-		}
-		else
-		{
-			uint8_t duty[MAX_NUM_CHANNEL]; memset(duty, 0, sizeof(duty));
-			duty[0] = 255; duty[2] = 255;
-			set_duties_pwm(&SLT.Pwm, duty, sizeof(duty));
-			vTaskDelay(pdMS_TO_TICKS(500));
-		}
+
+//		if (loaded_effect == true)
+//		{
+//			// run effect
+//			for (int i = 0; i < 3; i++)
+//			{
+//				uint8_t duty[MAX_NUM_CHANNEL]; memset(duty, 0, sizeof(duty));
+//				duty[0] = 255; duty[2] = 255;
+//			
+//				if (i == 0)
+//					duty[0] = 0;
+//				else if (i == 1)
+//					duty[2] = 0;
+//				else 
+//					duty[7] = 255;
+//			
+//				set_duties_pwm(&SLT.Pwm, duty, sizeof(duty));
+//				vTaskDelay(pdMS_TO_TICKS(500));
+//			
+//			}			
+//		}
+//		else
+//		{
+//			uint8_t duty[MAX_NUM_CHANNEL]; memset(duty, 0, sizeof(duty));
+//			duty[0] = 255; duty[2] = 255;
+//			set_duties_pwm(&SLT.Pwm, duty, sizeof(duty));
+//			vTaskDelay(pdMS_TO_TICKS(500));
+//		}
 
 		
 		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
 		
 	}
 }
+void task_effect()
+{
+	
+	effect_request_t eff_req_tmp;
+	
+	while (1)
+	{
+		if (xQueueReceive(xEffRequest, &eff_req_tmp, 0) == pdTRUE)
+		{
+//			if (SLT.effMana.offStartGr != NULL &&  SLT.effMana.totByteGr != NULL
+//			    &&)
+//			{
+//				
+//			}
+			
+		}
+		
+	}
+}
+
+
 
 
 
