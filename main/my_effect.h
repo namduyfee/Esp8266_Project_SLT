@@ -19,10 +19,13 @@
 
 #define MAX_NUM_CHANNEL 8
 
+#define MAX_OJECT_FOR_A_NODE MAX_NUM_CHANNEL
+#define MAX_NUM_OF_GROUP 8
+
 typedef struct 
 {
 	uint8_t numPin;				/**< number of pins of object */
-	uint8_t* p_pin;				/**< pin list of object, total number of elements = numPin */
+	uint8_t p_pin[MAX_NUM_CHANNEL];				/**< pin list of object, total number of elements = numPin */
 	uint8_t* brNessofState;			/**< brightness of object at each state, total number of elements = numState */
 } object_t;	
 
@@ -31,7 +34,7 @@ typedef struct
 	uint16_t numState;		/**< number of states of this group */
 	uint8_t* p_timExistOfSta;	/**< time of each state, total number of elements = numState */
 	uint8_t numObject;		/**< number of objects of this group */
-	object_t* p_object;		/**< total number of elements = numObject */
+	object_t p_object[MAX_OJECT_FOR_A_NODE];		/**< total number of elements = numObject */
 } group_t;
 
 typedef struct
@@ -39,24 +42,23 @@ typedef struct
 	uint8_t brNess;			/**< synchronization brightness for groups, devices */
 	uint8_t speedEf;		/**< synchronization speed for groups, devices */
 	uint8_t numGroup;		/**< number of Group */
-	uint32_t* offStartGr;	/**< list of offset start of groups, total number of elements = numGroup */
-	uint32_t *totByteGr;	/**< list total byte of groups */
-	group_t *p_group;		/**< pointer to groups */
+	uint32_t offStartGr[MAX_NUM_OF_GROUP];	/**< list of offset start of groups, total number of elements = numGroup */
+	uint32_t totByteGr[MAX_NUM_OF_GROUP];	/**< list total byte of groups */
+	group_t p_group[MAX_NUM_OF_GROUP];		/**< pointer to groups */
+	
+	enum
+	{
+		SYNCHRONOUS = 0, /**< synchronize mode will be control by master*/
+		ASYNCHRONOUS
+			
+	} mode;
 	
 } effect_manage_t;
 
 typedef struct
 {			
-	enum
-	{
-		SYNCHRONOUS,		/**< synchronize mode will be control by master*/
-		ASYNCHRONOUS
-	} mode;
-	
-	uint8_t brChannel[MAX_NUM_CHANNEL];
-	
-	uint8_t proup_number;		/**< group number want to run */
-	uint32_t number_of_run;		/**< number of times to run effect*/
+	uint8_t gproup_number;		/**< group number want to run */
+	uint16_t state_number;		/** state number of group want to run */
 	
 	union
 	{

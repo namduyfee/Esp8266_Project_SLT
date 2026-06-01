@@ -9,8 +9,7 @@ void task_file_effect();
 void task_select_master(); 
 void task_send_tcp();
 void task_update_effect_node(); 
-void task_setup_effect();
-void task_effect(); 
+void task_make_effect();
 
 
 Object SLT = {
@@ -142,9 +141,7 @@ void app_main(void) {
 	
 	xTaskCreate(task_update_effect_node, "task_update_effect_node", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
-	xTaskCreate(task_setup_effect, "task_setup_effect", MIN_SIZE_OP_FILE, NULL, 4, NULL);
-	
-	xTaskCreate(task_effect, "task_effect", 1024, NULL, 4, NULL);
+	xTaskCreate(task_make_effect, "task_make_effect", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 	
 }
@@ -1661,11 +1658,23 @@ void task_update_effect_node()
 	}
 }
 
-void task_setup_effect()
+void task_make_effect()
 {
-	SLT.effMana.offStartGr = NULL;  SLT.effMana.totByteGr = NULL;
-	SLT.effMana.p_group = NULL; SLT.effMana.p_group = NULL;
 	
+	bool data_available = false;
+	
+	/** init struct effect */
+	SLT.effMana.brNess = 0;
+	SLT.effMana.speedEf = 0;
+	SLT.effMana.numGroup = 0;
+	
+	for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
+	{
+		SLT.effMana.p_group[i].p_timExistOfSta = NULL;
+		
+		for (int j = 0; j < MAX_OJECT_FOR_A_NODE; j++)
+			SLT.effMana.p_group[i].p_object[j].brNessofState = NULL;
+	}
 	effect_request_t eff_req_tmp;
 	
 	while (1)
@@ -1677,58 +1686,89 @@ void task_setup_effect()
 			if (fd >= 0)
 			{
 				
-
 				lseek(fd, 0, SEEK_SET);
 				
+				/** brightness ; speed ; number of group */
 				read(fd, &SLT.effMana.brNess, sizeof(SLT.effMana.brNess));
 				read(fd, &SLT.effMana.speedEf, sizeof(SLT.effMana.speedEf)); 
 				read(fd, &SLT.effMana.numGroup, sizeof(SLT.effMana.numGroup)); 
 				
-				/** free old memory and allocate new memory for array offset*/
-				if (SLT.effMana.offStartGr != NULL) 
-				{
-					free(SLT.effMana.offStartGr);
-					SLT.effMana.offStartGr = NULL;
-				}
-				SLT.effMana.offStartGr = malloc(sizeof(uint32_t) * SLT.effMana.numGroup);
-				if (SLT.effMana.offStartGr != NULL)
-					read(fd, &SLT.effMana.offStartGr, sizeof(uint32_t) * SLT.effMana.numGroup);
+				/** offset start of Groups */
+				read(fd, SLT.effMana.offStartGr, sizeof(uint32_t) * SLT.effMana.numGroup);
 				
-				/** free old memory and allocate new memory for array totbyte group*/
-				if (SLT.effMana.totByteGr != NULL)
-				{
-					free(SLT.effMana.totByteGr);
-					SLT.effMana.totByteGr = NULL;
-				}
-				SLT.effMana.totByteGr = malloc(sizeof(uint32_t) * SLT.effMana.numGroup);
-				if (SLT.effMana.totByteGr != NULL)
-					read(fd, &SLT.effMana.totByteGr, sizeof(uint32_t) * SLT.effMana.numGroup);
+				read(fd, SLT.effMana.totByteGr, sizeof(uint32_t) * SLT.effMana.numGroup);
 				
-				/** free old memory and allocate new memory for array group */
-				if (SLT.effMana.p_group != NULL) {
-					free(SLT.effMana.p_group);
-					SLT.effMana.p_group = NULL;
-				}
-				SLT.effMana.p_group = malloc(SLT.effMana.numGroup * sizeof(group_t));
-				
+
 				/** read infor for each group */
 				for (int i = 0; i < SLT.effMana.numGroup; i++)
 				{
 					lseek(fd, SLT.effMana.offStartGr[i], SEEK_SET);
+					
+					/** read number of state of groups */
 					read(fd, &SLT.effMana.p_group[i].numState, sizeof(SLT.effMana.p_group[i].numState));
 					
-//					SLT.
-//					read(fd, &SLT.effMana.p_group[i].p_timExistOfSta, )
-//					SLT.effMana.p_group[i] 
+					/** allocate and read time exist of states of groups */
+					if (SLT.effMana.p_group[i].p_timExistOfSta != NULL) 
+					{
+						free(SLT.effMana.p_group[i].p_timExistOfSta);
+						SLT.effMana.p_group[i].p_timExistOfSta = NULL;
+					}
 					
+					SLT.effMana.p_group[i].p_timExistOfSta = malloc(sizeof(uint8_t) * SLT.effMana.p_group[i].numState);
+					read(fd, SLT.effMana.p_group[i].p_timExistOfSta, sizeof(uint8_t) * SLT.effMana.p_group[i].numState);
+					
+					/** read number of object of group */
+					read(fd,
+						&SLT.effMana.p_group[i].numObject,
+						sizeof(SLT.effMana.p_group[i].numObject));
+					/** */
+					for (int j = 0; j < SLT.effMana.p_group[i].numObject; j++)
+					{
+						/** pins of object */
+						read(fd, &SLT.effMana.p_group[i].p_object[j].numPin, sizeof(SLT.effMana.p_group[i].p_object[j].numPin));
+						read(fd, SLT.effMana.p_group[i].p_object[j].p_pin, sizeof(uint8_t) * SLT.effMana.p_group[i].p_object[j].numPin);
+						
+						/** brightness states of object */
+						
+						if (SLT.effMana.p_group[i].p_object[j].brNessofState != NULL) 
+						{
+							free(SLT.effMana.p_group[i].p_object[j].brNessofState);
+							SLT.effMana.p_group[i].p_object[j].brNessofState = NULL;
+						}
+						
+						SLT.effMana.p_group[i].p_object[j].brNessofState = malloc(sizeof(uint8_t) * SLT.effMana.p_group[i].numState);
+						read(fd, SLT.effMana.p_group[i].p_object[j].brNessofState, sizeof(uint8_t) * SLT.effMana.p_group[i].numState);
+					}
 				}
+				close(fd);
 				
-				
+				data_available = true;
 			}
-			close(fd);
+			
 		}
 		
-
+		if (xQueueReceive(xEffRequest, &eff_req_tmp, 0) == pdTRUE)
+		{
+			
+			
+		}
+		
+		if (data_available == true)
+		{
+			
+			if (SLT.effMana.mode == SYNCHRONOUS)
+			{
+				
+			}
+			else if (SLT.effMana.mode == ASYNCHRONOUS)
+			{
+				
+			}
+		}
+		
+		
+		
+			
 //		if (loaded_effect == true)
 //		{
 //			// run effect
@@ -1759,25 +1799,6 @@ void task_setup_effect()
 
 		
 		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
-		
-	}
-}
-void task_effect()
-{
-	
-	effect_request_t eff_req_tmp;
-	
-	while (1)
-	{
-		if (xQueueReceive(xEffRequest, &eff_req_tmp, 0) == pdTRUE)
-		{
-//			if (SLT.effMana.offStartGr != NULL &&  SLT.effMana.totByteGr != NULL
-//			    &&)
-//			{
-//				
-//			}
-			
-		}
 		
 	}
 }
