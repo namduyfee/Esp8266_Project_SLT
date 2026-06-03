@@ -543,7 +543,7 @@ void task_esp_now_recv()
 					}
 					else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_END_WRF)
 					{
-						if ( (first_write_end == true || xTaskGetTickCount() - last_write_end > pdMS_TO_TICKS(2000)) && 
+						if ((first_write_end == true || xTaskGetTickCount() - last_write_end > pdMS_TO_TICKS(2000)) && 
 						    SLT.espnow.mana_recv_wrf_mess.p_packet != NULL)
 						{
 							
@@ -555,22 +555,22 @@ void task_esp_now_recv()
 							for (int i = 0; i <  SLT.espnow.mana_recv_wrf_mess.tot_packet; i++)
 							{
 								
-								if(SLT.espnow.mana_recv_wrf_mess.p_packet[i].data == NULL)
+								if (SLT.espnow.mana_recv_wrf_mess.p_packet[i].data == NULL)
 								{
-									if(packet_resend == NULL) 
+									if (packet_resend == NULL) 
 									{
-										tot_packet_resend = 1 ;
-										packet_resend = malloc(NOW_SZOF_PACKET_NUM * tot_packet_resend) ;
+										tot_packet_resend = 1;
+										packet_resend = malloc(NOW_SZOF_PACKET_NUM * tot_packet_resend);
 									}
 									else
 									{
-										tot_packet_resend++ ;
-										packet_resend = realloc(packet_resend, NOW_SZOF_PACKET_NUM * tot_packet_resend) ;
+										tot_packet_resend++;
+										packet_resend = realloc(packet_resend, NOW_SZOF_PACKET_NUM * tot_packet_resend);
 									}
 									
-									packet_resend[tot_packet_resend - 1] = i ;
+									packet_resend[tot_packet_resend - 1] = i;
 									
-									recv_all = false ;
+									recv_all = false;
 								}
 								else
 								{
@@ -604,8 +604,9 @@ void task_esp_now_recv()
 										eff.write.buf.data = malloc(eff.write.buf.tot_byte);
 										if (eff.write.buf.data != NULL)	
 										{
-											memcpy(eff.write.buf.data, SLT.espnow.mana_recv_wrf_mess.p_packet[i].data,
-													eff.write.buf.tot_byte);
+											memcpy(eff.write.buf.data,
+												SLT.espnow.mana_recv_wrf_mess.p_packet[i].data,
+												eff.write.buf.tot_byte);
 											
 											if (xQueueSendToBack(xEffLoadf, &eff, pdMS_TO_TICKS(4000)) != pdPASS)
 											{
@@ -703,6 +704,14 @@ void task_esp_now_recv()
 								}
 							}
 						}
+					}
+					else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_EFF_ASYNC)
+					{
+						
+					}
+					else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_EFF_SYNC)
+					{
+						
 					}
 					else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_ACK)
 					{
@@ -1668,6 +1677,8 @@ void task_make_effect()
 	SLT.effMana.speedEf = 0;
 	SLT.effMana.numGroup = 0;
 	
+	SLT.effMana.mode = EFF_ASYNCHRONOUS;
+	
 	for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
 	{
 		SLT.effMana.p_group[i].p_timExistOfSta = NULL;
@@ -1746,7 +1757,7 @@ void task_make_effect()
 			}
 			
 		}
-		
+			
 		if (xQueueReceive(xEffRequest, &eff_req_tmp, 0) == pdTRUE)
 		{
 			
@@ -1756,11 +1767,11 @@ void task_make_effect()
 		if (data_available == true)
 		{
 			
-			if (SLT.effMana.mode == SYNCHRONOUS)
+			if (SLT.effMana.mode == EFF_SYNCHRONOUS)
 			{
 				
 			}
-			else if (SLT.effMana.mode == ASYNCHRONOUS)
+			else if (SLT.effMana.mode == EFF_ASYNCHRONOUS)
 			{
 				
 			}
@@ -1768,7 +1779,7 @@ void task_make_effect()
 		
 		
 		
-			
+		
 //		if (loaded_effect == true)
 //		{
 //			// run effect

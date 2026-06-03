@@ -44,17 +44,21 @@
 /** CMD size is use with 1byte not 4byte that default of enum */
 typedef enum
 {
-	NOW_NONE				= 0,
-	NOW_BRC,					/**< broadcast */
+	NOW_NONE	= 0,
+	NOW_BRC,			/**< broadcast */
 	NOW_ADD_PEER,
 	
-	NOW_OPF,					/**< open file   */
-	NOW_CLSF,					/**< close file  */
-	NOW_DLTF,					/**< delete file */
+	NOW_OPF,			/**< open file   */
+	NOW_CLSF,			/**< close file  */
+	NOW_DLTF,			/**< delete file */
 	
-	NOW_ST_WRF,					/** start write request */
-	NOW_WRF,					/**< write file  */
-	NOW_END_WRF,				/** end write file */
+	NOW_ST_WRF,			/**< start write request */
+	NOW_WRF,			/**< write file  */
+	NOW_END_WRF,		/**< end write file */
+	
+	NOW_EFF_SYNC,		/**< EFFECT SYNCH REQUEST */
+	NOW_EFF_ASYNC,		/**< EFFECT ASYNCH REQUEST */
+	
 	
 	NOW_ACK,
 	NOW_NACK

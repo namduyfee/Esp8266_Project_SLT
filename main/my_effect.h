@@ -22,6 +22,14 @@
 #define MAX_OJECT_FOR_A_NODE MAX_NUM_CHANNEL
 #define MAX_NUM_OF_GROUP 8
 
+#define UNIT_OF_TIME_EXIST	100 // 1 time exist = 100 ms
+
+typedef enum
+{
+	EFF_SYNCHRONOUS = 0, /**< synchronize mode will be control by master*/
+	EFF_ASYNCHRONOUS	
+		
+} effect_mode_t;
 typedef struct 
 {
 	uint8_t numPin;				/**< number of pins of object */
@@ -46,36 +54,18 @@ typedef struct
 	uint32_t totByteGr[MAX_NUM_OF_GROUP];	/**< list total byte of groups */
 	group_t p_group[MAX_NUM_OF_GROUP];		/**< pointer to groups */
 	
-	enum
-	{
-		SYNCHRONOUS = 0, /**< synchronize mode will be control by master*/
-		ASYNCHRONOUS
-			
-	} mode;
+	effect_mode_t mode;
 	
 } effect_manage_t;
 
 typedef struct
 {			
-	uint8_t gproup_number;		/**< group number want to run */
-	uint16_t state_number;		/** state number of group want to run */
+	effect_mode_t mode;
 	
-	union
-	{
-		
-		struct
-		{
-			
-			
-		} synchronous;
-		struct
-		{
-			
-			
-		} asynchronous;
-	};
+	uint8_t number_of_group;	/** number of group want to request */
+	uint8_t *gproup_number;		/**< group number list want to run */
+	uint16_t *state_number;		/** state number of group list want to run */
 
-	
 } effect_request_t;
 
 #endif
