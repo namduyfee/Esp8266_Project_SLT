@@ -1667,8 +1667,16 @@ void task_update_effect_node()
 	}
 }
 
+/**
+ * request frame: KEY + CMD (NOW_EFF_SYNC | NOW_EFF_ASYNC) + number of group + list group + list state + CRC
+ *
+ */
 void task_make_effect()
 {
+	
+	uint8_t *state_current_of_gr = NULL;
+	
+	uint8_t duties[MAX_NUM_CHANNEL]; memset(duties, 0, sizeof(duties));
 	
 	bool data_available = false;
 	
@@ -1757,23 +1765,56 @@ void task_make_effect()
 			}
 			
 		}
-			
+		
+		bool new_request = false;
+		
 		if (xQueueReceive(xEffRequest, &eff_req_tmp, 0) == pdTRUE)
 		{
+			new_request = true;
 			
+			SLT.effMana.mode = eff_req_tmp.mode;
 			
 		}
 		
 		if (data_available == true)
 		{
+			// update state for requested groups
+			
+			if (new_request == true)
+			{
+				for (int i = 0; i < eff_req_tmp.number_of_group; i++)
+				{
+					uint8_t index_group = eff_req_tmp.gproup_number[i];
+					uint16_t state_number_of_group = eff_req_tmp.state_number[i];
+						
+					
+					for (int j = 0; j < SLT.effMana.p_group[index_group].numObject; j++)
+					{
+						uint16_t state_number_of_object = state_number_of_group;
+						
+						for (int k = 0; k < SLT.effMana.p_group[index_group].p_object[j].numPin; k++)
+						{
+							uint8_t index_channel = SLT.effMana.p_group[index_group].p_object[j].p_pin[k];
+							duties[index_channel] = SLT.effMana.p_group[index_group].p_object[j].brNessofState[state_number_of_object];
+						}
+					}
+				}				
+				
+			}
 			
 			if (SLT.effMana.mode == EFF_SYNCHRONOUS)
 			{
-				
+				if (new_request == true)
+				{
+					set_duties_pwm(&SLT.Pwm, duties, sizeof(duties));
+				}
 			}
 			else if (SLT.effMana.mode == EFF_ASYNCHRONOUS)
 			{
-				
+				if (new_request == true)
+				{
+					set_duties_pwm(&SLT.Pwm, duties, sizeof(duties));
+				}
 			}
 		}
 		
