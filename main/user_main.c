@@ -610,8 +610,11 @@ void task_esp_now_recv()
 											
 											if (xQueueSendToBack(xEffLoadf, &eff, pdMS_TO_TICKS(4000)) != pdPASS)
 											{
-												if (eff.write.buf.data != NULL)
+												if (eff.write.buf.data != NULL) 
+												{
 													free(eff.write.buf.data);
+													eff.write.buf.data = NULL;
+												}
 											}
 										}
 									}
@@ -735,8 +738,11 @@ void task_esp_now_recv()
 							
 							if (xQueueSend(xNowResendWrf, &resend_q, pdMS_TO_TICKS(4000)) != pdPASS)
 							{
-								if (resend_q.request != NULL)
+								if (resend_q.request != NULL) 
+								{
 									free(resend_q.request);
+									resend_q.request = NULL;
+								}
 							}
 						}
 						SLT.espnow.state_return = NOW_NACK;
@@ -892,10 +898,16 @@ void task_file_effect()
 					if (p_buf != NULL)
 						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 						{
-							if (p_buf != NULL && p_buf->data != NULL)
+							if (p_buf != NULL && p_buf->data != NULL) 
+							{
 								free(p_buf->data); 
-							if (p_buf != NULL)
+								p_buf->data = NULL;
+							}
+							if (p_buf != NULL) 
+							{
 								free(p_buf); 
+								p_buf = NULL;
+							}
 						}
 				}
 				else if (file_req.source == F_NOW_SOURCE)
@@ -929,10 +941,16 @@ void task_file_effect()
 					if (p_buf != NULL)
 						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 						{
-							if (p_buf != NULL && p_buf->data != NULL)
+							if (p_buf != NULL && p_buf->data != NULL) 
+							{
 								free(p_buf->data); 
-							if (p_buf != NULL)
+								p_buf->data = NULL;
+							}
+							if (p_buf != NULL) 
+							{
 								free(p_buf); 
+								p_buf = NULL;
+							}
 						}
 				}
 				else if (file_req.source == F_NOW_SOURCE)
@@ -970,10 +988,16 @@ void task_file_effect()
 					if (p_buf != NULL)
 						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 						{
-							if (p_buf != NULL && p_buf->data != NULL)
+							if (p_buf != NULL && p_buf->data != NULL) 
+							{
 								free(p_buf->data); 
-							if (p_buf != NULL)
+								p_buf->data = NULL;
+							}
+							if (p_buf != NULL) 
+							{
 								free(p_buf); 
+								p_buf = NULL;
+							}
 						}
 				}
 				else if (file_req.source == F_NOW_SOURCE)
@@ -1004,10 +1028,16 @@ void task_file_effect()
 						if (p_buf != NULL)
 							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 							{
-								if (p_buf != NULL && p_buf->data != NULL)
+								if (p_buf != NULL && p_buf->data != NULL) 
+								{
 									free(p_buf->data); 
-								if (p_buf != NULL)
+									p_buf->data = NULL;
+								}
+								if (p_buf != NULL) 
+								{
 									free(p_buf); 
+									p_buf = NULL;
+								}
 							}
 					}
 					else
@@ -1019,10 +1049,16 @@ void task_file_effect()
 							if (p_buf != NULL)
 								if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 								{
-									if (p_buf != NULL && p_buf->data != NULL)
+									if (p_buf != NULL && p_buf->data != NULL) 
+									{
 										free(p_buf->data); 
-									if (p_buf != NULL)
+										p_buf->data = NULL;
+									}
+									if (p_buf != NULL) 
+									{
 										free(p_buf); 
+										p_buf = NULL;
+									}
 								}
 						}
 						else
@@ -1032,10 +1068,16 @@ void task_file_effect()
 							if (p_buf != NULL)
 								if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 								{
-									if (p_buf != NULL && p_buf->data != NULL)
+									if (p_buf != NULL && p_buf->data != NULL) 
+									{
 										free(p_buf->data); 
-									if (p_buf != NULL)
+										p_buf->data = NULL; 
+									}
+									if (p_buf != NULL) 
+									{
 										free(p_buf); 
+										p_buf = NULL;
+									}
 								}
 						
 							off_t current_off = lseek(fd, file_req.read.offset, SEEK_SET); 
@@ -1068,15 +1110,23 @@ void task_file_effect()
 									}
 									else
 									{
-										if (p_buf != NULL && p_buf->data != NULL)
+										if (p_buf != NULL && p_buf->data != NULL) 
+										{
 											free(p_buf->data); 
-										if (p_buf != NULL)
+											p_buf->data = NULL;
+										}
+										if (p_buf != NULL) 
+										{
 											free(p_buf);
+											p_buf = NULL;
+										}
 									}
 								}
 							
-								if (data != NULL)
+								if (data != NULL) 
+								{
 									free(data); 
+								}
 								data = NULL; 
 							}						
 						}
@@ -1093,10 +1143,14 @@ void task_file_effect()
 						if (p_buf != NULL)
 							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 							{
-								if (p_buf != NULL && p_buf->data != NULL)
+								if (p_buf != NULL && p_buf->data != NULL) {
 									free(p_buf->data); 
-								if (p_buf != NULL)
+									p_buf->data = NULL;
+								}
+								if (p_buf != NULL) {
 									free(p_buf); 
+									p_buf = NULL;
+								}
 							}
 					}
 					else if (file_req.source == F_NOW_SOURCE)
@@ -1140,10 +1194,14 @@ void task_file_effect()
 						if (p_buf != NULL)
 							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 							{
-								if (p_buf != NULL && p_buf->data != NULL)
+								if (p_buf != NULL && p_buf->data != NULL) {
 									free(p_buf->data); 
-								if (p_buf != NULL)
+									p_buf->data = NULL;
+								}
+								if (p_buf != NULL) {
 									free(p_buf); 
+									p_buf = NULL;
+								}
 							}
 					}
 					else if (file_req.source == F_NOW_SOURCE)
@@ -1273,8 +1331,11 @@ void task_file_effect()
 							}
 						}
 						
-						if (bufA != NULL)
+						if (bufA != NULL) 
+						{
 							free(bufA);
+							bufA = NULL;
+						}
 						
 						if (fd_tmp >= 0) 
 						{
@@ -1296,10 +1357,14 @@ void task_file_effect()
 						if (p_buf != NULL)
 							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 							{
-								if (p_buf != NULL && p_buf->data != NULL)
+								if (p_buf != NULL && p_buf->data != NULL) {
 									free(p_buf->data); 
-								if (p_buf != NULL)
+									p_buf->data = NULL; 
+								}
+								if (p_buf != NULL) {
 									free(p_buf); 
+									p_buf = NULL;
+								}
 							}
 						
 						// send effect to other node
@@ -1331,10 +1396,14 @@ void task_file_effect()
 						if (p_buf != NULL)
 							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 							{
-								if (p_buf != NULL && p_buf->data != NULL)
+								if (p_buf != NULL && p_buf->data != NULL) {
 									free(p_buf->data); 
-								if (p_buf != NULL)
+									p_buf->data = NULL;
+								}
+								if (p_buf != NULL) {
 									free(p_buf); 
+									p_buf = NULL;
+								}
 							}
 					}
 					else if (file_req.source == F_NOW_SOURCE)
@@ -1399,10 +1468,13 @@ void task_send_tcp()
 		
 		if (SLT.server.send.sent == true)
 		{
-			if (tcp_send_buf != NULL && tcp_send_buf->data != NULL)
+			if (tcp_send_buf != NULL && tcp_send_buf->data != NULL) {
 				free(tcp_send_buf->data);
-			if (tcp_send_buf != NULL)
+				tcp_send_buf->data = NULL;
+			}
+			if (tcp_send_buf != NULL) {
 				free(tcp_send_buf);
+			}
 			
 			tcp_send_buf = NULL;
 		}
@@ -1454,8 +1526,19 @@ void task_update_effect_node()
 						read(fd, &id_node, sizeof(id_node));
 						
 						
-						if (id_node == SLT.espnow.my_id)
+						if (id_node == SLT.espnow.my_id) 
+						{
+							
+							nvs_handle handle; 
+							if (nvs_open("offset_data_is_master", NVS_READWRITE, &handle) == ESP_OK)
+							{
+								
+								nvs_set_i32(handle, "offset", offset_start_node[i] + sizeof(id_node)); 
+								nvs_close(handle);
+								
+							}
 							continue;
+						}
 						
 						
 						/** send open file request to id_node */
@@ -1570,8 +1653,10 @@ void task_update_effect_node()
 											tot_size_write_node -= tot_byte_read;
 											packet_number++;
 											
-											if (buf != NULL)
+											if (buf != NULL) {
 												free(buf);
+												buf = NULL;
+											}
 										}
 										uint32_t lastick = xTaskGetTickCount();
 										while (xTaskGetTickCount() - lastick < pdMS_TO_TICKS(4000))
@@ -1629,12 +1714,18 @@ void task_update_effect_node()
 																if (write_q.buf.data != NULL && write_q.buf.tot_byte > 0)
 																	xQueueSend(xNowSend, &write_q, portMAX_DELAY);
 																
-																if (buf != NULL)
+																if (buf != NULL) {
 																	free(buf);
+																	buf = NULL;
+																}
 														
 															}
 														}
-														free(resend_q.request);
+														if (resend_q.request != NULL) 
+														{
+															free(resend_q.request);
+															resend_q.request = NULL;
+														}
 													}
 												}
 												else if(SLT.espnow.state_return == NOW_ACK)
@@ -1674,7 +1765,9 @@ void task_update_effect_node()
 void task_make_effect()
 {
 	
-	uint8_t *state_current_of_gr = NULL;
+	uint16_t *state_current_of_gr = NULL;
+	uint8_t *time_update_state_of_gr = NULL;
+	uint32_t *last_time_update_state_of_gr = NULL;
 	
 	uint8_t duties[MAX_NUM_CHANNEL]; memset(duties, 0, sizeof(duties));
 	
@@ -1700,12 +1793,32 @@ void task_make_effect()
 	{
 		if (xSemaphoreTake(xLoadEffect, 0) == pdTRUE)
 		{
+			
 			int fd = open(PATH_EFFECT, O_RDWR | O_CREAT, 0666);
 			
 			if (fd >= 0)
 			{
 				
-				lseek(fd, 0, SEEK_SET);
+				if (is_same_macadrr(SLT.espnow.gw_peer.mac, SLT.wifi.ap_macaddr) == true
+			    && SLT.espnow.gw_peer.id == SLT.espnow.my_id)
+				{
+					
+					nvs_handle handle; 
+					if (nvs_open("offset_data_is_master", NVS_READWRITE, &handle) == ESP_OK)
+					{
+						nvs_get_i32(handle,
+							"offset",
+							&SLT.offset_data_is_master); 
+						nvs_close(handle);
+								
+					}
+					lseek(fd, SLT.offset_data_is_master, SEEK_SET);
+				}
+				else
+				{
+					lseek(fd, 0, SEEK_SET);
+				}
+				
 				
 				/** brightness ; speed ; number of group */
 				read(fd, &SLT.effMana.brNess, sizeof(SLT.effMana.brNess));
@@ -1762,6 +1875,36 @@ void task_make_effect()
 				close(fd);
 				
 				data_available = true;
+				
+				if (state_current_of_gr != NULL) 
+				{
+					free(state_current_of_gr);
+					state_current_of_gr = NULL;
+				}
+				state_current_of_gr = malloc(sizeof(uint16_t) * SLT.effMana.numGroup);
+				
+				if (time_update_state_of_gr != NULL) 
+				{
+					free(time_update_state_of_gr);	
+					time_update_state_of_gr = NULL;
+				}
+				time_update_state_of_gr = malloc(sizeof(uint8_t) * SLT.effMana.numGroup);
+				
+				if (last_time_update_state_of_gr != NULL)
+				{
+					free(last_time_update_state_of_gr);
+					last_time_update_state_of_gr = NULL;
+				}
+				last_time_update_state_of_gr = malloc(sizeof(uint32_t) * SLT.effMana.numGroup);
+				
+				/** start from state 0 for all group */
+				for (int i = 0; i < SLT.effMana.numGroup; i++)
+				{
+					state_current_of_gr[i] = 0;
+					time_update_state_of_gr[i] = SLT.effMana.p_group[i].p_timExistOfSta[0];
+					last_time_update_state_of_gr[i] = xTaskGetTickCount();
+				}
+				
 			}
 			
 		}
@@ -1778,16 +1921,58 @@ void task_make_effect()
 		
 		if (data_available == true)
 		{
+			bool new_pwm_setting = false;
+			
+			/** update by request can overwrite update by over time */
+			
+			// update state over time
+			if (SLT.effMana.mode == EFF_ASYNCHRONOUS)
+			{
+
+				for (int i = 0; i < SLT.effMana.numGroup; i++)
+				{
+					if (xTaskGetTickCount() - last_time_update_state_of_gr[i] > pdMS_TO_TICKS(time_update_state_of_gr[i] * UNIT_OF_TIME_EXIST)) 
+					{
+		
+						new_pwm_setting = true;
+							
+							
+						uint16_t index_state_next = (state_current_of_gr[i] + 1) % SLT.effMana.p_group[i].numState;
+						for (int j = 0; j < SLT.effMana.p_group[i].numObject; j++)
+						{
+							for (int k = 0; k < SLT.effMana.p_group[i].p_object[j].numPin; k++)
+							{
+								uint8_t index_channel = SLT.effMana.p_group[i].p_object[j].p_pin[k];
+								duties[index_channel] = SLT.effMana.p_group[i].p_object[j].brNessofState[index_state_next];
+							}
+						}
+						state_current_of_gr[i] = index_state_next;
+						last_time_update_state_of_gr[i] = xTaskGetTickCount();
+						time_update_state_of_gr[i] = SLT.effMana.p_group[i].p_timExistOfSta[index_state_next];
+					}
+				}
+			}
+			else if (SLT.effMana.mode == EFF_SYNCHRONOUS)
+			{
+
+			}
+			
 			// update state for requested groups
 			
 			if (new_request == true)
 			{
+				new_pwm_setting = true;
+				
+				
 				for (int i = 0; i < eff_req_tmp.number_of_group; i++)
 				{
+					
 					uint8_t index_group = eff_req_tmp.gproup_number[i];
 					uint16_t state_number_of_group = eff_req_tmp.state_number[i];
 						
-					
+					state_current_of_gr[index_group] = state_number_of_group;
+					time_update_state_of_gr[index_group] = SLT.effMana.p_group[index_group].p_timExistOfSta[state_number_of_group];
+						
 					for (int j = 0; j < SLT.effMana.p_group[index_group].numObject; j++)
 					{
 						uint16_t state_number_of_object = state_number_of_group;
@@ -1798,57 +1983,18 @@ void task_make_effect()
 							duties[index_channel] = SLT.effMana.p_group[index_group].p_object[j].brNessofState[state_number_of_object];
 						}
 					}
+					
+					state_current_of_gr[index_group] = state_number_of_group;
+					last_time_update_state_of_gr[index_group] = xTaskGetTickCount();
+					time_update_state_of_gr[index_group] = SLT.effMana.p_group[index_group].p_timExistOfSta[state_number_of_group];
 				}				
 				
 			}
 			
-			if (SLT.effMana.mode == EFF_SYNCHRONOUS)
-			{
-				if (new_request == true)
-				{
-					set_duties_pwm(&SLT.Pwm, duties, sizeof(duties));
-				}
-			}
-			else if (SLT.effMana.mode == EFF_ASYNCHRONOUS)
-			{
-				if (new_request == true)
-				{
-					set_duties_pwm(&SLT.Pwm, duties, sizeof(duties));
-				}
-			}
+			if (new_pwm_setting == true) 
+				set_duties_pwm(&SLT.Pwm, duties, sizeof(duties));
+			
 		}
-		
-		
-		
-		
-//		if (loaded_effect == true)
-//		{
-//			// run effect
-//			for (int i = 0; i < 3; i++)
-//			{
-//				uint8_t duty[MAX_NUM_CHANNEL]; memset(duty, 0, sizeof(duty));
-//				duty[0] = 255; duty[2] = 255;
-//			
-//				if (i == 0)
-//					duty[0] = 0;
-//				else if (i == 1)
-//					duty[2] = 0;
-//				else 
-//					duty[7] = 255;
-//			
-//				set_duties_pwm(&SLT.Pwm, duty, sizeof(duty));
-//				vTaskDelay(pdMS_TO_TICKS(500));
-//			
-//			}			
-//		}
-//		else
-//		{
-//			uint8_t duty[MAX_NUM_CHANNEL]; memset(duty, 0, sizeof(duty));
-//			duty[0] = 255; duty[2] = 255;
-//			set_duties_pwm(&SLT.Pwm, duty, sizeof(duty));
-//			vTaskDelay(pdMS_TO_TICKS(500));
-//		}
-
 		
 		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
 		

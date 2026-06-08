@@ -19,6 +19,9 @@ typedef struct
 	effect_manage_t effMana; 
 	file_mana_t eff_file;
 	
+	int32_t offset_data_is_master;			/**< when this esp is master, it will store effect file that include effect of all esp ; We will take the data directly from this file. */
+	
+	
 } Object;
 
 extern Object SLT; 
