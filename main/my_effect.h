@@ -14,8 +14,7 @@
 #include "esp_log.h"
 #include "esp_now_config.h"
 
-#define PATH_EFFECT "/spiffs/effect.bin"
-#define PATH_EFFECT_TMP "/spiffs/effect_tmp.bin"
+
 
 #define MAX_NUM_CHANNEL 8
 

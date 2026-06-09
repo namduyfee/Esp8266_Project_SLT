@@ -289,7 +289,7 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 		}
 		
 		if (eff.cmd != F_NONE)
-			xQueueSendToBack(xEffLoadf, &eff, pdMS_TO_TICKS(4000));
+			xQueueSendToBack(xTcpLoadf, &eff, pdMS_TO_TICKS(4000));
 	}
 	
 	
@@ -387,7 +387,12 @@ tcp_buf_t* tcp_make_ret(tcp_command_t ret_cmd, void* data, uint32_t byte_data)
 		return NULL;
 	
 	uint8_t header[TCP_LEN_HEADER_RET] = {'T', 'C', 'P'};
-	header[3] = (uint8_t)ret_cmd; 			
+	
+	if (ret_cmd == TCP_ACK)
+		header[3] = 'Y';
+	else header[3] = 'N';
+	
+	//header[3] = (uint8_t)ret_cmd; 			
 	
 	memcpy(retCmd, header, TCP_LEN_HEADER_RET); 
 				

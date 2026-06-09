@@ -15,12 +15,22 @@
 #include "nvs_flash.h"
 #include "esp_spiffs.h"
 
+
+#define PATH_EFFECT "/spiffs/effect.bin"
+#define PATH_EFFECT_TMP "/spiffs/effect_tmp.bin"
+
+#define PATH_TCP_FILE "/spiffs/tcp.bin"
+#define PATH_TCP_FILE_TMP "/spiffs/tcp_tmp.bin"
+
+
+
 #define POS_CONTINUE -1
 #define REMAINING -1
 
 typedef enum
 {
-	F_TCP_SOURCE = 0,
+	F_NONE_SOURCE = 0,
+	F_TCP_SOURCE,
 	F_NOW_SOURCE
 } file_source_req;
 
