@@ -18,8 +18,7 @@
 
 #define MAX_NUM_CHANNEL 8
 
-#define MAX_OJECT_FOR_A_NODE MAX_NUM_CHANNEL
-#define MAX_NUM_OF_GROUP 8
+#define MAX_NUM_OF_GROUP 8 
 
 #define UNIT_OF_TIME_EXIST	100 // 1 time exist = 100 ms
 
@@ -41,7 +40,8 @@ typedef struct
 	uint16_t numState;		/**< number of states of this group */
 	uint8_t* p_timExistOfSta;	/**< time of each state, total number of elements = numState */
 	uint8_t numObject;		/**< number of objects of this group */
-	object_t p_object[MAX_OJECT_FOR_A_NODE];		/**< total number of elements = numObject */
+	object_t *p_object;		/**< total number of elements = numObject */
+	uint8_t *id_object;
 } group_t;
 
 typedef struct
@@ -51,7 +51,8 @@ typedef struct
 	uint8_t numGroup;		/**< number of Group */
 	uint32_t offStartGr[MAX_NUM_OF_GROUP];	/**< list of offset start of groups, total number of elements = numGroup */
 	uint32_t totByteGr[MAX_NUM_OF_GROUP];	/**< list total byte of groups */
-	group_t p_group[MAX_NUM_OF_GROUP];		/**< pointer to groups */
+	group_t p_group[MAX_NUM_OF_GROUP];		/**< pointer to groups */	
+	uint8_t id_group[MAX_NUM_OF_GROUP];	/**< id group, that store index of groups */
 	
 	effect_mode_t mode;
 	
@@ -62,8 +63,8 @@ typedef struct
 	effect_mode_t mode;
 	
 	uint8_t number_of_group;	/** number of group want to request */
-	uint8_t *gproup_number;		/**< group number list want to run */
-	uint16_t *state_number;		/** state number of group list want to run */
+	uint8_t *gproup_request;		/**< group number list want to run */
+	uint16_t *state;		/** state number of group list want to run */
 
 } effect_request_t;
 
