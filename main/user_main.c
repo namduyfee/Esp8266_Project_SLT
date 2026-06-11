@@ -13,7 +13,7 @@ void task_select_master();
 void task_send_tcp();
 void task_update_effect_node(); 
 void task_make_effect();
-
+void task_send_mode_eff();
 
 Object SLT = {
 	.Pwm = {
@@ -150,6 +150,9 @@ void app_main(void) {
 	xTaskCreate(task_update_effect_node, "task_update_effect_node", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 	xTaskCreate(task_make_effect, "task_make_effect", MIN_SIZE_OP_FILE, NULL, 4, NULL);
+	
+	xTaskCreate(task_send_mode_eff, "task_send_mode_eff", 1024, NULL, 4, NULL);
+	
 	
 	
 }
@@ -2272,7 +2275,7 @@ void task_make_effect()
 			}
 			else if (SLT.effMana.mode == EFF_SYNCHRONOUS)
 			{
-
+				
 			}
 			
 			// update state for requested groups
@@ -2334,3 +2337,54 @@ void task_make_effect()
 	}
 }
 
+void task_send_mode_eff()
+{
+	while (1)
+	{
+		
+		if (gpio_get_level(BUT_ASYNCH) == 0)   
+		{
+			int count = 0;
+			
+			while (gpio_get_level(BUT_ASYNCH) == 0)
+			{
+				vTaskDelay(pdMS_TO_TICKS(20));
+				
+				if (count < 100) {
+					count++;
+				}
+			}
+			
+			if (count >= 100)
+			{
+				// send request asynch
+				
+			}
+			
+		}
+		
+		if (gpio_get_level(BUT_SYNCH) == 0)   
+		{
+			int count = 0;
+			
+			while (gpio_get_level(BUT_SYNCH) == 0)
+			{
+				vTaskDelay(pdMS_TO_TICKS(20));
+				
+				if (count < 100) {
+					count++;
+				}
+			}
+			
+			if (count >= 100)
+			{
+				// send request synch
+				
+			}
+			
+		}
+		
+		
+		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
+	}
+}
