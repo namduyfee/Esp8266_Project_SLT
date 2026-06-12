@@ -5,7 +5,7 @@ void config_input_pullup_gpio(void)
 {
 	
 	uint32_t tem_pin_bit_mask = 0;
-	tem_pin_bit_mask = (1UL << BUT_SEL_MASTER) | (1UL << BUT_SYNCH) | (1UL << BUT_ASYNCH);
+	tem_pin_bit_mask = (1UL << BUT_SEL_MASTER) | (1UL << BUT_SYNCH_ASYN);
 	
 	gpio_config_t io_conf = {
 			

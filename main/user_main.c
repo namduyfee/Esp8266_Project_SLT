@@ -32,7 +32,7 @@ Object SLT = {
 	},
 	
 	.espnow = {
-
+		.gw_peer.mac = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 		.cnt_id_added = 0,
 		.my_id = 2,
 		.mana_recv_wrf_mess = {
@@ -41,7 +41,7 @@ Object SLT = {
 		.tot_packet = 0,
 		.offset_st = 0,
 		.tot_byte = 0		
-
+		
 	},
 	},
 	.server = {
@@ -152,8 +152,6 @@ void app_main(void) {
 	xTaskCreate(task_make_effect, "task_make_effect", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 	xTaskCreate(task_send_mode_eff, "task_send_mode_eff", 1024, NULL, 4, NULL);
-	
-	
 	
 }
 
@@ -721,10 +719,28 @@ void task_esp_now_recv()
 					}
 					else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_EFF_ASYNC)
 					{
+						effect_request_t eff_req_tmp;
+						eff_req_tmp.mode = EFF_ASYNCHRONOUS; 
+						eff_req_tmp.number_of_group = espnow_recv.buf.data[NOW_INDEX_CMD + 1];
+						
+						memcpy(eff_req_tmp.gproup_request, &espnow_recv.buf.data[NOW_INDEX_CMD + 2], eff_req_tmp.number_of_group);
+						
+						memcpy(eff_req_tmp.state, &espnow_recv.buf.data[NOW_INDEX_CMD + 2 + eff_req_tmp.number_of_group], eff_req_tmp.number_of_group);
+						
+						xQueueSendToBack(xEffRequest, &eff_req_tmp, portMAX_DELAY);
 						
 					}
 					else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_EFF_SYNC)
 					{
+						effect_request_t eff_req_tmp;
+						eff_req_tmp.mode = EFF_SYNCHRONOUS; 
+						eff_req_tmp.number_of_group = espnow_recv.buf.data[NOW_INDEX_CMD + 1];
+						
+						memcpy(eff_req_tmp.gproup_request, &espnow_recv.buf.data[NOW_INDEX_CMD + 2], eff_req_tmp.number_of_group);
+						
+						memcpy(eff_req_tmp.state, &espnow_recv.buf.data[NOW_INDEX_CMD + 2 + eff_req_tmp.number_of_group], eff_req_tmp.number_of_group);
+						
+						xQueueSendToBack(xEffRequest, &eff_req_tmp, portMAX_DELAY);
 						
 					}
 					else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_ACK)
@@ -2282,8 +2298,6 @@ void task_make_effect()
 			
 			if (new_request == true)
 			{
-				new_pwm_setting = true;
-				
 				
 				for (int i = 0; i < eff_req_tmp.number_of_group; i++)
 				{
@@ -2309,7 +2323,13 @@ void task_make_effect()
 					
 					
 					uint16_t state_number_of_group = eff_req_tmp.state[i];
+					
+					if (state_number_of_group == state_current_of_gr[group_index])
+						continue;
+					
 						
+					new_pwm_setting = true;
+					
 					for (int j = 0; j < SLT.effMana.p_group[group_index].numObject; j++)
 					{
 						uint16_t state_number_of_object = state_number_of_group;
@@ -2339,51 +2359,102 @@ void task_make_effect()
 
 void task_send_mode_eff()
 {
+	int8_t mode = -1; 
+	uint8_t state_tmp = 0;
+	
 	while (1)
 	{
 		
-		if (gpio_get_level(BUT_ASYNCH) == 0)   
+		if (is_same_macadrr(SLT.espnow.gw_peer.mac, SLT.wifi.ap_macaddr) == true
+			&& SLT.espnow.gw_peer.id == SLT.espnow.my_id)
 		{
-			int count = 0;
-			
-			while (gpio_get_level(BUT_ASYNCH) == 0)
+			if (gpio_get_level(BUT_SYNCH_ASYN) == 0)   
 			{
-				vTaskDelay(pdMS_TO_TICKS(20));
+				int count = 0;
+			
+				while (gpio_get_level(BUT_SYNCH_ASYN) == 0)
+				{
+					vTaskDelay(pdMS_TO_TICKS(20));
 				
-				if (count < 100) {
-					count++;
+					if (count < 100) {
+						count++;
+					}
 				}
-			}
 			
-			if (count >= 100)
-			{
-				// send request asynch
+				if (count >= 100)
+				{
 				
-			}
-			
-		}
-		
-		if (gpio_get_level(BUT_SYNCH) == 0)   
-		{
-			int count = 0;
-			
-			while (gpio_get_level(BUT_SYNCH) == 0)
-			{
-				vTaskDelay(pdMS_TO_TICKS(20));
-				
-				if (count < 100) {
-					count++;
+					// send request asynch
+					if (mode == -1 || mode == EFF_ASYNCHRONOUS)
+						mode = EFF_SYNCHRONOUS;
+					else if (mode == EFF_SYNCHRONOUS)
+						mode = EFF_ASYNCHRONOUS; 
 				}
-			}
 			
-			if (count >= 100)
-			{
-				// send request synch
-				
 			}
-			
-		}
 		
+		
+			if (mode == EFF_ASYNCHRONOUS)
+			{
+				for (int i = 0; i < SLT.espnow.cnt_id_added; i++)
+				{
+					
+					uint8_t payload[3] = {1, 0, 0};
+							
+					espnow_send_queue_t send_q;
+					send_q.dest_id = SLT.espnow.peer_list[i].id;
+					send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_EFF_ASYNC); 
+					if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
+						xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+				}
+			
+				effect_request_t eff_req_tmp;
+				eff_req_tmp.mode = EFF_ASYNCHRONOUS; 
+				
+				eff_req_tmp.number_of_group = 1;
+				
+				eff_req_tmp.gproup_request[0] = 0;		
+	
+				eff_req_tmp.state[0] = 0;		
+						
+				xQueueSendToBack(xEffRequest, &eff_req_tmp, portMAX_DELAY);
+				
+				mode = -1;
+			
+			}
+			else if (mode == EFF_SYNCHRONOUS)
+			{
+			
+				for (int i = 0; i < SLT.espnow.cnt_id_added; i++)
+				{
+					
+					uint8_t payload[3] = {1, 0, state_tmp};
+							
+					espnow_send_queue_t send_q;
+					send_q.dest_id = SLT.espnow.peer_list[i].id;
+					send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_EFF_SYNC); 
+					if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
+						xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+				}
+				
+				effect_request_t eff_req_tmp;
+				eff_req_tmp.mode = EFF_SYNCHRONOUS; 
+				
+				eff_req_tmp.number_of_group = 1;
+				
+				eff_req_tmp.gproup_request[0] = 0;		
+	
+				eff_req_tmp.state[0] = state_tmp;		
+						
+				xQueueSendToBack(xEffRequest, &eff_req_tmp, portMAX_DELAY);
+				
+				
+				vTaskDelay(pdMS_TO_TICKS(500));
+				state_tmp = (state_tmp + 1) % 3;
+			
+			}
+		}
+
 		
 		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
 	}

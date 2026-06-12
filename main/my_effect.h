@@ -63,8 +63,8 @@ typedef struct
 	effect_mode_t mode;
 	
 	uint8_t number_of_group;	/** number of group want to request */
-	uint8_t *gproup_request;		/**< group number list want to run */
-	uint16_t *state;		/** state number of group list want to run */
+	uint8_t gproup_request[MAX_NUM_OF_GROUP];		/**< group number list want to run */
+	uint16_t state[MAX_NUM_OF_GROUP];		/** state number of group list want to run */
 
 } effect_request_t;
 
