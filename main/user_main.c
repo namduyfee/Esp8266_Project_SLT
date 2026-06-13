@@ -170,6 +170,13 @@ void app_main(void) {
 void task_select_master()
 {
 	
+	uint32_t last_time_brc = xTaskGetTickCount();
+	uint32_t last_time_new_brc = xTaskGetTickCount();
+	
+	bool new_brc = false;
+	
+	bool first_brc = true; 
+	
 	while (1)
 	{
 		if(gpio_get_level(BUT_SEL_MASTER) == PRES_SEL_MASTER)   
@@ -188,8 +195,6 @@ void task_select_master()
 			if (count >= 100)
 			{
 				/* handle when button is pressed */
-				bool can_brc_espnow = false;
-				
 				if (xSemaphoreTake(xNowPeersMana, portMAX_DELAY) == pdPASS)
 				{
 					nvs_handle handle; 
@@ -252,7 +257,10 @@ void task_select_master()
 							
 							init_espnow();
 							
-							can_brc_espnow = true; 
+							new_brc = true;
+							last_time_new_brc = xTaskGetTickCount();
+							first_brc = true;
+							
 						}
 						
 						nvs_close(handle); 
@@ -260,20 +268,55 @@ void task_select_master()
 					xSemaphoreGive(xNowPeersMana);
 				}
 				
-				if (can_brc_espnow == true)
+			}
+		}		
+		// send broadcast 
+		if (is_same_macadrr(SLT.espnow.gw_peer.mac, SLT.wifi.ap_macaddr) == true
+			&& SLT.espnow.gw_peer.id == SLT.espnow.my_id)
+		{
+			if (first_brc == true || (xTaskGetTickCount() - last_time_brc > pdMS_TO_TICKS(700)) )
+			{
+
+				
+				
+				if (new_brc == true)
 				{
-					/** send request broadcast */
-					uint8_t payload = SLT.espnow.my_id; 
+					if (xTaskGetTickCount() - last_time_new_brc > pdMS_TO_TICKS(5000))
+					{
+						new_brc = false;
+					}
+					
+					/** send request broadcast new */
+					uint8_t payload[2] = {BROADCAST_NEW, SLT.espnow.my_id}; 
 							
 					espnow_send_queue_t send_q; 
 					send_q.dest_id = NOW_ID_BRC;
-					send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_BRC); 
+					send_q.tmout_ms = 300;
+					send_q .buf = espnow_make_frame_send(payload, sizeof(payload), NOW_BRC); 
 					if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
-						xQueueSend(xNowSend, &send_q, portMAX_DELAY);		
+						xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+				}
+				else
+				{
+					/** send request broadcast old */
+					uint8_t payload[2] = {BROADCAST_OLD, SLT.espnow.my_id}; 
+							
+					espnow_send_queue_t send_q; 
+					send_q.dest_id = NOW_ID_BRC;
+					send_q.tmout_ms = 300;
+					send_q .buf = espnow_make_frame_send(payload, sizeof(payload), NOW_BRC); 
+					if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
+						xQueueSend(xNowSend, &send_q, portMAX_DELAY);
 				}
 				
+				first_brc = false;
+				last_time_brc = xTaskGetTickCount();
+				
+				
 			}
-		}		
+			
+		}
+		
 		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
 	}
 }
@@ -859,9 +902,12 @@ void task_esp_now_send()
 										can_break = true;
 								}
 							}
-							vTaskDelay(pdMS_TO_TICKS(10));
+							
 							if (can_break)
 								break;
+							
+							vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
+
 						}
 					}
 				}
@@ -2387,8 +2433,11 @@ void task_send_mode_eff()
 					// send request asynch
 					if (mode == -1 || mode == EFF_ASYNCHRONOUS)
 						mode = EFF_SYNCHRONOUS;
-					else if (mode == EFF_SYNCHRONOUS)
+					else if (mode == EFF_SYNCHRONOUS) 
+					{
+						state_tmp = 0;
 						mode = EFF_ASYNCHRONOUS; 
+					}
 				}
 			
 			}
@@ -2403,6 +2452,7 @@ void task_send_mode_eff()
 							
 					espnow_send_queue_t send_q;
 					send_q.dest_id = SLT.espnow.peer_list[i].id;
+					send_q.tmout_ms = 500;
 					send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_EFF_ASYNC); 
 					if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
 						xQueueSend(xNowSend, &send_q, portMAX_DELAY);
@@ -2432,6 +2482,7 @@ void task_send_mode_eff()
 							
 					espnow_send_queue_t send_q;
 					send_q.dest_id = SLT.espnow.peer_list[i].id;
+					send_q.tmout_ms = 500;
 					send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_EFF_SYNC); 
 					if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
 						xQueueSend(xNowSend, &send_q, portMAX_DELAY);
@@ -2448,9 +2499,9 @@ void task_send_mode_eff()
 						
 				xQueueSendToBack(xEffRequest, &eff_req_tmp, portMAX_DELAY);
 				
-				
-				vTaskDelay(pdMS_TO_TICKS(500));
 				state_tmp = (state_tmp + 1) % 3;
+				vTaskDelay(pdMS_TO_TICKS(300));
+				
 			
 			}
 		}

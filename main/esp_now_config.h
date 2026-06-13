@@ -41,6 +41,12 @@
 #define NOW_SZOF_OFFSET 4
 #define NOW_SZOF_PACKET_NUM 4
 
+typedef enum
+{
+	/** when press slect master button, esp send BROADCAST_NEW in 5s. afterthat it send BROADCAST_OLD */
+	BROADCAST_NEW = 0,
+	BROADCAST_OLD
+} mode_broadcast_t;
 /** CMD size is use with 1byte not 4byte that default of enum */
 typedef enum
 {
