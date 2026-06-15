@@ -18,7 +18,6 @@ typedef struct
 	wifi_t wifi;
 	effect_manage_t effMana; 
 	
-	
 } Object;
 
 extern Object SLT; 

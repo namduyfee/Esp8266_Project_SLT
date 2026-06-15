@@ -16,7 +16,6 @@
 #include "esp_now.h"
 #include "my_tcpip.h"
 
-#define TIME_BRC	5000
 #define MAX_PEER 20
 
 #define NOW_ID_BRC (0xFF)
@@ -130,6 +129,8 @@ typedef struct My_Esp_Now
 		uint32_t tot_byte;
 		
 	} mana_recv_wrf_mess;
+	
+	bool brc_new;
 	
 } My_Esp_Now_Typedef;
 
