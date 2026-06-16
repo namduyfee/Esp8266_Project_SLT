@@ -32,7 +32,8 @@ Object SLT = {
 	},
 	
 	.espnow = {
-		.gw_peer.mac = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+		.gw_peer.id = 0xFE,
+		.gw_peer.mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		.cnt_id_added = 0,
 		.my_id = 2,
 		.mana_recv_wrf_mess = {
@@ -270,42 +271,26 @@ void task_select_master()
 		}		
 		// send broadcast 
 		if (is_same_macadrr(SLT.espnow.gw_peer.mac, SLT.wifi.ap_macaddr) == true
-			&& SLT.espnow.gw_peer.id == SLT.espnow.my_id)
+		    && SLT.espnow.gw_peer.id == SLT.espnow.my_id)
 		{
 			uint32_t time_loop = SLT.espnow.brc_new == true ? 500 : 1000;
 			
 			if (first_brc == true || (xTaskGetTickCount() - last_time_brc > pdMS_TO_TICKS(time_loop)))
 			{
 
+				
 				if (SLT.espnow.brc_new == true)
-				{
 					if (xTaskGetTickCount() - last_time_new_brc > pdMS_TO_TICKS(5000))
-					{
 						SLT.espnow.brc_new = false;
-					}
-					
-					/** send request broadcast new */
-					uint8_t payload[2] = {BROADCAST_NEW, SLT.espnow.my_id}; 
-							
-					espnow_send_queue_t send_q; 
-					send_q.dest_id = NOW_ID_BRC;
-					send_q.tmout_ms = 500;
-					send_q .buf = espnow_make_frame_send(payload, sizeof(payload), NOW_BRC); 
-					if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
-						xQueueSend(xNowSend, &send_q, portMAX_DELAY);
-				}
-				else
-				{
-					/** send request broadcast old */
-					uint8_t payload[2] = {BROADCAST_OLD, SLT.espnow.my_id}; 
-							
-					espnow_send_queue_t send_q; 
-					send_q.dest_id = NOW_ID_BRC;
-					send_q.tmout_ms = 500;
-					send_q .buf = espnow_make_frame_send(payload, sizeof(payload), NOW_BRC); 
-					if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
-						xQueueSend(xNowSend, &send_q, portMAX_DELAY);
-				}
+				
+				/** send request broadcast */
+				uint8_t payload = {SLT.espnow.my_id}; 
+				espnow_send_queue_t send_q; 
+				send_q.dest_id = NOW_ID_BRC;
+				send_q.tmout_ms = 500;
+				send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_BRC); 
+				if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
+					xQueueSend(xNowSend, &send_q, portMAX_DELAY);
 				
 				first_brc = false;
 				last_time_brc = xTaskGetTickCount();
@@ -359,19 +344,14 @@ void task_esp_now_recv()
 					 */
 					if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_BRC)
 					{
-						bool not_update = false;
 						
-						if (espnow_recv.buf.data[NOW_INDEX_CMD + 1] == BROADCAST_OLD)
-							if (SLT.espnow.brc_new == true)
-								not_update = true;
-
-						if (not_update == false)
+						if (SLT.espnow.brc_new != true)
 						{
 							if (is_same_macadrr(SLT.espnow.gw_peer.mac, espnow_recv.addr) != true
-									|| SLT.espnow.gw_peer.id != espnow_recv.buf.data[NOW_INDEX_CMD + 2])
+									|| SLT.espnow.gw_peer.id != espnow_recv.buf.data[NOW_INDEX_CMD + 1])
 							{
 								bool send_add_req_to_gw = false; 
-						
+								
 								if (xSemaphoreTake(xNowPeersMana, portMAX_DELAY) == pdPASS)
 								{
 									nvs_handle handle;
@@ -381,7 +361,7 @@ void task_esp_now_recv()
 										size_t size = sizeof(tm_gw_peer);
 								
 										memcpy(tm_gw_peer.mac, espnow_recv.addr, MAC_ADDR_LEN); 
-										tm_gw_peer.id = espnow_recv.buf.data[NOW_INDEX_CMD + 2]; 
+										tm_gw_peer.id = espnow_recv.buf.data[NOW_INDEX_CMD + 1]; 
 								
 										if (nvs_set_blob(handle, NVS_GW_PEER_INF, &tm_gw_peer, size) == ESP_OK)
 										{
@@ -417,7 +397,6 @@ void task_esp_now_recv()
 						
 								if (send_add_req_to_gw == true)
 								{
-
 									
 									/** send request add peer to gateway */
 									uint8_t payload = SLT.espnow.my_id; 
@@ -438,6 +417,7 @@ void task_esp_now_recv()
 					{
 						if (xSemaphoreTake(xNowPeersMana, portMAX_DELAY) == pdPASS)
 						{
+
 							espnow_add_peer(espnow_recv.addr, espnow_recv.buf.data[NOW_INDEX_PAYLOAD]);
 					
 							xSemaphoreGive(xNowPeersMana);

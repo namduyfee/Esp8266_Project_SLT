@@ -16,7 +16,8 @@ typedef struct
 	tcp_server_t server;
 	My_Esp_Now_Typedef espnow; 
 	wifi_t wifi;
-	effect_manage_t effMana; 
+	effect_manage_t effMana;
+	
 	
 } Object;
 
