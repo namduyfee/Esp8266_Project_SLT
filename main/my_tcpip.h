@@ -40,7 +40,10 @@ typedef enum
 	
 	TCP_RET_RDF,
 	TCP_END_RET_RDF,
-		
+	
+	TCP_EFF_SYNCH,
+	TCP_EFF_ASYNCH,
+	
 	TCP_ACK, 
 	TCP_NACK
 } tcp_command_t;

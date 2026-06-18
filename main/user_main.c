@@ -13,7 +13,7 @@ void task_select_master();
 void task_send_tcp();
 void task_update_effect_node(); 
 void task_make_effect();
-void task_send_mode_eff();
+void task_effect_synchr_asynchr();
 
 Object SLT = {
 	.Pwm = {
@@ -58,6 +58,7 @@ SemaphoreHandle_t xTcpSwitchBufSend;
 SemaphoreHandle_t xUpdateEffNode;
 SemaphoreHandle_t xNowSendDone; 
 SemaphoreHandle_t xNowReturnState;
+SemaphoreHandle_t xMasterManaEffGr;
 
 SemaphoreHandle_t xLoadEffect;
 
@@ -133,6 +134,9 @@ void app_main(void) {
 	xLoadEffect = xSemaphoreCreateBinary();
 	xSemaphoreGive(xLoadEffect);
 	
+	xMasterManaEffGr = xSemaphoreCreateBinary();
+	xSemaphoreTake(xMasterManaEffGr, 0); 
+	
 	/** Task creat */
 	my_init_project();
 	
@@ -152,7 +156,7 @@ void app_main(void) {
 	
 	xTaskCreate(task_make_effect, "task_make_effect", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
-	xTaskCreate(task_send_mode_eff, "task_send_mode_eff", 1024, NULL, 4, NULL);
+	xTaskCreate(task_effect_synchr_asynchr, "task_effect_synchr_asynchr", 1024, NULL, 4, NULL);
 	
 }
 
@@ -1420,13 +1424,13 @@ void task_file_effect()
 					fd = ret < 0 ?  open(PATH_EFFECT, O_RDWR | O_CREAT | O_TRUNC, 0666) : 
 									open(PATH_EFFECT, O_RDWR | O_CREAT, 0666);
 				}
-
+				
 				if (file_req.source == F_NOW_SOURCE)
 				{
 					uint8_t state = fd >= 0 ? NOW_ACK : NOW_NACK;
 					
 					uint8_t state_of_cmd = NOW_OPF;
-						
+					
 					espnow_send_queue_t state_q;
 					state_q.dest_id = SLT.espnow.gw_peer.id;
 					state_q.tmout_ms = 1000;
@@ -1787,6 +1791,14 @@ void task_update_effect_node()
 	uint32_t offset_start_node[MAX_PEER];	/**< array offset start in file of each node*/
 	uint32_t tot_size_node[MAX_PEER];		/**< total byte in file of each node */
 	
+	for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
+	{
+		
+		SLT.effMana.master_mana_gr[i].num_state_of_gr = 0;
+		SLT.effMana.master_mana_gr[i].timeExistOfSta = NULL;
+		
+	}
+	
 	while (1)
 	{
 		if (xSemaphoreTake(xUpdateEffNode, portMAX_DELAY) == pdPASS)
@@ -1799,6 +1811,19 @@ void task_update_effect_node()
 				if (fd >= 0)
 				{
 					
+					xSemaphoreTake(xMasterManaEffGr, portMAX_DELAY);
+					
+					
+					for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
+					{
+		
+						SLT.effMana.master_mana_gr[i].num_state_of_gr = 0;
+						if (SLT.effMana.master_mana_gr[i].timeExistOfSta != NULL)
+							free(SLT.effMana.master_mana_gr[i].timeExistOfSta);
+						SLT.effMana.master_mana_gr[i].timeExistOfSta = NULL;
+					}
+					
+					
 					// read number node
 					lseek(fd, 0, SEEK_SET); 
 					read(fd, &number_node, sizeof(number_node));
@@ -1810,10 +1835,46 @@ void task_update_effect_node()
 					
 					for (int i = 0; i < number_node; i++)	// datatype i = int, because i-- is can called in code
 					{
+						uint8_t id_node = 0;
 						
+						/** read infor group for master use to in synch mode */
+						lseek(fd,
+							offset_start_node[i] + sizeof(id_node) + sizeof(SLT.effMana.brNess) + sizeof(SLT.effMana.speedEf), SEEK_SET);
+						uint8_t num_of_gr = 0;
+						read(fd, &num_of_gr, sizeof(num_of_gr));
+						uint32_t *offset_gr = malloc(sizeof(uint32_t) * num_of_gr); 
+						read(fd, offset_gr, sizeof(uint32_t) * num_of_gr);
+						for (int j = 0; j < num_of_gr; j++)
+						{
+							lseek(fd, offset_gr[j], SEEK_SET);
+							int8_t id_gr = -1; 
+							read(fd, &id_gr, sizeof(id_gr));
+							
+							if (id_gr < 0)
+								continue;
+							
+							if (SLT.effMana.master_mana_gr[id_gr].timeExistOfSta != NULL)
+								continue;
+							
+							uint16_t num_of_state_gr = 0;
+							read(fd, &num_of_state_gr, sizeof(num_of_state_gr)); 
+							
+							SLT.effMana.master_mana_gr[id_gr].num_state_of_gr = num_of_state_gr;
+							
+							SLT.effMana.master_mana_gr[id_gr].timeExistOfSta = malloc(sizeof(uint8_t) * num_of_state_gr);
+							
+							read(fd, SLT.effMana.master_mana_gr[id_gr].timeExistOfSta, sizeof(uint8_t) * num_of_state_gr);
+							
+						}
+						
+						if (offset_gr != NULL)
+							free(offset_gr);
+						
+						
+						/** start send */
 						lseek(fd, offset_start_node[i], SEEK_SET);
 						
-						uint8_t id_node = 0;
+						
 						read(fd, &id_node, sizeof(id_node));
 						
 						
@@ -1936,7 +1997,7 @@ void task_update_effect_node()
 								write_st_q.buf = espnow_make_frame_send(payload_st_write, 8, NOW_ST_WRF);
 								if (write_st_q.buf.data != NULL && write_st_q.buf.tot_byte > 0)
 									xQueueSend(xNowSend, &write_st_q, portMAX_DELAY);
-							
+								
 								if (xSemaphoreTake(xNowReturnState, pdMS_TO_TICKS(3000)) == pdPASS)
 								{
 									if (SLT.espnow.state_return == NOW_ACK)
@@ -1954,7 +2015,7 @@ void task_update_effect_node()
 										uint32_t offset_write_packet[tot_packet_node];
 										uint32_t offset_read_packet[tot_packet_node];
 										uint32_t sizedata_packet[tot_packet_node];
-									
+										
 										while (tot_size_write_node > 0)
 										{
 											uint32_t tot_byte_read = max_byte_data < tot_size_write_node ? max_byte_data : 
@@ -2088,6 +2149,9 @@ void task_update_effect_node()
 					close(fd); 
 					fd = -1;
 					
+					SLT.effMana.update_master_mana_gr = true; 
+					
+					xSemaphoreGive(xMasterManaEffGr);
 				}
 			}
 		}
@@ -2383,9 +2447,9 @@ void task_make_effect()
 	}
 }
 
-void task_send_mode_eff()
+void task_effect_synchr_asynchr()
 {
-	int8_t mode = -1; 
+	int8_t mode = EFF_ASYNCHRONOUS; 
 	uint8_t state_tmp = 0;
 	
 	while (1)
@@ -2394,6 +2458,14 @@ void task_send_mode_eff()
 		if (is_same_macadrr(SLT.espnow.gw_peer.mac, SLT.wifi.ap_macaddr) == true
 			&& SLT.espnow.gw_peer.id == SLT.espnow.my_id)
 		{
+			
+			if (xSemaphoreTake(xMasterManaEffGr, portMAX_DELAY) == pdTRUE)
+			{
+				
+				
+				
+				xSemaphoreGive(xMasterManaEffGr); 
+			}
 			if (gpio_get_level(BUT_SYNCH_ASYN) == 0)   
 			{
 				int count = 0;

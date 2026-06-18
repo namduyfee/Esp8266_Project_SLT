@@ -35,6 +35,15 @@ typedef struct
 	uint8_t* brNessofState;			/**< brightness of object at each state, total number of elements = numState */
 } object_t;	
 
+/** struct is use by master to synchronized */
+typedef struct
+{
+	uint16_t num_state_of_gr;
+	
+	uint8_t *timeExistOfSta;
+	
+} eff_group_mana_t;
+
 typedef struct
 {
 	uint16_t numState;		/**< number of states of this group */
@@ -56,6 +65,9 @@ typedef struct
 	
 	effect_mode_t mode;
 	
+	eff_group_mana_t master_mana_gr[MAX_NUM_OF_GROUP];
+	bool update_master_mana_gr;
+	
 } effect_manage_t;
 
 typedef struct
@@ -67,5 +79,7 @@ typedef struct
 	uint16_t state[MAX_NUM_OF_GROUP];		/** state number of group list want to run */
 
 } effect_request_t;
+
+
 
 #endif
