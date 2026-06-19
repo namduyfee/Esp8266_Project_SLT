@@ -174,122 +174,136 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 	if (recv_buf.data[0] == 'T' && recv_buf.data[1] == 'C' && 
 	    recv_buf.data[2] == 'P')
 	{
+		if (recv_buf.data[3] == TCP_EFF_ASYNCH || recv_buf.data[3] == TCP_EFF_SYNCH)
+		{
+			
+			if (recv_buf.data[3] == TCP_EFF_SYNCH)
+				SLT.effMana.master_mode = EFF_SYNCHRONOUS;
+			else if(recv_buf.data[3] == TCP_EFF_ASYNCH)
+				SLT.effMana.master_mode = EFF_ASYNCHRONOUS;
+			
+			xSemaphoreGive(xMasterModeEff);
+			
+		}
+		else
+		{
+			file_request_t eff = {
+				.cmd = F_NONE,
+				.source = F_TCP_SOURCE
+			};
 		
-		file_request_t eff = {
-			.cmd = F_NONE,
-			.source = F_TCP_SOURCE
-		};
+			if (recv_buf.data[3] == TCP_OPF)
+			{
+				eff.cmd = F_OP; 
+			}
 		
-		if (recv_buf.data[3] == TCP_OPF)
-		{
-			eff.cmd = F_OP; 
-		}
-		
-		else if (recv_buf.data[3] == TCP_CLSF)
-		{
-			eff.cmd = F_CLS; 
-		}
-		else if (recv_buf.data[3] == TCP_DLTF)
-		{
-			eff.cmd = F_DLT; 
-		}		
-		else if (recv_buf.data[3] == TCP_RDF)
-		{
-			eff.cmd = F_RD;
-			
-			uint8_t index_offset = 4;
-			if (recv_buf.tot_byte >= (index_offset + 4))
+			else if (recv_buf.data[3] == TCP_CLSF)
 			{
-				eff.read.offset = (recv_buf.data[index_offset + 3] << 24) | 
-								  (recv_buf.data[index_offset + 2] << 16) | 
-								  (recv_buf.data[index_offset + 1] << 8)  | 
-								  (recv_buf.data[index_offset] << 0);			
+				eff.cmd = F_CLS; 
 			}
-			else 
-				eff.read.offset = 0; 	
-
-			uint8_t index_len = 8;
-			if (recv_buf.tot_byte >= (index_len + 4))
+			else if (recv_buf.data[3] == TCP_DLTF)
 			{
-				eff.read.tot_byte = (recv_buf.data[index_len + 3] << 24) | 
-							   (recv_buf.data[index_len + 2] << 16) | 
-							   (recv_buf.data[index_len + 1] << 8)  | 
-							   (recv_buf.data[index_len] << 0);	
-			}
-			else 
-				eff.read.tot_byte = 0;
-			
-		}
-		else if (recv_buf.data[3] == TCP_ST_WRF)
-		{
-			eff.cmd = F_ST_WR;
-				
-			uint8_t index_offset = 4;
-			if (recv_buf.tot_byte >= (index_offset + 4))
+				eff.cmd = F_DLT; 
+			}		
+			else if (recv_buf.data[3] == TCP_RDF)
 			{
-					
-				eff.write_start.offset =	(recv_buf.data[index_offset + 3] << 24) | 
-											(recv_buf.data[index_offset + 2] << 16) | 
-											(recv_buf.data[index_offset + 1] << 8)  | 
-											(recv_buf.data[index_offset] << 0);
-			}
-			else 
-				eff.write_start.offset = 0; 
+				eff.cmd = F_RD;
 			
-			
-			uint8_t index_tot_len = 8;
-			if (recv_buf.tot_byte >= (index_tot_len + 4))
-			{
-				eff.write_start.tot_byte = (recv_buf.data[index_tot_len + 3] << 24) | 
-										  (recv_buf.data[index_tot_len + 2] << 16) | 
-										  (recv_buf.data[index_tot_len + 1] << 8)  | 
-										  (recv_buf.data[index_tot_len] << 0);	
-			}
-			else 
-				eff.write_start.tot_byte = 0;
- 
-		}
-		else if (recv_buf.data[3] == TCP_WRF)
-		{
-			eff.cmd = F_WR;
-			
-			uint8_t index_offset = 4;	
-			if (recv_buf.tot_byte >= (index_offset + 4))
-			{
-				eff.write.offset = (recv_buf.data[index_offset + 3] << 24) | 
-								   (recv_buf.data[index_offset + 2] << 16) | 
-								   (recv_buf.data[index_offset + 1] << 8)  | 
-								   (recv_buf.data[index_offset] << 0);	
-			}
-			else 
-				eff.write.offset = 0;
-			
-			if (recv_buf.tot_byte > 8)
-			{
-				eff.write.buf.tot_byte = recv_buf.tot_byte - 8; 
-				eff.write.buf.data = malloc(sizeof(uint8_t) * eff.write.buf.tot_byte);
-				if (eff.write.buf.data != NULL)
+				uint8_t index_offset = 4;
+				if (recv_buf.tot_byte >= (index_offset + 4))
 				{
-					memcpy(eff.write.buf.data, (uint8_t*)recv_buf.data + 8, eff.write.buf.tot_byte); 
+					eff.read.offset = (recv_buf.data[index_offset + 3] << 24) | 
+									  (recv_buf.data[index_offset + 2] << 16) | 
+									  (recv_buf.data[index_offset + 1] << 8)  | 
+									  (recv_buf.data[index_offset] << 0);			
 				}
+				else 
+					eff.read.offset = 0; 	
+
+				uint8_t index_len = 8;
+				if (recv_buf.tot_byte >= (index_len + 4))
+				{
+					eff.read.tot_byte = (recv_buf.data[index_len + 3] << 24) | 
+								   (recv_buf.data[index_len + 2] << 16) | 
+								   (recv_buf.data[index_len + 1] << 8)  | 
+								   (recv_buf.data[index_len] << 0);	
+				}
+				else 
+					eff.read.tot_byte = 0;
+			
 			}
-			else
+			else if (recv_buf.data[3] == TCP_ST_WRF)
 			{
-				eff.write.buf.data = NULL; 
-				eff.write.buf.tot_byte = 0; 
+				eff.cmd = F_ST_WR;
+				
+				uint8_t index_offset = 4;
+				if (recv_buf.tot_byte >= (index_offset + 4))
+				{
+					
+					eff.write_start.offset =	(recv_buf.data[index_offset + 3] << 24) | 
+												(recv_buf.data[index_offset + 2] << 16) | 
+												(recv_buf.data[index_offset + 1] << 8)  | 
+												(recv_buf.data[index_offset] << 0);
+				}
+				else 
+					eff.write_start.offset = 0; 
+			
+			
+				uint8_t index_tot_len = 8;
+				if (recv_buf.tot_byte >= (index_tot_len + 4))
+				{
+					eff.write_start.tot_byte = (recv_buf.data[index_tot_len + 3] << 24) | 
+											  (recv_buf.data[index_tot_len + 2] << 16) | 
+											  (recv_buf.data[index_tot_len + 1] << 8)  | 
+											  (recv_buf.data[index_tot_len] << 0);	
+				}
+				else 
+					eff.write_start.tot_byte = 0;
+ 
 			}
+			else if (recv_buf.data[3] == TCP_WRF)
+			{
+				eff.cmd = F_WR;
 			
-		}
-		else if (recv_buf.data[3] == TCP_END_WRF)
-		{
+				uint8_t index_offset = 4;	
+				if (recv_buf.tot_byte >= (index_offset + 4))
+				{
+					eff.write.offset = (recv_buf.data[index_offset + 3] << 24) | 
+									   (recv_buf.data[index_offset + 2] << 16) | 
+									   (recv_buf.data[index_offset + 1] << 8)  | 
+									   (recv_buf.data[index_offset] << 0);	
+				}
+				else 
+					eff.write.offset = 0;
 			
-			eff.cmd = F_END_WR; 
-			eff.write_end.checksum = (((uint8_t*)recv_buf.data)[5] << 8)  | 
-									 (((uint8_t*)recv_buf.data)[4] << 0);
-		}
+				if (recv_buf.tot_byte > 8)
+				{
+					eff.write.buf.tot_byte = recv_buf.tot_byte - 8; 
+					eff.write.buf.data = malloc(sizeof(uint8_t) * eff.write.buf.tot_byte);
+					if (eff.write.buf.data != NULL)
+					{
+						memcpy(eff.write.buf.data, (uint8_t*)recv_buf.data + 8, eff.write.buf.tot_byte); 
+					}
+				}
+				else
+				{
+					eff.write.buf.data = NULL; 
+					eff.write.buf.tot_byte = 0; 
+				}
+			
+			}
+			else if (recv_buf.data[3] == TCP_END_WRF)
+			{
+			
+				eff.cmd = F_END_WR; 
+				eff.write_end.checksum = (((uint8_t*)recv_buf.data)[5] << 8)  | 
+										 (((uint8_t*)recv_buf.data)[4] << 0);
+			}
 		
-		if (eff.cmd != F_NONE)
-			xQueueSendToBack(xTcpLoadf, &eff, pdMS_TO_TICKS(4000));
+			if (eff.cmd != F_NONE)
+				xQueueSendToBack(xTcpLoadf, &eff, pdMS_TO_TICKS(4000));
+		}
+
 	}
 	
 	
