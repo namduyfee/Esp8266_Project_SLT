@@ -23,7 +23,6 @@
 #define PATH_TCP_FILE_TMP "/spiffs/tcp_tmp.bin"
 
 
-
 #define POS_CONTINUE -1
 #define REMAINING -1
 

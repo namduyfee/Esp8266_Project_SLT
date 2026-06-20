@@ -23,7 +23,11 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 	if (mac_addr == NULL || data == NULL || len <= 0) {
 		return;
 	}
-		
+	if (data[0] != 'N' || data[1] != 'O' || data[2] != 'W')
+	{
+		return; 
+	}	
+	
 	if (( (uint16_t)(data[len - 1] << 8) | data[len - 2]) == 
 	crc16_modbus(0xffff, (uint8_t*)data, len - NOW_SZOF_CRC))
 	{

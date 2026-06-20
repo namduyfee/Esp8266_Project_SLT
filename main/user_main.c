@@ -765,7 +765,7 @@ void task_esp_now_recv()
 						
 						memcpy(eff_req_tmp.gproup_request, &espnow_recv.buf.data[NOW_INDEX_CMD + 2], eff_req_tmp.number_of_group);
 						
-						memcpy(eff_req_tmp.state, &espnow_recv.buf.data[NOW_INDEX_CMD + 2 + eff_req_tmp.number_of_group], eff_req_tmp.number_of_group);
+						memcpy(eff_req_tmp.state, &espnow_recv.buf.data[NOW_INDEX_CMD + 2 + eff_req_tmp.number_of_group], eff_req_tmp.number_of_group  * sizeof(uint16_t));
 						
 						xQueueSendToBack(xEffRequest, &eff_req_tmp, portMAX_DELAY);
 						
@@ -778,7 +778,7 @@ void task_esp_now_recv()
 						
 						memcpy(eff_req_tmp.gproup_request, &espnow_recv.buf.data[NOW_INDEX_CMD + 2], eff_req_tmp.number_of_group);
 						
-						memcpy(eff_req_tmp.state, &espnow_recv.buf.data[NOW_INDEX_CMD + 2 + eff_req_tmp.number_of_group], eff_req_tmp.number_of_group);
+						memcpy(eff_req_tmp.state, &espnow_recv.buf.data[NOW_INDEX_CMD + 2 + eff_req_tmp.number_of_group], eff_req_tmp.number_of_group * sizeof(uint16_t));
 						
 						xQueueSendToBack(xEffRequest, &eff_req_tmp, portMAX_DELAY);
 						
@@ -1681,7 +1681,7 @@ void task_file_effect()
 							close(fd_tmp); 
 							fd_tmp = -100;
 						}
-				 				
+				 		
 						struct stat st;
 						int ret = stat(PATH_EFFECT_TMP, &st);
 						if (ret >= 0)
@@ -1798,14 +1798,7 @@ void task_update_effect_node()
 	uint32_t offset_start_node[MAX_PEER];	/**< array offset start in file of each node*/
 	uint32_t tot_size_node[MAX_PEER];		/**< total byte in file of each node */
 	
-	for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
-	{
-		
-		SLT.effMana.master_mana_gr[i].num_state_of_gr = 0;
-		SLT.effMana.master_mana_gr[i].timeExistOfSta = NULL;
-		
-	}
-	
+
 	while (1)
 	{
 		if (xSemaphoreTake(xUpdateEffNode, portMAX_DELAY) == pdPASS)
@@ -1820,17 +1813,6 @@ void task_update_effect_node()
 					
 					xSemaphoreTake(xMasterManaEffGr, portMAX_DELAY);
 					
-					
-					for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
-					{
-		
-						SLT.effMana.master_mana_gr[i].num_state_of_gr = 0;
-						if (SLT.effMana.master_mana_gr[i].timeExistOfSta != NULL)
-							free(SLT.effMana.master_mana_gr[i].timeExistOfSta);
-						SLT.effMana.master_mana_gr[i].timeExistOfSta = NULL;
-					}
-					
-					
 					// read number node
 					lseek(fd, 0, SEEK_SET); 
 					read(fd, &number_node, sizeof(number_node));
@@ -1839,44 +1821,38 @@ void task_update_effect_node()
 					// read array size node
 					read(fd, tot_size_node, sizeof(uint32_t) * number_node); 
 					
+					/** read infor for master mana effect */
+					for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
+					{
+		
+						SLT.effMana.master_mana_gr[i].num_state_of_gr = 0;
+						if (SLT.effMana.master_mana_gr[i].timeExistOfSta != NULL)
+							free(SLT.effMana.master_mana_gr[i].timeExistOfSta);
+						SLT.effMana.master_mana_gr[i].timeExistOfSta = NULL;
+					}
+			
+					lseek(fd, sizeof(number_node) + sizeof(uint32_t) * number_node + sizeof(uint32_t) * number_node, SEEK_SET); 
+			
+					uint8_t num_of_gr; 
+					read(fd, &num_of_gr, sizeof(num_of_gr)); 
+					for (int i = 0; i < num_of_gr; i++)
+					{
+						uint8_t id_gr;
+						read(fd, &id_gr, sizeof(id_gr)); 
+						uint16_t num_of_state_of_gr; 
+						read(fd, &num_of_state_of_gr, sizeof(num_of_state_of_gr)); 
+				
+						SLT.effMana.master_mana_gr[id_gr].num_state_of_gr = num_of_state_of_gr;
+						SLT.effMana.master_mana_gr[id_gr].timeExistOfSta = malloc(sizeof(uint8_t) * num_of_state_of_gr); 
+						read(fd, SLT.effMana.master_mana_gr[id_gr].timeExistOfSta, sizeof(uint8_t) * num_of_state_of_gr); 
+				
+					}
+					SLT.effMana.update_master_mana_gr = true;
 					
+					/** send effect to all node */
 					for (int i = 0; i < number_node; i++)	// datatype i = int, because i-- is can called in code
 					{
 						uint8_t id_node = 0;
-						
-						/** read infor group for master use to in synch mode */
-						lseek(fd,
-							offset_start_node[i] + sizeof(id_node) + sizeof(SLT.effMana.brNess) + sizeof(SLT.effMana.speedEf), SEEK_SET);
-						uint8_t num_of_gr = 0;
-						read(fd, &num_of_gr, sizeof(num_of_gr));
-						uint32_t *offset_gr = malloc(sizeof(uint32_t) * num_of_gr); 
-						read(fd, offset_gr, sizeof(uint32_t) * num_of_gr);
-						for (int j = 0; j < num_of_gr; j++)
-						{
-							lseek(fd, offset_start_node[i] + sizeof(id_node) + offset_gr[j], SEEK_SET);
-							int8_t id_gr = -1; 
-							read(fd, &id_gr, sizeof(id_gr));
-							
-							if (id_gr < 0)
-								continue;
-							
-							if (SLT.effMana.master_mana_gr[id_gr].timeExistOfSta != NULL)
-								continue;
-							
-							uint16_t num_of_state_gr = 0;
-							read(fd, &num_of_state_gr, sizeof(num_of_state_gr)); 
-							
-							SLT.effMana.master_mana_gr[id_gr].num_state_of_gr = num_of_state_gr;
-							
-							SLT.effMana.master_mana_gr[id_gr].timeExistOfSta = malloc(sizeof(uint8_t) * num_of_state_gr);
-							
-							read(fd, SLT.effMana.master_mana_gr[id_gr].timeExistOfSta, sizeof(uint8_t) * num_of_state_gr);
-							
-						}
-						
-						if (offset_gr != NULL)
-							free(offset_gr);
-						
 						
 						/** start send */
 						lseek(fd, offset_start_node[i], SEEK_SET);
@@ -2156,8 +2132,6 @@ void task_update_effect_node()
 					close(fd); 
 					fd = -1;
 					
-					SLT.effMana.update_master_mana_gr = true; 
-					
 					xSemaphoreGive(xMasterManaEffGr);
 				}
 			}
@@ -2339,60 +2313,10 @@ void task_make_effect()
 		{
 			bool new_pwm_setting = false;
 			
-			/** update by request can overwrite update by over time */
-			
-			// update state over time
-			if (eff_req_tmp.mode == EFF_ASYNCHRONOUS)
-			{
-
-				for (int i = 0; i < SLT.effMana.numGroup; i++)
-				{
-					if (setting_first == true)
-					{
-						new_pwm_setting = true;
-						setting_first = false;
-						
-						for (int j = 0; j < SLT.effMana.p_group[i].numObject; j++)
-						{
-							for (int k = 0; k < SLT.effMana.p_group[i].p_object[j].numPin; k++)
-							{
-								uint8_t index_channel = SLT.effMana.p_group[i].p_object[j].p_pin[k];
-								duties[index_channel] = SLT.effMana.p_group[i].p_object[j].brNessofState[state_current_of_gr[i]];
-							}
-						}
-						
-					}
-					else if (xTaskGetTickCount() - last_time_update_state_of_gr[i] > (time_update_state_of_gr[i] * pdMS_TO_TICKS( UNIT_OF_TIME_EXIST)) ) 
-					{
-		
-						new_pwm_setting = true;
-							
-							
-						uint16_t index_state_next = (state_current_of_gr[i] + 1) % SLT.effMana.p_group[i].numState;
-						for (int j = 0; j < SLT.effMana.p_group[i].numObject; j++)
-						{
-							for (int k = 0; k < SLT.effMana.p_group[i].p_object[j].numPin; k++)
-							{
-								uint8_t index_channel = SLT.effMana.p_group[i].p_object[j].p_pin[k];
-								duties[index_channel] = SLT.effMana.p_group[i].p_object[j].brNessofState[index_state_next];
-							}
-						}
-						state_current_of_gr[i] = index_state_next;
-						last_time_update_state_of_gr[i] = xTaskGetTickCount();
-						time_update_state_of_gr[i] = SLT.effMana.p_group[i].p_timExistOfSta[index_state_next];
-					}
-				}
-			}
-			else if (eff_req_tmp.mode == EFF_SYNCHRONOUS)
-			{
-				
-			}
 			
 			// update state for requested groups
-			
 			if (new_request == true)
 			{
-				
 				for (int i = 0; i < eff_req_tmp.number_of_group; i++)
 				{
 					
@@ -2418,10 +2342,6 @@ void task_make_effect()
 					
 					uint16_t state_number_of_group = eff_req_tmp.state[i];
 					
-					if (state_number_of_group == state_current_of_gr[group_index])
-						continue;
-					
-						
 					new_pwm_setting = true;
 					
 					for (int j = 0; j < SLT.effMana.p_group[group_index].numObject; j++)
@@ -2438,8 +2358,53 @@ void task_make_effect()
 					state_current_of_gr[group_index] = state_number_of_group;
 					last_time_update_state_of_gr[group_index] = xTaskGetTickCount();
 					time_update_state_of_gr[group_index] = SLT.effMana.p_group[group_index].p_timExistOfSta[state_number_of_group];
-				}				
+				}	
 				
+			}
+			else
+			{
+				// update state over time
+				if (eff_req_tmp.mode == EFF_ASYNCHRONOUS)
+				{
+
+					for (int i = 0; i < SLT.effMana.numGroup; i++)
+					{
+						if (setting_first == true)
+						{
+							new_pwm_setting = true;
+							setting_first = false;
+						
+							for (int j = 0; j < SLT.effMana.p_group[i].numObject; j++)
+							{
+								for (int k = 0; k < SLT.effMana.p_group[i].p_object[j].numPin; k++)
+								{
+									uint8_t index_channel = SLT.effMana.p_group[i].p_object[j].p_pin[k];
+									duties[index_channel] = SLT.effMana.p_group[i].p_object[j].brNessofState[state_current_of_gr[i]];
+								}
+							}
+						
+						}
+						else if (xTaskGetTickCount() - last_time_update_state_of_gr[i] > (time_update_state_of_gr[i] * pdMS_TO_TICKS(UNIT_OF_TIME_EXIST))) 
+						{
+		
+							new_pwm_setting = true;
+							
+							
+							uint16_t index_state_next = (state_current_of_gr[i] + 1) % SLT.effMana.p_group[i].numState;
+							for (int j = 0; j < SLT.effMana.p_group[i].numObject; j++)
+							{
+								for (int k = 0; k < SLT.effMana.p_group[i].p_object[j].numPin; k++)
+								{
+									uint8_t index_channel = SLT.effMana.p_group[i].p_object[j].p_pin[k];
+									duties[index_channel] = SLT.effMana.p_group[i].p_object[j].brNessofState[index_state_next];
+								}
+							}
+							state_current_of_gr[i] = index_state_next;
+							last_time_update_state_of_gr[i] = xTaskGetTickCount();
+							time_update_state_of_gr[i] = SLT.effMana.p_group[i].p_timExistOfSta[index_state_next];
+						}
+					}
+				}
 			}
 			
 			if (new_pwm_setting == true) 
@@ -2460,21 +2425,61 @@ void task_effect_synchr_asynchr()
 	uint16_t state_cur_gr[MAX_NUM_OF_GROUP]; 
 	uint32_t last_tick_gr[MAX_NUM_OF_GROUP];
 	uint32_t time_update_state_of_gr[MAX_NUM_OF_GROUP]; 
-	eff_group_mana_t master_mana_gr[MAX_NUM_OF_GROUP]; 
 	
 	for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
 	{
-		
-		master_mana_gr[i].num_state_of_gr = 0;
-		master_mana_gr[i].timeExistOfSta = NULL;
 		last_tick_gr[i] = xTaskGetTickCount();
 		state_cur_gr[i] = 0; 
-		
 	}
 	
 	bool data_available = false;
 	bool first_setting = false;
 	
+	for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
+	{
+		SLT.effMana.master_mana_gr[i].num_state_of_gr = 0;
+		SLT.effMana.master_mana_gr[i].timeExistOfSta = NULL;
+	}
+	
+	if (is_same_macadrr(SLT.espnow.gw_peer.mac, SLT.wifi.ap_macaddr) == true
+	&& SLT.espnow.gw_peer.id == SLT.espnow.my_id)
+	{
+		struct stat st;
+		int ret = stat(PATH_TCP_FILE, &st);
+			
+		int fd = -1;
+		if(ret >= 0)
+			fd = open(PATH_TCP_FILE, O_RDONLY, 0666);
+			
+		if (fd >= 0)
+		{
+			lseek(fd, 0, SEEK_SET);
+			uint8_t num_of_node;
+			read(fd, &num_of_node, sizeof(num_of_node));
+			
+			lseek(fd, sizeof(num_of_node) + sizeof(uint32_t) * num_of_node + sizeof(uint32_t) * num_of_node, SEEK_SET); 
+			
+			uint8_t num_of_gr; 
+			read(fd, &num_of_gr, sizeof(num_of_gr)); 
+			for (int i = 0; i < num_of_gr; i++)
+			{
+				uint8_t id_gr;
+				read(fd, &id_gr, sizeof(id_gr)); 
+				uint16_t num_of_state_of_gr; 
+				read(fd, &num_of_state_of_gr, sizeof(num_of_state_of_gr)); 
+				
+				SLT.effMana.master_mana_gr[id_gr].num_state_of_gr = num_of_state_of_gr;
+				SLT.effMana.master_mana_gr[id_gr].timeExistOfSta = malloc(sizeof(uint8_t) * num_of_state_of_gr); 
+				read(fd, SLT.effMana.master_mana_gr[id_gr].timeExistOfSta, sizeof(uint8_t) * num_of_state_of_gr); 
+				
+			}
+			
+			SLT.effMana.update_master_mana_gr = true; 
+			
+			close(fd);
+			
+		}
+	}
 	
 	while (1)
 	{
@@ -2489,49 +2494,44 @@ void task_effect_synchr_asynchr()
 					
 					for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
 					{
-						master_mana_gr[i].num_state_of_gr = 0; 
-						if (master_mana_gr[i].timeExistOfSta != NULL)
-						{
-							free(master_mana_gr[i].timeExistOfSta); 
-							master_mana_gr[i].timeExistOfSta = NULL;
-						}
-							
+						
 						if (SLT.effMana.master_mana_gr[i].num_state_of_gr == 0 || SLT.effMana.master_mana_gr[i].timeExistOfSta == NULL)
 							continue;
-						
-						master_mana_gr[i].num_state_of_gr = SLT.effMana.master_mana_gr[i].num_state_of_gr; 
-						master_mana_gr[i].timeExistOfSta = malloc(sizeof(uint8_t) * master_mana_gr[i].num_state_of_gr);
-						
-						memcpy(master_mana_gr[i].timeExistOfSta, SLT.effMana.master_mana_gr[i].timeExistOfSta, 
-						       sizeof(uint8_t) * master_mana_gr[i].num_state_of_gr); 
-						
+							
 						state_cur_gr[i] = 0;
 						last_tick_gr[i] = xTaskGetTickCount();
-						time_update_state_of_gr[i] = master_mana_gr[i].timeExistOfSta[0];
+						time_update_state_of_gr[i] = SLT.effMana.master_mana_gr[i].timeExistOfSta[0];
 						
 						first_setting = true;
 						
 						number_of_gr_exist++;
+						
+						data_available = true;
 					}
 					
 					SLT.effMana.update_master_mana_gr = false;
-					data_available = true;
 					
-				}
-				if (xSemaphoreTake(xMasterModeEff, 0) == pdTRUE)
-				{
-					mode = SLT.effMana.master_mode; 
-					for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
-					{
-						state_cur_gr[i] = 0;
-						last_tick_gr[i] = xTaskGetTickCount();
-						time_update_state_of_gr[i] = master_mana_gr[i].timeExistOfSta[0];
-					}
-					if(mode == EFF_SYNCHRONOUS)
-						first_setting = true;
 				}
 				if (data_available == true)
 				{
+					
+					if (xSemaphoreTake(xMasterModeEff, 0) == pdTRUE)
+					{
+						mode = SLT.effMana.master_mode; 
+						for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
+						{
+						
+							if (SLT.effMana.master_mana_gr[i].num_state_of_gr == 0 || SLT.effMana.master_mana_gr[i].timeExistOfSta == NULL)
+								continue;
+						
+							state_cur_gr[i] = 0;
+							last_tick_gr[i] = xTaskGetTickCount();
+							time_update_state_of_gr[i] = SLT.effMana.master_mana_gr[i].timeExistOfSta[0];
+						}
+						if (mode == EFF_SYNCHRONOUS)
+							first_setting = true;
+					}
+					
 					if (mode == EFF_SYNCHRONOUS)
 					{
 						uint8_t gr_update[8]; memset(gr_update, 0, sizeof(gr_update)); 
@@ -2547,7 +2547,7 @@ void task_effect_synchr_asynchr()
 							first_setting = false;
 							for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
 							{
-								if (master_mana_gr[i].num_state_of_gr != 0 && master_mana_gr[i].timeExistOfSta != NULL)
+								if (SLT.effMana.master_mana_gr[i].num_state_of_gr != 0 && SLT.effMana.master_mana_gr[i].timeExistOfSta != NULL)
 								{
 									
 									gr_update[index_tmp] = i; 
@@ -2564,15 +2564,15 @@ void task_effect_synchr_asynchr()
 						{
 							for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
 							{
-								if (master_mana_gr[i].num_state_of_gr != 0 && master_mana_gr[i].timeExistOfSta != NULL)
+								if (SLT.effMana.master_mana_gr[i].num_state_of_gr != 0 && SLT.effMana.master_mana_gr[i].timeExistOfSta != NULL)
 								{
 									if (xTaskGetTickCount() - last_tick_gr[i] > (time_update_state_of_gr[i] * pdMS_TO_TICKS(UNIT_OF_TIME_EXIST)))
 									{
-										uint16_t index_state_next = (state_cur_gr[i] + 1) % master_mana_gr[i].num_state_of_gr;
+										uint16_t index_state_next = (state_cur_gr[i] + 1) % SLT.effMana.master_mana_gr[i].num_state_of_gr;
 									
 										state_cur_gr[i] = index_state_next;
 										last_tick_gr[i] = xTaskGetTickCount();
-										time_update_state_of_gr[i] = master_mana_gr[i].timeExistOfSta[index_state_next];
+										time_update_state_of_gr[i] = SLT.effMana.master_mana_gr[i].timeExistOfSta[index_state_next];
 									
 										gr_update[index_tmp] = i; 
 										state_gr[index_tmp] = index_state_next; 
@@ -2600,7 +2600,7 @@ void task_effect_synchr_asynchr()
 							
 								espnow_send_queue_t send_q;
 								send_q.dest_id = SLT.espnow.peer_list[i].id;
-								send_q.tmout_ms = 200;
+								send_q.tmout_ms = 300;
 								send_q .buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_EFF_SYNC); 
 								if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
 									xQueueSend(xNowSend, &send_q, portMAX_DELAY);
@@ -2651,7 +2651,7 @@ void task_effect_synchr_asynchr()
 							
 							espnow_send_queue_t send_q;
 							send_q.dest_id = SLT.espnow.peer_list[i].id;
-							send_q.tmout_ms = 200;
+							send_q.tmout_ms = 300;
 							send_q .buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_EFF_ASYNC); 
 							if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
 								xQueueSend(xNowSend, &send_q, portMAX_DELAY);
