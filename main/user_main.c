@@ -163,7 +163,7 @@ void app_main(void) {
 	
 	xTaskCreate(task_make_effect, "task_make_effect", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
-	xTaskCreate(task_effect_synchr_asynchr, "task_effect_synchr_asynchr", 1024, NULL, 4, NULL);
+	xTaskCreate(task_effect_synchr_asynchr, "task_effect_synchr_asynchr", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
 }
 
@@ -1853,7 +1853,7 @@ void task_update_effect_node()
 						read(fd, offset_gr, sizeof(uint32_t) * num_of_gr);
 						for (int j = 0; j < num_of_gr; j++)
 						{
-							lseek(fd, offset_gr[j], SEEK_SET);
+							lseek(fd, offset_start_node[i] + sizeof(id_node) + offset_gr[j], SEEK_SET);
 							int8_t id_gr = -1; 
 							read(fd, &id_gr, sizeof(id_gr));
 							
@@ -2473,6 +2473,8 @@ void task_effect_synchr_asynchr()
 	}
 	
 	bool data_available = false;
+	bool first_setting = false;
+	
 	
 	while (1)
 	{
@@ -2507,6 +2509,8 @@ void task_effect_synchr_asynchr()
 						last_tick_gr[i] = xTaskGetTickCount();
 						time_update_state_of_gr[i] = master_mana_gr[i].timeExistOfSta[0];
 						
+						first_setting = true;
+						
 						number_of_gr_exist++;
 					}
 					
@@ -2523,7 +2527,8 @@ void task_effect_synchr_asynchr()
 						last_tick_gr[i] = xTaskGetTickCount();
 						time_update_state_of_gr[i] = master_mana_gr[i].timeExistOfSta[0];
 					}
-
+					if(mode == EFF_SYNCHRONOUS)
+						first_setting = true;
 				}
 				if (data_available == true)
 				{
@@ -2536,20 +2541,18 @@ void task_effect_synchr_asynchr()
 						
 						uint8_t tot_gr_request = 0; 
 						
-						for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
+						
+						if (first_setting == true)
 						{
-							if (master_mana_gr[i].num_state_of_gr != 0 && master_mana_gr[i].timeExistOfSta != NULL)
+							first_setting = false;
+							for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
 							{
-								if (xTaskGetTickCount() - last_tick_gr[i] > (time_update_state_of_gr[i] * pdMS_TO_TICKS(UNIT_OF_TIME_EXIST)))
+								if (master_mana_gr[i].num_state_of_gr != 0 && master_mana_gr[i].timeExistOfSta != NULL)
 								{
-									uint16_t index_state_next = (state_cur_gr[i] + 1) % master_mana_gr[i].num_state_of_gr;
-									
-									state_cur_gr[i] = index_state_next;
-									last_tick_gr[i] = xTaskGetTickCount();
-									time_update_state_of_gr[i] = master_mana_gr[i].timeExistOfSta[index_state_next];
 									
 									gr_update[index_tmp] = i; 
-									state_gr[index_tmp] = index_state_next; 
+									state_gr[index_tmp] = 0; 
+									
 									index_tmp++; 
 									
 									tot_gr_request++; 
@@ -2557,6 +2560,31 @@ void task_effect_synchr_asynchr()
 							}
 							
 						}
+						else
+						{
+							for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
+							{
+								if (master_mana_gr[i].num_state_of_gr != 0 && master_mana_gr[i].timeExistOfSta != NULL)
+								{
+									if (xTaskGetTickCount() - last_tick_gr[i] > (time_update_state_of_gr[i] * pdMS_TO_TICKS(UNIT_OF_TIME_EXIST)))
+									{
+										uint16_t index_state_next = (state_cur_gr[i] + 1) % master_mana_gr[i].num_state_of_gr;
+									
+										state_cur_gr[i] = index_state_next;
+										last_tick_gr[i] = xTaskGetTickCount();
+										time_update_state_of_gr[i] = master_mana_gr[i].timeExistOfSta[index_state_next];
+									
+										gr_update[index_tmp] = i; 
+										state_gr[index_tmp] = index_state_next; 
+										index_tmp++; 
+									
+										tot_gr_request++; 
+									}
+								}
+							
+							}	
+						}
+
 						if (tot_gr_request != 0)
 						{
 							uint8_t number_of_state_byte = sizeof(uint16_t) * tot_gr_request;
@@ -2572,7 +2600,7 @@ void task_effect_synchr_asynchr()
 							
 								espnow_send_queue_t send_q;
 								send_q.dest_id = SLT.espnow.peer_list[i].id;
-								send_q.tmout_ms = 700;
+								send_q.tmout_ms = 200;
 								send_q .buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_EFF_SYNC); 
 								if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
 									xQueueSend(xNowSend, &send_q, portMAX_DELAY);
@@ -2623,7 +2651,7 @@ void task_effect_synchr_asynchr()
 							
 							espnow_send_queue_t send_q;
 							send_q.dest_id = SLT.espnow.peer_list[i].id;
-							send_q.tmout_ms = 700;
+							send_q.tmout_ms = 200;
 							send_q .buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_EFF_ASYNC); 
 							if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
 								xQueueSend(xNowSend, &send_q, portMAX_DELAY);
