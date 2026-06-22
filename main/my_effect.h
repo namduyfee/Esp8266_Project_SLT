@@ -64,8 +64,6 @@ typedef struct
 	uint8_t id_group[MAX_NUM_OF_GROUP];	/**< id group, that store index of groups */
 	
 	effect_mode_t master_mode;
-	
-	eff_group_mana_t master_mana_gr[MAX_NUM_OF_GROUP];
 	bool update_master_mana_gr;
 	
 } effect_manage_t;
