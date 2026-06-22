@@ -55,9 +55,10 @@ void config_GPIO_OUT(void);
 
 /*======= PIN SELECT MASTER =======*/
 #define BUT_SEL_MASTER GPIO_NUM_12
-#define BUT_SYNCH_ASYN GPIO_NUM_13
+#define BUT_DISPLAY_ID GPIO_NUM_13
 
-#define PRES_SEL_MASTER 0
+#define LEVEL_SEL_MASTER_PRESSED 0
+#define LEVEL_DISPLAY_ID_PRESSED 0
 
 #endif
 

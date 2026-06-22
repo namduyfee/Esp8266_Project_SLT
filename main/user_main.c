@@ -14,6 +14,7 @@ void task_send_tcp();
 void task_update_effect_node(); 
 void task_make_effect();
 void task_effect_synchr_asynchr();
+void task_check_id();
 
 Object SLT = {
 	.Pwm = {
@@ -35,7 +36,7 @@ Object SLT = {
 		.gw_peer.id = 0xFE,
 		.gw_peer.mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		.cnt_id_added = 0,
-		.my_id = 0,
+		.my_id = 2,
 		.mana_recv_wrf_mess = {
 				
 		.p_packet = NULL,
@@ -65,6 +66,7 @@ SemaphoreHandle_t xMasterManaEffGr;
 SemaphoreHandle_t xMasterModeEff;
 SemaphoreHandle_t xLoadEffect;
 
+SemaphoreHandle_t xControlPwm;
 
 
 QueueHandle_t xTcpLoadf;
@@ -144,6 +146,10 @@ void app_main(void) {
 	xMasterModeEff = xSemaphoreCreateBinary();
 	xSemaphoreTake(xMasterModeEff, 0); 
 	
+	xControlPwm = xSemaphoreCreateBinary();
+	xSemaphoreGive(xControlPwm);
+	
+	
 	/** Task creat */
 	my_init_project();
 	
@@ -165,8 +171,105 @@ void app_main(void) {
 	
 	xTaskCreate(task_effect_synchr_asynchr, "task_effect_synchr_asynchr", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
+	xTaskCreate(task_check_id, "task_check_id", 1024, NULL, 4, NULL);
+	
 }
 
+/**
+ *	@brief	display id of esp, control by button
+ */
+void task_check_id()
+{
+	bool display_id = false;
+	
+	bool firt_action = false;
+	
+	while (1)
+	{
+		
+		if (gpio_get_level(BUT_DISPLAY_ID) == LEVEL_DISPLAY_ID_PRESSED)   
+		{
+			int count = 0;
+			
+			while (gpio_get_level(BUT_DISPLAY_ID) == LEVEL_DISPLAY_ID_PRESSED)
+			{
+				vTaskDelay(pdMS_TO_TICKS(20));
+				
+				if (count < 100) {
+					count++;
+				}
+			}
+			
+			if (count >= 100)
+			{
+				firt_action = true;
+				
+				if (display_id == true)	display_id = false;
+				else	display_id = true; 
+				
+			}
+		}
+		
+		if (display_id == true)
+		{
+			if (firt_action == true)
+			{
+				firt_action = false;
+				
+				uint8_t bit_mask_channel = 0;
+			
+				uint8_t tem_id = SLT.espnow.my_id;
+				if (tem_id == 0) 
+				{
+					bit_mask_channel |= (1 << 0);
+				}
+				else if (tem_id > 0 && tem_id < 20) 
+				{
+					for (int i = 7; i >= 1; i--) {
+						if (tem_id >= i) {
+							bit_mask_channel |= (1 << i);
+							tem_id -= i;
+						}
+					}
+				}
+			
+				if (bit_mask_channel != 0)
+				{
+					uint8_t duties[MAX_NUM_CHANNEL]; memset(duties, 0, sizeof(duties));
+				
+					/** test*/
+					duties[0] = 255; duties[2] = 255;
+				
+					for (int i = 0; i < MAX_NUM_CHANNEL; i++)
+					{
+						if ( ((bit_mask_channel >> i) & 1) > 0)
+						{
+							if (i == 0 || i == 2)
+								duties[i] = 0;
+							else 
+								duties[i] = 255;
+						
+						}
+					
+					}
+					xSemaphoreTake(xControlPwm, portMAX_DELAY);
+					set_duties_pwm(&SLT.Pwm, duties, sizeof(duties));
+				}
+			}
+		}
+		else
+		{
+			if (firt_action == true)
+			{
+				xSemaphoreGive(xControlPwm);
+				firt_action = false;
+			}
+			
+		}
+		
+		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
+	}
+}
 /**
  * @brief	task handler select master
  * 
@@ -189,11 +292,11 @@ void task_select_master()
 	
 	while (1)
 	{
-		if(gpio_get_level(BUT_SEL_MASTER) == PRES_SEL_MASTER)   
+		if (gpio_get_level(BUT_SEL_MASTER) == LEVEL_SEL_MASTER_PRESSED)   
 		{
 			int count = 0;
 			
-			while (gpio_get_level(BUT_SEL_MASTER) == PRES_SEL_MASTER)
+			while (gpio_get_level(BUT_SEL_MASTER) == LEVEL_SEL_MASTER_PRESSED)
 			{
 				vTaskDelay(pdMS_TO_TICKS(20));
 				
@@ -326,9 +429,7 @@ void task_select_master()
 
 void task_esp_now_recv()
 {
-	uint32_t tem = 0;
 	
-
 	TickType_t last_write_st = xTaskGetTickCount();
 	bool first_write_st = true;
 	
@@ -574,15 +675,6 @@ void task_esp_now_recv()
 								malloc(SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].tot_byte);
 							if (SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data != NULL)
 							{
-								tem += SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].tot_byte;
-								if (tem > 100000)
-								{
-									//set_duty_pwm(&SLT.Pwm, 3, 255);
-								}
-								else if (tem > 8000)
-								{
-									//set_duty_pwm(&SLT.Pwm, 3, 0);
-								}
 								memcpy(SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data,
 									&espnow_recv.buf.data[NOW_INDEX_PAYLOAD + 8],
 									SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].tot_byte);
@@ -949,7 +1041,7 @@ void task_file_tcp()
 				
 				if (file_req.source == F_TCP_SOURCE)
 				{
-					tcp_buf_t* p_buf = fd >= 0 ? tcp_make_ret(TCP_ACK, NULL, 0) : tcp_make_ret(TCP_NACK, NULL, 0);
+					tcp_buf_t* p_buf = fd >= 0 ? tcp_make_frame(TCP_ACK, NULL, 0) : tcp_make_frame(TCP_NACK, NULL, 0);
 					if (p_buf != NULL)
 						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 						{
@@ -977,7 +1069,7 @@ void task_file_tcp()
 				
 				if (file_req.source == F_TCP_SOURCE)
 				{
-					tcp_buf_t* p_buf = fd < 0 ? tcp_make_ret(TCP_ACK, NULL, 0) : tcp_make_ret(TCP_NACK, NULL, 0);
+					tcp_buf_t* p_buf = fd < 0 ? tcp_make_frame(TCP_ACK, NULL, 0) : tcp_make_frame(TCP_NACK, NULL, 0);
 					if (p_buf != NULL)
 						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 						{
@@ -1009,7 +1101,7 @@ void task_file_tcp()
 				
 				if (file_req.source == F_TCP_SOURCE)
 				{
-					tcp_buf_t* p_buf = ret < 0 ? tcp_make_ret(TCP_ACK, NULL, 0) : tcp_make_ret(TCP_NACK, NULL, 0);
+					tcp_buf_t* p_buf = ret < 0 ? tcp_make_frame(TCP_ACK, NULL, 0) : tcp_make_frame(TCP_NACK, NULL, 0);
 					if (p_buf != NULL)
 						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 						{
@@ -1033,7 +1125,7 @@ void task_file_tcp()
 				{
 					if (fd < 0)
 					{
-						tcp_buf_t* p_buf = tcp_make_ret(TCP_NACK, NULL, 0);
+						tcp_buf_t* p_buf = tcp_make_frame(TCP_NACK, NULL, 0);
 					
 						if (p_buf != NULL)
 							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
@@ -1055,7 +1147,7 @@ void task_file_tcp()
 						if (file_req.read.offset >= lseek(fd, 0, SEEK_END) || 
 						    file_req.read.tot_byte > (lseek(fd, 0, SEEK_END) - file_req.read.offset))
 						{
-							tcp_buf_t* p_buf = tcp_make_ret(TCP_NACK, NULL, 0);
+							tcp_buf_t* p_buf = tcp_make_frame(TCP_NACK, NULL, 0);
 							if (p_buf != NULL)
 								if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 								{
@@ -1074,7 +1166,7 @@ void task_file_tcp()
 						else
 						{
 						
-							tcp_buf_t* p_buf = tcp_make_ret(TCP_ACK, NULL, 0);
+							tcp_buf_t* p_buf = tcp_make_frame(TCP_ACK, NULL, 0);
 							if (p_buf != NULL)
 								if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 								{
@@ -1149,7 +1241,7 @@ void task_file_tcp()
 				{
 					if (file_req.source == F_TCP_SOURCE)
 					{
-						tcp_buf_t* p_buf = tcp_make_ret(TCP_NACK, NULL, 0);
+						tcp_buf_t* p_buf = tcp_make_frame(TCP_NACK, NULL, 0);
 						if (p_buf != NULL)
 							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
 							{
@@ -1186,8 +1278,8 @@ void task_file_tcp()
 					{
 						uint32_t max_segment_size = TCP_MSS; 
 					
-						tcp_buf_t* p_buf = fd_tmp >= 0 ? tcp_make_ret(TCP_ACK, &max_segment_size, sizeof(max_segment_size)) : 
-														 tcp_make_ret(TCP_NACK, NULL, 0);
+						tcp_buf_t* p_buf = fd_tmp >= 0 ? tcp_make_frame(TCP_ACK, &max_segment_size, sizeof(max_segment_size)) : 
+														 tcp_make_frame(TCP_NACK, NULL, 0);
 					
 						if (p_buf != NULL)
 							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
@@ -1244,8 +1336,28 @@ void task_file_tcp()
 								{
 									tcp_file_mana.write.checksum = crc16_modbus(tcp_file_mana.write.checksum, file_req.write.buf.data, written); 
 									tcp_file_mana.write.remaining = tcp_file_mana.write.remaining - written; 
+									
+									if (tcp_file_mana.write.remaining == 0)
+									{
+										
+										tcp_buf_t* p_buf = tcp_make_frame(TCP_ACK, NULL, 0);
+										if (p_buf != NULL)
+											if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+											{
+												if (p_buf != NULL && p_buf->data != NULL) 
+												{
+													free(p_buf->data); 
+													p_buf->data = NULL;
+												}
+												if (p_buf != NULL) 
+												{
+													free(p_buf); 
+													p_buf = NULL;
+												}
+											}
+									}
+									
 								}
-								
 							}
 						}
 						
@@ -1335,7 +1447,7 @@ void task_file_tcp()
 					if (file_req.source == F_TCP_SOURCE)
 					{
 						/** send ack write end tcp */
-						tcp_buf_t* p_buf = tcp_make_ret(TCP_ACK, NULL, 0);
+						tcp_buf_t* p_buf = tcp_make_frame(TCP_ACK, NULL, 0);
 					
 						if (p_buf != NULL)
 							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
@@ -1358,7 +1470,7 @@ void task_file_tcp()
 					if (file_req.source == F_TCP_SOURCE)
 					{
 
-						tcp_buf_t* p_buf = tcp_make_ret(TCP_NACK, NULL, 0);
+						tcp_buf_t* p_buf = tcp_make_frame(TCP_NACK, NULL, 0);
 					
 						if (p_buf != NULL)
 							if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
@@ -1813,6 +1925,9 @@ void task_update_effect_node()
 					
 					xSemaphoreTake(xMasterManaEffGr, portMAX_DELAY);
 					
+					/** bit 0 <=> id 0, bit 1 <=> id 1...bit 20 <=> id 20. value bit = 1 <=> received, value bit 0 <=> not received */
+					uint32_t bit_mask_id_esp = 0;	
+					
 					// read number node
 					lseek(fd, 0, SEEK_SET); 
 					read(fd, &number_node, sizeof(number_node));
@@ -1901,6 +2016,8 @@ void task_update_effect_node()
 								.source = F_NONE_SOURCE
 							};
 							xQueueSendToBack(xEffLoadf, &eff_close, pdMS_TO_TICKS(4000));
+							
+							bit_mask_id_esp |= 1 << id_node;
 							
 							continue;
 						}
@@ -2084,6 +2201,8 @@ void task_update_effect_node()
 												else if(SLT.espnow.state_return == NOW_ACK)
 												{
 													can_break = true;
+													
+													bit_mask_id_esp |= 1 << id_node;
 												}
 											}
 											else
@@ -2103,6 +2222,25 @@ void task_update_effect_node()
 					}
 					close(fd); 
 					fd = -1;
+					
+					/** bit mask id received */
+					tcp_buf_t* p_buf = tcp_make_frame(TCP_RETURN_ID_RECEIVED,
+						&bit_mask_id_esp,
+						sizeof(bit_mask_id_esp));
+					
+					if (p_buf != NULL)
+						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+						{
+							if (p_buf != NULL && p_buf->data != NULL) {
+								free(p_buf->data); 
+								p_buf->data = NULL; 
+							}
+							if (p_buf != NULL) {
+								free(p_buf); 
+								p_buf = NULL;
+							}
+						}
+					
 					
 					
 					SLT.effMana.update_master_mana_gr = true;
@@ -2385,7 +2523,15 @@ void task_make_effect()
 			}
 			
 			if (new_pwm_setting == true) 
-				set_duties_pwm(&SLT.Pwm, duties, sizeof(duties));
+			{
+				if (xSemaphoreTake(xControlPwm, 0) == pdTRUE)
+				{
+					set_duties_pwm(&SLT.Pwm, duties, sizeof(duties));
+					
+					xSemaphoreGive(xControlPwm);
+				}
+				
+			}
 			
 		}
 		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));

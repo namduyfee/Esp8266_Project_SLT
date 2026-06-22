@@ -23,7 +23,7 @@
 #include "spiffs_config.h"
 
 #define TCP_POLL_CYCLE 2
-#define TCP_AUTO_DIS_MS 30000
+#define TCP_AUTO_DIS_MS 40000
 
 typedef enum
 {
@@ -43,6 +43,8 @@ typedef enum
 	
 	TCP_EFF_SYNCH,
 	TCP_EFF_ASYNCH,
+	
+	TCP_RETURN_ID_RECEIVED,
 	
 	TCP_ACK, 
 	TCP_NACK
@@ -93,6 +95,6 @@ typedef struct
 err_t init_server_tpcp(uint16_t port, uint8_t max_client);  
 void tcp_send_cb(void* arg);  
 
-tcp_buf_t* tcp_make_ret(tcp_command_t ret_cmd, void* data, uint32_t byte_data); 
+tcp_buf_t* tcp_make_frame(tcp_command_t cmd, void* data, uint32_t byte_data); 
 tcp_buf_t* tcp_make_ret_read(void*data, uint32_t len, uint32_t offset); 
 #endif

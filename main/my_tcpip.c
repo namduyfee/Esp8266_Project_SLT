@@ -385,34 +385,42 @@ void tcp_send_cb(void* arg)
 }
 
 /**
- *	@brief make frame tcp ack or nack
+ *	@brief make frame tcp
  */
 
-#define TCP_LEN_HEADER_RET 4
-tcp_buf_t* tcp_make_ret(tcp_command_t ret_cmd, void* data, uint32_t byte_data)
+#define TCP_LEN_HEADER 4
+tcp_buf_t* tcp_make_frame(tcp_command_t cmd, void* data, uint32_t byte_data)
 {
-	if (ret_cmd != TCP_ACK && ret_cmd != TCP_NACK)
-		return NULL; 
 	
-	uint32_t byte_of_frame = (data != NULL && byte_data != 0) ? TCP_LEN_HEADER_RET + byte_data : TCP_LEN_HEADER_RET; 
+	uint32_t byte_of_frame = (data != NULL && byte_data != 0) ? TCP_LEN_HEADER + byte_data : TCP_LEN_HEADER; 
 	uint8_t* retCmd = malloc(byte_of_frame);
 
 	if (retCmd == NULL)
 		return NULL;
 	
-	uint8_t header[TCP_LEN_HEADER_RET] = {'T', 'C', 'P'};
+	uint8_t header[TCP_LEN_HEADER] = {'T', 'C', 'P'};
 	
-	if (ret_cmd == TCP_ACK)
+
+	header[3] = (uint8_t)cmd;
+	
+	if (cmd == TCP_ACK)
 		header[3] = 'Y';
-	else header[3] = 'N';
+	else if (cmd == TCP_NACK)
+		header[3] = 'N';
+	else if (cmd == TCP_RETURN_ID_RECEIVED)
+	{
+		uint32_t tem = *((uint32_t*)data);
+		if (tem == 7) 
+		{
+			header[3] = 'H'; 
+		}
+	}
 	
-	//header[3] = (uint8_t)ret_cmd; 			
-	
-	memcpy(retCmd, header, TCP_LEN_HEADER_RET); 
+	memcpy(retCmd, header, TCP_LEN_HEADER); 
 				
 	if (data != NULL && byte_data != 0)
 	{
-		memcpy(&retCmd[TCP_LEN_HEADER_RET], data, byte_data); 
+		memcpy(&retCmd[TCP_LEN_HEADER], data, byte_data); 
 	}
 	
 	tcp_buf_t* tSendBuf = malloc(sizeof(tcp_buf_t));
