@@ -36,7 +36,7 @@ Object SLT = {
 		.gw_peer.id = 0xFE,
 		.gw_peer.mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		.cnt_id_added = 0,
-		.my_id = 2,
+		.my_id = MY_ID,
 		.mana_recv_wrf_mess = {
 				
 		.p_packet = NULL,
@@ -445,7 +445,8 @@ void task_esp_now_recv()
 
 			if (espnow_recv.buf.data != NULL && espnow_recv.buf.tot_byte > 0)
 			{
-				if (espnow_recv.buf.data[0] == 'N' && espnow_recv.buf.data[1] == 'O' && espnow_recv.buf.data[2] == 'W')
+				uint8_t header [] = KEY_NOW;
+				if (espnow_recv.buf.data[0] == header[0] && espnow_recv.buf.data[1] == header[1] && espnow_recv.buf.data[2] == header[2])
 				{
 					
 					/** 

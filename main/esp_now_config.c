@@ -23,7 +23,10 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 	if (mac_addr == NULL || data == NULL || len <= 0) {
 		return;
 	}
-	if (data[0] != 'N' || data[1] != 'O' || data[2] != 'W')
+	
+	uint8_t header[] = KEY_NOW;
+	
+	if (data[0] != header[0] || data[1] != header[1] || data[2] != header[2])
 	{
 		return; 
 	}	
@@ -219,6 +222,8 @@ uint16_t crc16_modbus(uint16_t crc, uint8_t *buf, uint32_t len)
 
 buf_espnow_t espnow_make_frame_send(void* payload, uint32_t len_payload, command_espnow_t cmd)
 {
+	uint8_t header [] = KEY_NOW;
+	
 	buf_espnow_t buf = {.data = NULL, .tot_byte = 0};
 	
 	buf.tot_byte = NOW_SZOF_HEADER + NOW_SZOF_CMD + len_payload + NOW_SZOF_CRC; 
@@ -227,7 +232,7 @@ buf_espnow_t espnow_make_frame_send(void* payload, uint32_t len_payload, command
 	if (buf.data == NULL || buf.tot_byte == 0)
 		return buf; 
 	
-	buf.data[0] = 'N'; buf.data[1] = 'O'; buf.data[2] = 'W';
+	buf.data[0] = header[0]; buf.data[1] = header[1]; buf.data[2] = header[2];
 	buf.data[NOW_INDEX_CMD] = cmd; 
 	
 	if (payload != NULL && len_payload != 0)

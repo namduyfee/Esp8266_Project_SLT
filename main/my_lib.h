@@ -10,6 +10,11 @@
 #include "my_tcpip.h"
 #include "my_effect.h"
 
+
+#define MY_ID 0						/**< id of this esp */
+#define KEY_NOW "NOW"				/**< only esp have KEY_NOW is same then they can receive each other's packets. KEY_NOW must is 3 characters*/
+
+
 typedef struct 
 {
 	Pwm_Typedef Pwm;
