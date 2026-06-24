@@ -14,13 +14,14 @@
 #include "esp_log.h"
 #include "esp_now_config.h"
 
+#define TIME_EXIST_BASE 220		// 220ms
 
 
 #define MAX_NUM_CHANNEL 8
 
 #define MAX_NUM_OF_GROUP 8 
 
-#define UNIT_OF_TIME_EXIST	100 // 1 time exist = 100 ms
+#define UNIT_OF_TIME_EXIST	20 // 1 time exist = 20 ms
 
 typedef enum
 {

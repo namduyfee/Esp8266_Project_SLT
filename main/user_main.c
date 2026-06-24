@@ -54,6 +54,8 @@ Object SLT = {
 	.effMana = {
 		.update_master_mana_gr = false,
 		.master_mode = EFF_ASYNCHRONOUS,
+		.speedEf = 100,
+		.brNess = 100,
 	},
 };
 
@@ -1701,7 +1703,7 @@ void task_file_effect()
 													effect_file_mana.write.remaining : file_req.write.buf.tot_byte;
 								
 								ssize_t written = 0; 
-							
+								
 								if (to_write > 0)
 								{
 									written = write(fd_tmp,
@@ -1964,7 +1966,7 @@ void task_update_effect_node()
 								.source = F_NONE_SOURCE
 							}; 
 							eff_st_write.write_start.offset = 0;
-							eff_st_write.write_start.tot_byte = tot_size_node[i] - sizeof(id_node); 
+							eff_st_write.write_start.tot_byte = tot_size_node[i] - sizeof(id_node);
 							xQueueSendToBack(xEffLoadf, &eff_st_write, pdMS_TO_TICKS(4000));
 							
 							// write request 
@@ -2272,8 +2274,6 @@ void task_make_effect()
 	/** init struct effect */
 	bool allocate_first = true;		/**< if the first allocte , not free memory. else free */
 	
-	SLT.effMana.brNess = 0;
-	SLT.effMana.speedEf = 0;
 	SLT.effMana.numGroup = 0;
 	
 	
@@ -2485,6 +2485,14 @@ void task_make_effect()
 
 					for (int i = 0; i < SLT.effMana.numGroup; i++)
 					{
+						
+						uint32_t time_update_ms; 
+						
+						if (time_update_state_of_gr[i] <= 0)
+							time_update_ms = 0;
+						else
+							time_update_ms = ((TIME_EXIST_BASE + (time_update_state_of_gr[i] - 1) * UNIT_OF_TIME_EXIST) * SLT.effMana.speedEf) / 100;	// ms
+						
 						if (setting_first == true)
 						{
 							new_pwm_setting = true;
@@ -2500,7 +2508,7 @@ void task_make_effect()
 							}
 						
 						}
-						else if (xTaskGetTickCount() - last_time_update_state_of_gr[i] > (time_update_state_of_gr[i] * pdMS_TO_TICKS(UNIT_OF_TIME_EXIST))) 
+						else if (xTaskGetTickCount() - last_time_update_state_of_gr[i] > pdMS_TO_TICKS(time_update_ms))
 						{
 		
 							new_pwm_setting = true;
@@ -2527,6 +2535,15 @@ void task_make_effect()
 			{
 				if (xSemaphoreTake(xControlPwm, 0) == pdTRUE)
 				{
+					for (int i = 0; i < sizeof(duties); i++)
+					{
+						uint32_t tem = (duties[i] * SLT.effMana.brNess) / 100; 
+						if (tem >= 255)
+							tem = 255;
+						
+						duties[i] = tem;
+						
+					}
 					set_duties_pwm(&SLT.Pwm, duties, sizeof(duties));
 					
 					xSemaphoreGive(xControlPwm);
@@ -2687,7 +2704,14 @@ void task_effect_synchr_asynchr()
 							{
 								if (master_mana_gr[i].num_state_of_gr != 0 && master_mana_gr[i].timeExistOfSta != NULL)
 								{
-									if (xTaskGetTickCount() - last_tick_gr[i] > (time_update_state_of_gr[i] * pdMS_TO_TICKS(UNIT_OF_TIME_EXIST)))
+									uint32_t time_update_ms; 
+						
+									if (time_update_state_of_gr[i] <= 0)
+										time_update_ms = 0;
+									else
+										time_update_ms = ((TIME_EXIST_BASE + (time_update_state_of_gr[i] - 1) * UNIT_OF_TIME_EXIST) * SLT.effMana.speedEf) / 100;	// ms
+									
+									if (xTaskGetTickCount() - last_tick_gr[i] > pdMS_TO_TICKS(time_update_ms))
 									{
 										uint16_t index_state_next = (state_cur_gr[i] + 1) % master_mana_gr[i].num_state_of_gr;
 									
