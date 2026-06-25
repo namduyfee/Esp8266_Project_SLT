@@ -2579,6 +2579,8 @@ void task_effect_synchr_asynchr()
 	{
 		master_mana_gr[i].num_state_of_gr = 0; 
 		master_mana_gr[i].timeExistOfSta = NULL;
+		
+
 	}
 	
 	SLT.effMana.update_master_mana_gr = false;
@@ -2586,6 +2588,16 @@ void task_effect_synchr_asynchr()
 	&& SLT.espnow.gw_peer.id == SLT.espnow.my_id)
 	{
 		SLT.effMana.update_master_mana_gr = true;
+		
+		nvs_handle handle;
+		if (nvs_open(NVS_MASTER_EFFECT_NS, NVS_READONLY, &handle) == ESP_OK)
+		{
+			if(nvs_get_i8(handle, NVS_MODE_EFFECT, &mode) == ESP_OK) 
+			{
+				
+			}
+			nvs_close(handle);
+		}
 	}
 	
 	while (1)
@@ -2608,7 +2620,7 @@ void task_effect_synchr_asynchr()
 					int fd = -1;
 					if (ret >= 0)
 						fd = open(PATH_TCP_FILE, O_RDONLY, 0666);
-			
+					
 					if (fd >= 0)
 					{
 						lseek(fd, 0, SEEK_SET);
@@ -2659,6 +2671,16 @@ void task_effect_synchr_asynchr()
 					if (xSemaphoreTake(xMasterModeEff, 0) == pdTRUE)
 					{
 						mode = SLT.effMana.master_mode; 
+						
+						nvs_handle handle;
+						if (nvs_open(NVS_MASTER_EFFECT_NS, NVS_READWRITE, &handle) == ESP_OK)
+						{
+							if (nvs_set_i8(handle, NVS_MODE_EFFECT, mode) == ESP_OK) 
+							{
+								nvs_commit(handle);
+							}
+							nvs_close(handle);
+						}
 						
 						for (int i = 0; i < number_of_gr_exist; i++)
 						{
