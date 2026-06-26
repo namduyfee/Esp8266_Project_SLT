@@ -403,7 +403,7 @@ void task_select_master()
 				uint8_t payload = {SLT.espnow.my_id}; 
 				espnow_send_queue_t send_q; 
 				send_q.dest_id = NOW_ID_BRC;
-				send_q.tmout_ms = 500;
+				send_q.tmout_ms = 300;
 				send_q .buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_BRC); 
 				if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
 					xQueueSend(xNowSend, &send_q, portMAX_DELAY);
@@ -435,8 +435,6 @@ void task_esp_now_recv()
 	TickType_t last_write_st = xTaskGetTickCount();
 	bool first_write_st = true;
 	
-	TickType_t last_write_end = xTaskGetTickCount();
-	bool first_write_end = true;
 	
 	espnow_recv_queue_t espnow_recv;
 	
@@ -521,7 +519,7 @@ void task_esp_now_recv()
 									add_peer_q.tmout_ms = 4000;
 									add_peer_q.buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_ADD_PEER); 
 									if (add_peer_q.buf.data != NULL && add_peer_q.buf.tot_byte > 0)
-										xQueueSend(xNowSend, &add_peer_q, pdMS_TO_TICKS(5000));
+										xQueueSend(xNowSend, &add_peer_q, pdMS_TO_TICKS(6000));
 								}
 							}
 						}
@@ -602,7 +600,7 @@ void task_esp_now_recv()
 					}
 					else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_ST_WRF)
 					{
-						if (first_write_st == true || xTaskGetTickCount() - last_write_st > pdMS_TO_TICKS(2000))
+						if (first_write_st == true || xTaskGetTickCount() - last_write_st > pdMS_TO_TICKS(1000))
 						{
 							/** erase data old */
 							if (SLT.espnow.mana_recv_wrf_mess.p_packet != NULL)
@@ -687,8 +685,7 @@ void task_esp_now_recv()
 					}
 					else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_END_WRF)
 					{
-						if ((first_write_end == true || xTaskGetTickCount() - last_write_end > pdMS_TO_TICKS(2000)) && 
-						    SLT.espnow.mana_recv_wrf_mess.p_packet != NULL)
+						if (SLT.espnow.mana_recv_wrf_mess.p_packet != NULL)
 						{
 							
 							bool recv_all = true;
@@ -728,9 +725,6 @@ void task_esp_now_recv()
 								uint16_t checksum; memcpy(&checksum, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD], sizeof(checksum)); 
 								if (checksum == checksum_calculate)
 								{
-									
-									first_write_end = false;
-									last_write_end = xTaskGetTickCount();
 									
 									/** send write to task handle file effect */
 									for (int i = 0; i <  SLT.espnow.mana_recv_wrf_mess.tot_packet; i++)
@@ -2132,7 +2126,7 @@ void task_update_effect_node()
 											}
 										}
 										uint32_t lastick = xTaskGetTickCount();
-										while (xTaskGetTickCount() - lastick < pdMS_TO_TICKS(4000))
+										while (xTaskGetTickCount() - lastick < pdMS_TO_TICKS(5000))
 										{
 											bool can_break = false;
 											
@@ -2232,7 +2226,7 @@ void task_update_effect_node()
 						sizeof(bit_mask_id_esp));
 					
 					if (p_buf != NULL)
-						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(500)) != pdPASS)
+						if (xQueueSend(xSendTcp, &p_buf, pdMS_TO_TICKS(1000)) != pdPASS)
 						{
 							if (p_buf != NULL && p_buf->data != NULL) {
 								free(p_buf->data); 
