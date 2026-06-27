@@ -281,7 +281,8 @@ void task_check_id()
  *	- switch from sta mode to apsta mode
  *	- broadcast
  * @note
- *	- semaphore
+ *	- master send broadcast periodic
+ *	- after button is pressed, this esp is not receive brc from other master in 5 seconds
  *	
  */
 void task_select_master()
@@ -1501,13 +1502,6 @@ void task_file_tcp()
 
 /**
  *	@brief	handle file effect
- *	
- *	@details	
- *		- open
- *		- close
- *		- delete
- *		- read
- *		- write
  *		
  *	@note
  *		
@@ -1894,10 +1888,10 @@ void task_send_tcp()
 /**
  *	@brief	send data effect to all node after receive tcp
  *	@detail
- *		each node : 'NOW' + NOW_ST_WRF + (4B)tot number of packet + (4B)offset_start + (4B)tot size + (2B)checksum (this packet)
- *					'NOW' + NOW_WRF + (4B)number packet + (4B)offset + data + checksum (this packet)
+ *		each node : KEY + NOW_ST_WRF + (4B)tot number of packet + (4B)offset_start + (4B)tot size + (2B)checksum (this packet)
+ *					KEY + NOW_WRF + (4B)index packet + (4B)offset + data + checksum (this packet)
  *					....
- *					'NOW' + NOW_END_WRF + (2B)checksum (of tot data) + checksum (this packet)	
+ *					KEY + NOW_END_WRF + (2B)checksum (of total data) + checksum (this packet)	
  */			
 void task_update_effect_node() 
 {

@@ -5,11 +5,9 @@
  *	@brief	tcp handler
  *	
  *	@details
- *		use dynamic memory and queue to transport data between tcp handler and task_tcp_file_bin in main
- *		
- *		Frame : "TCP" + CMD + OFSET (CMD = R, W) + DATA (CMD = W) 
  *		
  *	@note
+ *		use dynamic memory and queue to transport data between tcp handler and task_tcp_file_bin in main
  *		only one client at a time
  */
 
