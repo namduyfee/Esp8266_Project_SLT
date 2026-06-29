@@ -18,7 +18,7 @@
 
 #define NVS_ESPNOW_NAMESP "espnow"	
 
-#define NVS_GW_PEER_INF "gateway"				/**! key in NVS_ESPNOW_NAMESP */
+#define NVS_NOW_MY_MODE "espnow_mode"
 
 #define NVS_ADDED_PEERS_INF "added_peer"		/**! key in NVS_ESPNOW_NAMESP */
 

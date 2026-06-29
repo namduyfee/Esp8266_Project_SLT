@@ -14,7 +14,6 @@ void task_send_tcp();
 void task_update_effect_node(); 
 void task_make_effect();
 void task_effect_synchr_asynchr();
-void task_check_id();
 
 Object SLT = {
 	.Pwm = {
@@ -67,8 +66,6 @@ SemaphoreHandle_t xNowReturnState;
 SemaphoreHandle_t xMasterManaEffGr;
 SemaphoreHandle_t xMasterModeEff;
 SemaphoreHandle_t xLoadEffect;
-
-SemaphoreHandle_t xControlPwm;
 
 
 QueueHandle_t xTcpLoadf;
@@ -148,9 +145,6 @@ void app_main(void) {
 	xMasterModeEff = xSemaphoreCreateBinary();
 	xSemaphoreTake(xMasterModeEff, 0); 
 	
-	xControlPwm = xSemaphoreCreateBinary();
-	xSemaphoreGive(xControlPwm);
-	
 	
 	/** Task creat */
 	my_init_project();
@@ -173,105 +167,8 @@ void app_main(void) {
 	
 	xTaskCreate(task_effect_synchr_asynchr, "task_effect_synchr_asynchr", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 	
-	xTaskCreate(task_check_id, "task_check_id", 1024, NULL, 4, NULL);
-	
 }
 
-/**
- *	@brief	display id of esp, control by button
- */
-void task_check_id()
-{
-	bool display_id = false;
-	
-	bool firt_action = false;
-	
-	while (1)
-	{
-		
-		if (gpio_get_level(BUT_DISPLAY_ID) == LEVEL_DISPLAY_ID_PRESSED)   
-		{
-			int count = 0;
-			
-			while (gpio_get_level(BUT_DISPLAY_ID) == LEVEL_DISPLAY_ID_PRESSED)
-			{
-				vTaskDelay(pdMS_TO_TICKS(20));
-				
-				if (count < 100) {
-					count++;
-				}
-			}
-			
-			if (count >= 100)
-			{
-				firt_action = true;
-				
-				if (display_id == true)	display_id = false;
-				else	display_id = true; 
-				
-			}
-		}
-		
-		if (display_id == true)
-		{
-			if (firt_action == true)
-			{
-				firt_action = false;
-				
-				uint8_t bit_mask_channel = 0;
-			
-				uint8_t tem_id = SLT.espnow.my_id;
-				if (tem_id == 0) 
-				{
-					bit_mask_channel |= (1 << 0);
-				}
-				else if (tem_id > 0 && tem_id < 20) 
-				{
-					for (int i = 7; i >= 1; i--) {
-						if (tem_id >= i) {
-							bit_mask_channel |= (1 << i);
-							tem_id -= i;
-						}
-					}
-				}
-			
-				if (bit_mask_channel != 0)
-				{
-					uint8_t duties[MAX_NUM_CHANNEL]; memset(duties, 0, sizeof(duties));
-				
-					/** test*/
-					duties[0] = 255; duties[2] = 255;
-				
-					for (int i = 0; i < MAX_NUM_CHANNEL; i++)
-					{
-						if ( ((bit_mask_channel >> i) & 1) > 0)
-						{
-							if (i == 0 || i == 2)
-								duties[i] = 0;
-							else 
-								duties[i] = 255;
-						
-						}
-					
-					}
-					xSemaphoreTake(xControlPwm, portMAX_DELAY);
-					set_duties_pwm(&SLT.Pwm, duties, sizeof(duties));
-				}
-			}
-		}
-		else
-		{
-			if (firt_action == true)
-			{
-				xSemaphoreGive(xControlPwm);
-				firt_action = false;
-			}
-			
-		}
-		
-		vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
-	}
-}
 /**
  * @brief	task handler select master
  * 
@@ -2521,21 +2418,17 @@ void task_make_effect()
 			
 			if (new_pwm_setting == true) 
 			{
-				if (xSemaphoreTake(xControlPwm, 0) == pdTRUE)
+
+				for (int i = 0; i < sizeof(duties); i++)
 				{
-					for (int i = 0; i < sizeof(duties); i++)
-					{
-						uint32_t tem = (duties[i] * SLT.effMana.brNess) / 100; 
-						if (tem >= 255)
-							tem = 255;
+					uint32_t tem = (duties[i] * SLT.effMana.brNess) / 100; 
+					if (tem >= 255)
+						tem = 255;
 						
-						duties[i] = tem;
+					duties[i] = tem;
 						
-					}
-					set_duties_pwm(&SLT.Pwm, duties, sizeof(duties));
-					
-					xSemaphoreGive(xControlPwm);
 				}
+				set_duties_pwm(&SLT.Pwm, duties, sizeof(duties));
 				
 			}
 			
@@ -2754,7 +2647,7 @@ void task_effect_synchr_asynchr()
 							
 								espnow_send_queue_t send_q;
 								send_q.dest_id = SLT.espnow.peer_list[i].id;
-								send_q.tmout_ms = 300;
+								send_q.tmout_ms = 100;
 								send_q .buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_EFF_SYNC); 
 								if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
 									xQueueSend(xNowSend, &send_q, portMAX_DELAY);
@@ -2796,7 +2689,7 @@ void task_effect_synchr_asynchr()
 							
 							espnow_send_queue_t send_q;
 							send_q.dest_id = SLT.espnow.peer_list[i].id;
-							send_q.tmout_ms = 300;
+							send_q.tmout_ms = 500;
 							send_q .buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_EFF_ASYNC); 
 							if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
 								xQueueSend(xNowSend, &send_q, portMAX_DELAY);
