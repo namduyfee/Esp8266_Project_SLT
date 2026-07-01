@@ -95,53 +95,12 @@ static void init_my_esp_now(void)
 	
 	if (esp_now_is_peer_exist(broadcast) != true)
 		esp_now_add_peer(&peer); 
-	
-	/** read peer list infomation in nvs */
-	nvs_handle handle; 
-	if (nvs_open(NVS_ESPNOW_NAMESP, NVS_READONLY, &handle) == ESP_OK)
-	{
-		size_t size = sizeof(SLT.espnow.peer_list);
-		if (nvs_get_blob(handle, NVS_ADDED_PEERS_INF, SLT.espnow.peer_list, &size) == ESP_OK
-		    && nvs_get_u8(handle, NVS_COUNT_PEER, &SLT.espnow.cnt_id_added) == ESP_OK)
-		{
-			for (int i = 0; i < SLT.espnow.cnt_id_added; i++)
-			{
-				
-				esp_now_peer_info_t peer_i = {0};
-				memcpy(peer_i.peer_addr, SLT.espnow.peer_list[i].mac, ESP_NOW_ETH_ALEN);
-				peer_i.channel = CONFIG_ESPNOW_CHANNEL;
-	
-				wifi_mode_t mode;
-				esp_wifi_get_mode(&mode);
-	
-				if (mode == WIFI_MODE_STA)
-					peer_i.ifidx = WIFI_IF_STA;
-				else if (mode == WIFI_MODE_AP)
-					peer_i.ifidx = WIFI_IF_AP;
-	
-				peer_i.encrypt = false;
-				
-				if (esp_now_is_peer_exist(SLT.espnow.peer_list[i].mac) != true)
-					esp_now_add_peer(&peer_i);
-			}
-		}
-		
-		nvs_close(handle); 
-	}
-	
 }
+
 
 void clear_all_peer(void)
 {
-
 	SLT.espnow.cnt_id_added = 0;
-	nvs_handle handle; 
-	if (nvs_open(NVS_ESPNOW_NAMESP, NVS_READWRITE, &handle) == ESP_OK)
-	{
-		nvs_set_u8(handle, NVS_COUNT_PEER, SLT.espnow.cnt_id_added);
-		nvs_commit(handle); 
-		nvs_close(handle); 
-	}
 }
 
 void espnow_add_peer(uint8_t* peer_addr, uint8_t id)
@@ -164,40 +123,27 @@ void espnow_add_peer(uint8_t* peer_addr, uint8_t id)
 	if (esp_now_is_peer_exist(peer_addr) != true)
 		esp_now_add_peer(&peer); 
 	
-	nvs_handle handle; 
-	size_t size = sizeof(SLT.espnow.peer_list);
-	
-	if (nvs_open(NVS_ESPNOW_NAMESP, NVS_READWRITE, &handle) == ESP_OK)
+	bool id_exist = false; 
+		
+	for (int i = 0; i < SLT.espnow.cnt_id_added; i++)
 	{
-		bool id_exist = false; 
-		
-		for (int i = 0; i < SLT.espnow.cnt_id_added; i++)
+		if (id == SLT.espnow.peer_list[i].id)
 		{
-			if (id == SLT.espnow.peer_list[i].id)
-			{
-				memcpy(SLT.espnow.peer_list[i].mac, peer_addr, MAC_ADDR_LEN);
-				nvs_set_blob(handle, NVS_ADDED_PEERS_INF, SLT.espnow.peer_list, size);
-				nvs_commit(handle);
-				id_exist = true;
-			}
-		
-		}	
-		
-		if (id_exist == false)
-		{
-			if (SLT.espnow.cnt_id_added < MAX_PEER)
-			{
-				SLT.espnow.peer_list[SLT.espnow.cnt_id_added].id = id;
-				memcpy(SLT.espnow.peer_list[SLT.espnow.cnt_id_added].mac, peer_addr, MAC_ADDR_LEN); 
-				nvs_set_blob(handle, NVS_ADDED_PEERS_INF, SLT.espnow.peer_list, size);
-				
-				SLT.espnow.cnt_id_added++;
-				nvs_set_u8(handle, NVS_COUNT_PEER, SLT.espnow.cnt_id_added);
-				nvs_commit(handle);
-			}
-			
+			memcpy(SLT.espnow.peer_list[i].mac, peer_addr, MAC_ADDR_LEN);
+			id_exist = true;
 		}
-		nvs_close(handle);
+		
+	}	
+		
+	if (id_exist == false)
+	{
+		if (SLT.espnow.cnt_id_added < MAX_PEER)
+		{
+			SLT.espnow.peer_list[SLT.espnow.cnt_id_added].id = id;
+			memcpy(SLT.espnow.peer_list[SLT.espnow.cnt_id_added].mac, peer_addr, MAC_ADDR_LEN); 
+			SLT.espnow.cnt_id_added++;
+		}
+			
 	}
 }
 

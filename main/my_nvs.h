@@ -20,10 +20,6 @@
 
 #define NVS_NOW_MY_MODE "espnow_mode"
 
-#define NVS_ADDED_PEERS_INF "added_peer"		/**! key in NVS_ESPNOW_NAMESP */
-
-#define NVS_COUNT_PEER "count_peer"				/**! key in NVS_ESPNOW_NAMESP */
-
 #define NVS_MASTER_EFFECT_NS "master_effect"
 #define NVS_MODE_EFFECT "mode_effect"
 

@@ -177,10 +177,22 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 			
 			if (recv_buf.data[3] == TCP_EFF_SYNCH)
 				SLT.effMana.master_mode = EFF_SYNCHRONOUS;
-			else if(recv_buf.data[3] == TCP_EFF_ASYNCH)
+			else if (recv_buf.data[3] == TCP_EFF_ASYNCH)
 				SLT.effMana.master_mode = EFF_ASYNCHRONOUS;
 			
 			xSemaphoreGive(xMasterModeEff);
+			
+		}
+		else if (recv_buf.data[3] == TCP_GET_INF_ESP_MODE || recv_buf.data[3] == TCP_SET_INF_ESP_MODE)
+		{
+			if (recv_buf.data[3] == TCP_GET_INF_ESP_MODE)
+			{
+				
+			}
+			else if (recv_buf.data[3] == TCP_SET_INF_ESP_MODE)
+			{
+				
+			}
 			
 		}
 		else

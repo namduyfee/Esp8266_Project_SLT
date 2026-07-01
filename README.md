@@ -57,3 +57,9 @@ TCP:
 * NOTE: 
 	+ mỗi thời điểm chỉ có một thiết bị kết nối và truyên file từ app xuống esp master. 
 
+- set infor esp mode
+ 'TCP' + CMD (TCP_SET_INF_ESP_MODE) + mode (ESP_NOW_MASTER : 0 or ESP_NOW_SLAVE : 1) + my_id + gw_code
+
+- get infor esp mode
+ 'TCP' + CMD (TCP_GET_INF_ESP_MODE)
+ return 'TCP' + CMD (TCP_GET_INF_ESP_MODE) +  mode (ESP_NOW_MASTER : 0 or ESP_NOW_SLAVE : 1) + my_id + my_code + gw_code

@@ -35,23 +35,13 @@ void my_start_wifi(void)
 	
 	SLT.espnow.my_code = generate_esp32_unique_id(SLT.wifi.ap_macaddr);
 	
-	nvs_handle handle; 
+	char id_string[9];
+	snprintf(id_string, sizeof(id_string), "%08X", SLT.espnow.my_code);
 	
-	if (nvs_open(NVS_ESPNOW_NAMESP, NVS_READONLY, &handle) == ESP_OK)
-	{
-		
-		if (nvs_get_i8(handle, NVS_NOW_MY_MODE, &SLT.espnow.mode) == ESP_OK)
-		{
-			
-		}
-		nvs_close(handle);
-	}
- 
-
 	esp_wifi_set_mode(WIFI_MODE_AP);
 				
 	char result[32];
-	snprintf(result, sizeof(result), "SLT_ESP%d", SLT.espnow.my_id);
+	snprintf(result, sizeof(result), "SLT V8-%s", id_string);
 
 	wifi_config_t ap_config = {
 		.ap = {

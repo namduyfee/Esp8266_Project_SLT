@@ -110,10 +110,15 @@ typedef struct
 
 typedef struct My_Esp_Now
 {	
+	peer_info_t gw_peer;
+	uint32_t gw_code;
+	
 	peer_info_t peer_list[MAX_PEER];	/**< info peers added */
 	uint8_t cnt_id_added;				/**< total id added */
+	
 	uint8_t my_id;
 	uint32_t my_code;
+	
 	int8_t mode;
 	
 	bool send_success;

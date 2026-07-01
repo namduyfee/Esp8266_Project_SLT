@@ -53,12 +53,5 @@ void config_GPIO_OUT(void);
 #define GPIO_PWM_CHAN_6	GPIO_NUM_14
 #define GPIO_PWM_CHAN_7	GPIO_NUM_15
 
-/*======= PIN SELECT MASTER =======*/
-#define BUT_SEL_MASTER GPIO_NUM_12
-#define BUT_DISPLAY_ID GPIO_NUM_13
-
-#define LEVEL_SEL_MASTER_PRESSED 0
-#define LEVEL_DISPLAY_ID_PRESSED 0
-
 #endif
 
