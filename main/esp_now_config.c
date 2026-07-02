@@ -28,16 +28,16 @@ static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status);
 
 static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len) 
 {
-	if (mac_addr == NULL || data == NULL || len <= 0) {
+	if (mac_addr == NULL || data == NULL || len <= 0) 
 		return;
-	}
 	
-	uint8_t header[] = KEY_NOW;
+	if (len < 4)
+		return;
 	
-	if (data[0] != header[0] || data[1] != header[1] || data[2] != header[2])
-	{
+	uint32_t gw_code; memcpy(&gw_code, data, sizeof(gw_code));
+	
+	if (gw_code != SLT.espnow.gw_code || gw_code == 0xffffffff)
 		return; 
-	}	
 	
 	if (( (uint16_t)(data[len - 1] << 8) | data[len - 2]) == 
 	crc16_modbus(0xffff, (uint8_t*)data, len - NOW_SZOF_CRC))
@@ -60,6 +60,13 @@ static void on_data_recv(const uint8_t *mac_addr, const uint8_t *data, int len)
 
 static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
+	uint8_t brc_add[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	
+	if (is_same_macadrr(mac_addr, brc_add) == true)
+	{
+		xSemaphoreGive(xNowSendDone);
+		return;
+	}
 	
 	SLT.espnow.send_success = (status == ESP_NOW_SEND_SUCCESS);
 	xSemaphoreGive(xNowSendDone);
@@ -176,7 +183,6 @@ uint16_t crc16_modbus(uint16_t crc, uint8_t *buf, uint32_t len)
 
 buf_espnow_t espnow_make_frame_send(void* payload, uint32_t len_payload, command_espnow_t cmd)
 {
-	uint8_t header [] = KEY_NOW;
 	
 	buf_espnow_t buf = {.data = NULL, .tot_byte = 0};
 	
@@ -186,7 +192,8 @@ buf_espnow_t espnow_make_frame_send(void* payload, uint32_t len_payload, command
 	if (buf.data == NULL || buf.tot_byte == 0)
 		return buf; 
 	
-	buf.data[0] = header[0]; buf.data[1] = header[1]; buf.data[2] = header[2];
+	memcpy(buf.data, &SLT.espnow.gw_code, NOW_SZOF_HEADER);
+
 	buf.data[NOW_INDEX_CMD] = cmd; 
 	
 	if (payload != NULL && len_payload != 0)

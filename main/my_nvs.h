@@ -19,6 +19,8 @@
 #define NVS_ESPNOW_NAMESP "espnow"	
 
 #define NVS_NOW_MY_MODE "espnow_mode"
+#define NVS_NOW_MY_ID "espnow_my_id"
+#define NVS_NOW_GW_CODE "espnow_gw_code"
 
 #define NVS_MASTER_EFFECT_NS "master_effect"
 #define NVS_MODE_EFFECT "mode_effect"

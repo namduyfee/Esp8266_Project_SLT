@@ -11,8 +11,7 @@
 #include "my_effect.h"
 
 
-#define MY_ID 2						/**< id of this esp */
-#define KEY_NOW "NOW"				/**< only esp have KEY_NOW is same then they can receive each other's packets. KEY_NOW must is 3 characters*/
+#define MY_ID 0xff						/**< id of this esp */
 
 
 typedef struct 
@@ -26,11 +25,26 @@ typedef struct
 	
 } Object;
 
+typedef struct
+{
+	tcp_command_t cmd;
+	
+	espnow_mode_t mode; 
+	
+	uint8_t my_id;
+	
+	char gw_code[9];
+	
+} request_config_espmode_t;
+
 extern Object SLT; 
 extern QueueHandle_t xTcpLoadf; 
 extern QueueHandle_t xEffLoadf;
 extern QueueHandle_t xNowRecv;
 extern QueueHandle_t xNowSend;	
+extern QueueHandle_t xConfigEspMode;
+extern QueueHandle_t xSendTcp;
+
 extern SemaphoreHandle_t xTcpSwitchBufSend;
 extern SemaphoreHandle_t xNowSendDone; 
 extern SemaphoreHandle_t xMasterModeEff;

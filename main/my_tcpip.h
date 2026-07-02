@@ -53,6 +53,7 @@ typedef enum
 	TCP_NACK
 } tcp_command_t;
 
+
 typedef struct
 {
 	uint8_t* data;
@@ -80,7 +81,7 @@ typedef struct
 	
 	struct
 	{ 	
-	 
+		
 	} recv;
 	
 	struct
