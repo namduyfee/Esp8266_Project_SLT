@@ -180,7 +180,7 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 					SLT.effMana.master_mode = EFF_SYNCHRONOUS;
 				else if (recv_buf.data[3] == TCP_EFF_ASYNCH)
 					SLT.effMana.master_mode = EFF_ASYNCHRONOUS;
-			
+				
 				xSemaphoreGive(xMasterModeEff);
 			
 			}
