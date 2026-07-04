@@ -338,10 +338,13 @@ static err_t tcp_recv_cb(void* arg, struct tcp_pcb* tpcb, struct pbuf *p, err_t 
 				}
 				else if (recv_buf.data[3] == TCP_END_WRF)
 				{
-			
-					eff.cmd = F_END_WR; 
-					eff.write_end.checksum = (((uint8_t*)recv_buf.data)[5] << 8)  | 
-											 (((uint8_t*)recv_buf.data)[4] << 0);
+					if (recv_buf.tot_byte >= 6)
+					{
+						eff.cmd = F_END_WR; 
+						eff.write_end.checksum = (((uint8_t*)recv_buf.data)[5] << 8)  | 
+												 (((uint8_t*)recv_buf.data)[4] << 0);
+					}
+
 				}
 		
 				if (eff.cmd != F_NONE)
@@ -412,22 +415,19 @@ void tcp_send_cb(void* arg)
 	tcp_buf_t* buf = (tcp_buf_t*)arg;
 	struct tcp_pcb* pcb = SLT.server.p_client->tpcb;
 	
-	if (pcb == NULL || pcb->state == CLOSED)
+	if (pcb == NULL || pcb->state == CLOSED) 
+	{
+		xSemaphoreGive(xTcpSwitchBufSend);
 		return;
-
+	}
+	
 	err_t ret = tcp_write(pcb, buf->data, buf->tot_byte, TCP_WRITE_FLAG_COPY);
 
 	if (ret == ERR_OK)
 	{
 		tcp_output(pcb);	
-		SLT.server.send.sent = true; 
-	}
-	else
-	{
-		SLT.server.send.sent = false; 
 	}
 	xSemaphoreGive(xTcpSwitchBufSend);
-	
 }
 
 /**
@@ -446,21 +446,7 @@ tcp_buf_t* tcp_make_frame(tcp_command_t cmd, void* data, uint32_t byte_data)
 	
 	uint8_t header[TCP_LEN_HEADER] = {'T', 'C', 'P'};
 	
-
 	header[3] = (uint8_t)cmd;
-	
-	if (cmd == TCP_ACK)
-		header[3] = 'Y';
-	else if (cmd == TCP_NACK)
-		header[3] = 'N';
-	else if (cmd == TCP_RETURN_ID_RECEIVED)
-	{
-		uint32_t tem = *((uint32_t*)data);
-		if (tem == 7) 
-		{
-			header[3] = 'H'; 
-		}
-	}
 	
 	memcpy(retCmd, header, TCP_LEN_HEADER); 
 				

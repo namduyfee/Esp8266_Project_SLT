@@ -1,5 +1,6 @@
 #include "my_lib.h"
 #include "string.h"
+#include <stdlib.h>
 
 #define MIN_DELAY 1 /*!< adjust by portTICK_PERIOD_MS */
 #define MIN_SIZE_OP_FILE 2048 /*!< task operate with spiffs file, it will need large size stack */ 
@@ -16,6 +17,10 @@ void task_send_tcp();
 void task_update_effect_node(); 
 void task_make_effect();
 void task_effect_synchr_asynchr();
+
+static void init_effect_group(group_t* group);
+static void cleanup_effect_group(group_t* group);
+static void cleanup_effect_groups(effect_manage_t* effMana);
 
 Object SLT = {
 	.Pwm = {
@@ -372,31 +377,27 @@ void task_esp_now_recv()
 			{
 				if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_BRC && SLT.espnow.mode == ESP_NOW_SLAVE)
 				{
-					if ( (is_same_macadrr(SLT.espnow.gw_peer.mac, espnow_recv.addr) != true)
-						|| (SLT.espnow.gw_peer.id != espnow_recv.buf.data[NOW_INDEX_CMD + 1]))
+								
+					if (xSemaphoreTake(xNowPeersMana, portMAX_DELAY) == pdPASS)
 					{
+						memcpy(SLT.espnow.gw_peer.mac, espnow_recv.addr, MAC_ADDR_LEN); 
+						SLT.espnow.gw_peer.id = espnow_recv.buf.data[NOW_INDEX_CMD + 1];
 								
-						if (xSemaphoreTake(xNowPeersMana, portMAX_DELAY) == pdPASS)
-						{
-							memcpy(SLT.espnow.gw_peer.mac, espnow_recv.addr, MAC_ADDR_LEN); 
-							SLT.espnow.gw_peer.id = espnow_recv.buf.data[NOW_INDEX_CMD + 1];
-								
-							espnow_add_peer(SLT.espnow.gw_peer.mac, SLT.espnow.gw_peer.id);
+						espnow_add_peer(SLT.espnow.gw_peer.mac, SLT.espnow.gw_peer.id);
 
-							xSemaphoreGive(xNowPeersMana);
-						}
-								
-						/** send request add peer to gateway */
-						uint8_t payload = SLT.espnow.my_id; 
-								
-						espnow_send_queue_t add_peer_q; 
-						add_peer_q.dest_id = SLT.espnow.gw_peer.id;
-						add_peer_q.tmout_ms = 4000;
-						add_peer_q.buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_ADD_PEER); 
-						if (add_peer_q.buf.data != NULL && add_peer_q.buf.tot_byte > 0)
-							xQueueSend(xNowSend, &add_peer_q, pdMS_TO_TICKS(6000));
-								
+						xSemaphoreGive(xNowPeersMana);
 					}
+								
+					/** send request add peer to gateway */
+					uint8_t payload = SLT.espnow.my_id; 
+								
+					espnow_send_queue_t add_peer_q; 
+					add_peer_q.dest_id = SLT.espnow.gw_peer.id;
+					add_peer_q.tmout_ms = 4000;
+					add_peer_q.buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_ADD_PEER); 
+					if (add_peer_q.buf.data != NULL && add_peer_q.buf.tot_byte > 0)
+						xQueueSend(xNowSend, &add_peer_q, pdMS_TO_TICKS(6000));
+								
 				}
 					
 				else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_ADD_PEER && SLT.espnow.mode == ESP_NOW_MASTER)
@@ -1745,7 +1746,6 @@ void task_send_tcp()
 	tcp_buf_t* tcp_send_buf = NULL;
 	
 	xSemaphoreTake(xTcpSwitchBufSend, 0);
-	SLT.server.send.sent = false;
 	
 	while (1)
 	{
@@ -1756,23 +1756,20 @@ void task_send_tcp()
 		
 		while (tcpip_callback(tcp_send_cb, tcp_send_buf) != ERR_OK)
 		{
-			vTaskDelay(pdMS_TO_TICKS(10));
+			vTaskDelay(pdMS_TO_TICKS(MIN_DELAY));
 		}
 		
 		xSemaphoreTake(xTcpSwitchBufSend, portMAX_DELAY);
 		
-		if (SLT.server.send.sent == true)
-		{
-			if (tcp_send_buf != NULL && tcp_send_buf->data != NULL) {
-				free(tcp_send_buf->data);
-				tcp_send_buf->data = NULL;
-			}
-			if (tcp_send_buf != NULL) {
-				free(tcp_send_buf);
-			}
-			
-			tcp_send_buf = NULL;
+
+		if (tcp_send_buf != NULL && tcp_send_buf->data != NULL) {
+			free(tcp_send_buf->data);
+			tcp_send_buf->data = NULL;
 		}
+		if (tcp_send_buf != NULL) {
+			free(tcp_send_buf);
+		}
+		tcp_send_buf = NULL;
 	}
 }
 /**
@@ -2137,6 +2134,69 @@ void task_update_effect_node()
  * request frame: KEY + CMD (NOW_EFF_SYNC | NOW_EFF_ASYNC) + number of group + list group + list state + CRC
  *
  */
+static void init_effect_group(group_t* group)
+{
+	if (group == NULL)
+		return;
+
+	group->numState = 0;
+	group->p_timExistOfSta = NULL;
+	group->numObject = 0;
+	group->p_object = NULL;
+	group->id_object = NULL;
+}
+
+static void cleanup_effect_group(group_t* group)
+{
+	if (group == NULL)
+		return;
+
+	if (group->p_object != NULL)
+	{
+		for (int i = 0; i < group->numObject; i++)
+		{
+			if (group->p_object[i].brNessofState != NULL)
+			{
+				free(group->p_object[i].brNessofState);
+				group->p_object[i].brNessofState = NULL;
+			}
+		}
+
+		free(group->p_object);
+		group->p_object = NULL;
+	}
+
+	if (group->id_object != NULL)
+	{
+		free(group->id_object);
+		group->id_object = NULL;
+	}
+
+	if (group->p_timExistOfSta != NULL)
+	{
+		free(group->p_timExistOfSta);
+		group->p_timExistOfSta = NULL;
+	}
+
+	group->numState = 0;
+	group->numObject = 0;
+}
+
+static void cleanup_effect_groups(effect_manage_t* effMana)
+{
+	if (effMana == NULL)
+		return;
+
+	for (int i = 0; i < MAX_NUM_OF_GROUP; i++)
+	{
+		cleanup_effect_group(&effMana->p_group[i]);
+		effMana->offStartGr[i] = 0;
+		effMana->totByteGr[i] = 0;
+		effMana->id_group[i] = 0;
+	}
+
+	effMana->numGroup = 0;
+}
 void task_make_effect()
 {
 	
@@ -2151,8 +2211,6 @@ void task_make_effect()
 	bool data_available = false;
 	
 	/** init struct effect */
-	bool allocate_first = true;		/**< if the first allocte , not free memory. else free */
-	
 	SLT.effMana.numGroup = 0;
 	
 	
@@ -2163,11 +2221,7 @@ void task_make_effect()
 		SLT.effMana.totByteGr[i] = 0;
 		SLT.effMana.id_group[i] = 0;
 		
-		SLT.effMana.p_group[i].numState = 0;
-		SLT.effMana.p_group[i].numObject = 0;
-		SLT.effMana.p_group[i].p_timExistOfSta = NULL;
-		SLT.effMana.p_group[i].p_object = NULL;
-		SLT.effMana.p_group[i].id_object = NULL;
+		init_effect_group(&SLT.effMana.p_group[i]);
 	}
 	effect_request_t eff_req_tmp = {.mode = EFF_ASYNCHRONOUS};
 	
@@ -2185,6 +2239,7 @@ void task_make_effect()
 			
 			if (fd >= 0)
 			{
+				cleanup_effect_groups(&SLT.effMana);
 				
 				lseek(fd, 0, SEEK_SET); 
 				
@@ -2219,13 +2274,20 @@ void task_make_effect()
 					read(fd, &SLT.effMana.p_group[i].numState, sizeof(SLT.effMana.p_group[i].numState));
 					
 					/** allocate and read time exist of states of groups */
-					if (SLT.effMana.p_group[i].p_timExistOfSta != NULL && allocate_first != true) 
+					if (SLT.effMana.p_group[i].numState == 0)
 					{
-						free(SLT.effMana.p_group[i].p_timExistOfSta);
-						SLT.effMana.p_group[i].p_timExistOfSta = NULL;
+						cleanup_effect_group(&SLT.effMana.p_group[i]);
+						SLT.effMana.id_group[i] = 0;
+						continue;
 					}
-					
-					SLT.effMana.p_group[i].p_timExistOfSta = malloc(sizeof(uint8_t) * SLT.effMana.p_group[i].numState);
+
+					SLT.effMana.p_group[i].p_timExistOfSta = calloc(SLT.effMana.p_group[i].numState, sizeof(uint8_t));
+					if (SLT.effMana.p_group[i].p_timExistOfSta == NULL)
+					{
+						cleanup_effect_group(&SLT.effMana.p_group[i]);
+						SLT.effMana.id_group[i] = 0;
+						continue;
+					}
 					read(fd, SLT.effMana.p_group[i].p_timExistOfSta, sizeof(uint8_t) * SLT.effMana.p_group[i].numState);
 					
 					/** read number of object of group */
@@ -2233,22 +2295,22 @@ void task_make_effect()
 						&SLT.effMana.p_group[i].numObject,
 						sizeof(SLT.effMana.p_group[i].numObject));
 					
-					/** allocate list id of object */
-					if (SLT.effMana.p_group[i].id_object != NULL && allocate_first != true)
+					if (SLT.effMana.p_group[i].numObject == 0)
 					{
-						free(SLT.effMana.p_group[i].id_object); 
-						SLT.effMana.p_group[i].id_object = NULL;
+						continue;
 					}
-					SLT.effMana.p_group[i].id_object = malloc(sizeof(uint8_t) * SLT.effMana.p_group[i].numObject);
+
+					/** allocate list id of object */
+					SLT.effMana.p_group[i].id_object = calloc(SLT.effMana.p_group[i].numObject, sizeof(uint8_t));
 					
 					/** allocate list object */
-					if (SLT.effMana.p_group[i].p_object != NULL && allocate_first != true)
+					SLT.effMana.p_group[i].p_object = calloc(SLT.effMana.p_group[i].numObject, sizeof(object_t));
+					if (SLT.effMana.p_group[i].id_object == NULL || SLT.effMana.p_group[i].p_object == NULL)
 					{
-						
-						free(SLT.effMana.p_group[i].p_object);
-						SLT.effMana.p_group[i].p_object = NULL;
+						cleanup_effect_group(&SLT.effMana.p_group[i]);
+						SLT.effMana.id_group[i] = 0;
+						continue;
 					}
-					SLT.effMana.p_group[i].p_object = malloc(sizeof(object_t) * SLT.effMana.p_group[i].numObject);
 					
 					for (int j = 0; j < SLT.effMana.p_group[i].numObject; j++)
 					{
@@ -2261,14 +2323,13 @@ void task_make_effect()
 						read(fd, SLT.effMana.p_group[i].p_object[j].p_pin, sizeof(uint8_t) * SLT.effMana.p_group[i].p_object[j].numPin);
 						
 						/** brightness states of object */
-						
-						if (SLT.effMana.p_group[i].p_object[j].brNessofState != NULL && allocate_first != true) 
+						SLT.effMana.p_group[i].p_object[j].brNessofState = calloc(SLT.effMana.p_group[i].numState, sizeof(uint8_t));
+						if (SLT.effMana.p_group[i].p_object[j].brNessofState == NULL)
 						{
-							free(SLT.effMana.p_group[i].p_object[j].brNessofState);
-							SLT.effMana.p_group[i].p_object[j].brNessofState = NULL;
+							cleanup_effect_group(&SLT.effMana.p_group[i]);
+							SLT.effMana.id_group[i] = 0;
+							break;
 						}
-						
-						SLT.effMana.p_group[i].p_object[j].brNessofState = malloc(sizeof(uint8_t) * SLT.effMana.p_group[i].numState);
 						read(fd, SLT.effMana.p_group[i].p_object[j].brNessofState, sizeof(uint8_t) * SLT.effMana.p_group[i].numState);
 					}
 				}
@@ -2290,7 +2351,6 @@ void task_make_effect()
 				}
 				
 				setting_first = true;
-				allocate_first = false;
 				
 			}
 			

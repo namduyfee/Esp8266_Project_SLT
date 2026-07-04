@@ -84,11 +84,6 @@ typedef struct
 		
 	} recv;
 	
-	struct
-	{
-		volatile bool sent; 
-	} send;
-	
 	void* arg;
 	
 	tcp_client_t* p_client;
