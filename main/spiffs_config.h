@@ -39,7 +39,6 @@ typedef enum
 	F_OP,
 	F_CLS,
 	F_DLT, 
-	F_RD,
 	
 	F_ST_WR,
 	F_WR,
@@ -75,11 +74,6 @@ typedef struct
 		{
 			uint16_t checksum;
 		} write_end;
-		struct
-		{
-			off_t offset;
-			uint32_t tot_byte;				/**< total length message */
-		} read;
 	};
 
 } file_request_t;
