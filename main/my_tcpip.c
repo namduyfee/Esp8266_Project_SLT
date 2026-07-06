@@ -306,9 +306,11 @@ static void tcp_process_rx_buffer(tcp_client_t* client)
 
 static void tcp_process_frame(uint8_t cmd, const uint8_t* payload, uint32_t payload_len)
 {
-	if (cmd == TCP_EFF_ASYNCH || cmd == TCP_EFF_SYNCH)
+	bool legacy_effect_mode_cmd = payload_len == 0 && (cmd == 7 || cmd == 8);
+
+	if (cmd == TCP_EFF_ASYNCH || cmd == TCP_EFF_SYNCH || legacy_effect_mode_cmd)
 	{
-		if (cmd == TCP_EFF_SYNCH)
+		if (cmd == TCP_EFF_SYNCH || cmd == 7)
 			SLT.effMana.master_mode = EFF_SYNCHRONOUS;
 		else
 			SLT.effMana.master_mode = EFF_ASYNCHRONOUS;
@@ -544,14 +546,12 @@ void tcp_queue_status_response(tcp_command_t status, tcp_command_t response_to, 
 
 void tcp_queue_ack(tcp_command_t response_to)
 {
-	tcp_queue_status_response('Y', response_to, NULL, 0);
-	//tcp_queue_status_response(TCP_ACK, response_to, NULL, 0);
+	tcp_queue_status_response(TCP_ACK, response_to, NULL, 0);
 }
 
 void tcp_queue_nack(tcp_command_t response_to)
 {
-	tcp_queue_status_response('N', response_to, NULL, 0);
-	//tcp_queue_status_response(TCP_NACK, response_to, NULL, 0);
+	tcp_queue_status_response(TCP_NACK, response_to, NULL, 0);
 }
 
 /**
