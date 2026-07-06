@@ -5,6 +5,19 @@
 #define MIN_DELAY 1 /*!< adjust by portTICK_PERIOD_MS */
 #define MIN_SIZE_OP_FILE 2048 /*!< task operate with spiffs file, it will need large size stack */
 
+#define ESPNOW_TX_TIMEOUT_BRC_MS 80
+#define ESPNOW_TX_TIMEOUT_ADD_PEER_MS 300
+#define ESPNOW_TX_TIMEOUT_CTRL_MS 300
+#define ESPNOW_TX_TIMEOUT_FILE_CTRL_MS 500
+#define ESPNOW_TX_TIMEOUT_FILE_DATA_MS 150
+#define ESPNOW_TX_TIMEOUT_EFFECT_SYNC_MS 40
+#define ESPNOW_TX_TIMEOUT_EFFECT_MODE_MS 150
+
+#define ESPNOW_QUEUE_WAIT_REALTIME_MS 0
+#define ESPNOW_QUEUE_WAIT_FAST_MS 5
+#define ESPNOW_QUEUE_WAIT_CTRL_MS 300
+#define ESPNOW_QUEUE_WAIT_FILE_MS 500
+
 void task_mana_espmode();
 
 void task_esp_now_send();
@@ -21,8 +34,8 @@ void task_effect_synchr_asynchr();
 static void init_effect_group(group_t* group);
 static void cleanup_effect_group(group_t* group);
 static void cleanup_effect_groups(effect_manage_t* effMana);
+static BaseType_t queue_espnow_send(espnow_send_queue_t* queue, uint32_t wait_ms);
 static void queue_latest_effect_request(const effect_request_t* request);
-
 Object SLT = {
 	.Pwm = {
 		.gpio_channel = {
@@ -307,10 +320,12 @@ void task_mana_espmode()
 				uint8_t payload = SLT.espnow.my_id;
 				espnow_send_queue_t send_q;
 				send_q.dest_id = NOW_ID_BRC;
-				send_q.tmout_ms = 300;
+				send_q.tmout_ms = ESPNOW_TX_TIMEOUT_BRC_MS;
 				send_q.buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_BRC);
 				if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
-					xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+				{
+					queue_espnow_send(&send_q, ESPNOW_QUEUE_WAIT_FAST_MS);
+				}
 
 				first_brc = false;
 				last_tick = xTaskGetTickCount();
@@ -366,10 +381,10 @@ void task_esp_now_recv()
 
 					espnow_send_queue_t add_peer_q;
 					add_peer_q.dest_id = SLT.espnow.gw_peer.id;
-					add_peer_q.tmout_ms = 4000;
+					add_peer_q.tmout_ms = ESPNOW_TX_TIMEOUT_ADD_PEER_MS;
 					add_peer_q.buf = espnow_make_frame_send(&payload, sizeof(payload), NOW_ADD_PEER);
 					if (add_peer_q.buf.data != NULL && add_peer_q.buf.tot_byte > 0)
-						xQueueSend(xNowSend, &add_peer_q, pdMS_TO_TICKS(6000));
+						queue_espnow_send(&add_peer_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 
 				}
 
@@ -397,10 +412,10 @@ void task_esp_now_recv()
 
 						espnow_send_queue_t nack_q;
 						nack_q.dest_id = SLT.espnow.gw_peer.id;
-						nack_q.tmout_ms = 1000;
+						nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 						nack_q .buf = espnow_make_frame_send(&nack_of_cmd, sizeof(nack_of_cmd), NOW_NACK);
 						if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
-							xQueueSend(xNowSend, &nack_q, pdMS_TO_TICKS(3000));
+							queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 					}
 
 				}
@@ -418,10 +433,10 @@ void task_esp_now_recv()
 
 						espnow_send_queue_t nack_q;
 						nack_q.dest_id = SLT.espnow.gw_peer.id;
-						nack_q.tmout_ms = 1000;
+						nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 						nack_q .buf = espnow_make_frame_send(&nack_of_cmd, sizeof(nack_of_cmd), NOW_NACK);
 						if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
-							xQueueSend(xNowSend, &nack_q, pdMS_TO_TICKS(3000));
+							queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 					}
 
 				}
@@ -439,10 +454,10 @@ void task_esp_now_recv()
 
 						espnow_send_queue_t nack_q;
 						nack_q.dest_id = SLT.espnow.gw_peer.id;
-						nack_q.tmout_ms = 1000;
+						nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 						nack_q .buf = espnow_make_frame_send(&nack_of_cmd, sizeof(nack_of_cmd), NOW_NACK);
 						if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
-							xQueueSend(xNowSend, &nack_q, pdMS_TO_TICKS(3000));
+							queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 					}
 
 				}
@@ -500,10 +515,10 @@ void task_esp_now_recv()
 
 							espnow_send_queue_t nack_q;
 							nack_q.dest_id = SLT.espnow.gw_peer.id;
-							nack_q.tmout_ms = 1000;
+							nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 							nack_q.buf = espnow_make_frame_send(&nack_of_cmd, sizeof(nack_of_cmd), NOW_NACK);
 							if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
-								xQueueSend(xNowSend, &nack_q, pdMS_TO_TICKS(3000));
+								queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 						}
 					}
 
@@ -626,10 +641,10 @@ void task_esp_now_recv()
 
 									espnow_send_queue_t nack_q;
 									nack_q.dest_id = SLT.espnow.gw_peer.id;
-									nack_q.tmout_ms = 1000;
+									nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 									nack_q.buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_NACK);
 									if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
-										xQueueSend(xNowSend, &nack_q, pdMS_TO_TICKS(3000));
+										queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 								}
 							}
 							else
@@ -647,10 +662,10 @@ void task_esp_now_recv()
 
 								espnow_send_queue_t nack_q;
 								nack_q.dest_id = SLT.espnow.gw_peer.id;
-								nack_q.tmout_ms = 1000;
+								nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 								nack_q.buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_NACK);
 								if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
-									xQueueSend(xNowSend, &nack_q, pdMS_TO_TICKS(3000));
+									queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 							}
 
 							/** free after recv all packet */
@@ -683,10 +698,10 @@ void task_esp_now_recv()
 
 								espnow_send_queue_t nack_q;
 								nack_q.dest_id = SLT.espnow.gw_peer.id;
-								nack_q.tmout_ms = 1000;
+								nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 								nack_q.buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_NACK);
 								if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
-									xQueueSend(xNowSend, &nack_q, pdMS_TO_TICKS(3000));
+									queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 
 								free(packet_resend);
 								packet_resend = NULL;
@@ -828,7 +843,7 @@ void task_esp_now_send()
 
 							if (ret == ESP_OK)
 							{
-								xSemaphoreTake(xNowSendDone, portMAX_DELAY);
+								xSemaphoreTake(xNowSendDone, pdMS_TO_TICKS(queue_current.tmout_ms));
 								break;
 							}
 
@@ -849,7 +864,7 @@ void task_esp_now_send()
 
 							if (ret == ESP_OK)
 							{
-								if (xSemaphoreTake(xNowSendDone, portMAX_DELAY) == pdPASS)
+								if (xSemaphoreTake(xNowSendDone, pdMS_TO_TICKS(queue_current.tmout_ms)) == pdPASS)
 								{
 									if (SLT.espnow.send_success)
 										can_break = true;
@@ -1201,11 +1216,11 @@ void task_file_effect()
 
 					espnow_send_queue_t state_q;
 					state_q.dest_id = SLT.espnow.gw_peer.id;
-					state_q.tmout_ms = 1000;
+					state_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 					state_q .buf = espnow_make_frame_send(&state_of_cmd, sizeof(state_of_cmd), state);
 
 					if (state_q.buf.data != NULL && state_q.buf.tot_byte > 0)
-						xQueueSend(xNowSend, &state_q, pdMS_TO_TICKS(3000));
+						queue_espnow_send(&state_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 
 				}
 
@@ -1226,11 +1241,11 @@ void task_file_effect()
 
 					espnow_send_queue_t state_q;
 					state_q.dest_id = SLT.espnow.gw_peer.id;
-					state_q.tmout_ms = 1000;
+					state_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 					state_q .buf = espnow_make_frame_send(&state_of_cmd, sizeof(state_of_cmd), state);
 
 					if (state_q.buf.data != NULL && state_q.buf.tot_byte > 0)
-						xQueueSend(xNowSend, &state_q, pdMS_TO_TICKS(3000));
+						queue_espnow_send(&state_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 
 				}
 			}
@@ -1255,11 +1270,11 @@ void task_file_effect()
 
 					espnow_send_queue_t state_q;
 					state_q.dest_id = SLT.espnow.gw_peer.id;
-					state_q.tmout_ms = 1000;
+					state_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 					state_q .buf = espnow_make_frame_send(&state_of_cmd, sizeof(state_of_cmd), state);
 
 					if (state_q.buf.data != NULL && state_q.buf.tot_byte > 0)
-						xQueueSend(xNowSend, &state_q, pdMS_TO_TICKS(3000));
+						queue_espnow_send(&state_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 
 				}
 			}
@@ -1274,11 +1289,11 @@ void task_file_effect()
 
 						espnow_send_queue_t state_q;
 						state_q.dest_id = SLT.espnow.gw_peer.id;
-						state_q.tmout_ms = 1000;
+						state_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 						state_q .buf = espnow_make_frame_send(&nack_of_cmd, sizeof(nack_of_cmd), NOW_NACK);
 
 						if (state_q.buf.data != NULL && state_q.buf.tot_byte > 0)
-							xQueueSend(xNowSend, &state_q, pdMS_TO_TICKS(3000));
+							queue_espnow_send(&state_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 					}
 
 				}
@@ -1309,11 +1324,11 @@ void task_file_effect()
 
 						espnow_send_queue_t state_q;
 						state_q.dest_id = SLT.espnow.gw_peer.id;
-						state_q.tmout_ms = 1000;
+						state_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 						state_q .buf = espnow_make_frame_send(&state_of_cmd, sizeof(state_of_cmd), state);
 
 						if (state_q.buf.data != NULL && state_q.buf.tot_byte > 0)
-							xQueueSend(xNowSend, &state_q, pdMS_TO_TICKS(3000));
+							queue_espnow_send(&state_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 					}
 
 				}
@@ -1456,10 +1471,10 @@ void task_file_effect()
 
 						espnow_send_queue_t ack_q;
 						ack_q.dest_id = SLT.espnow.gw_peer.id;
-						ack_q.tmout_ms = 1000;
+						ack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 						ack_q.buf = espnow_make_frame_send(&ack_of_cmd, sizeof(ack_of_cmd), NOW_ACK);
 						if (ack_q.buf.data != NULL && ack_q.buf.tot_byte > 0)
-							xQueueSend(xNowSend, &ack_q, pdMS_TO_TICKS(3000));
+							queue_espnow_send(&ack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 					}
 
 				    // load new effect to run
@@ -1481,10 +1496,10 @@ void task_file_effect()
 
 						espnow_send_queue_t nack_q;
 						nack_q.dest_id = SLT.espnow.gw_peer.id;
-						nack_q.tmout_ms = 1000;
+						nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
 						nack_q.buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_NACK);
 						if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
-							xQueueSend(xNowSend, &nack_q, pdMS_TO_TICKS(3000));
+							queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 
 					}
 					if (fd_tmp >= 0)
@@ -1671,10 +1686,10 @@ void task_update_effect_node()
 
 						espnow_send_queue_t open_q;
 						open_q.dest_id = id_node;
-						open_q.tmout_ms = 1000;
+						open_q.tmout_ms = ESPNOW_TX_TIMEOUT_FILE_CTRL_MS;
 						open_q.buf = espnow_make_frame_send(NULL, 0, NOW_OPF);
 						if (open_q.buf.data != NULL && open_q.buf.tot_byte > 0)
-							xQueueSend(xNowSend, &open_q, portMAX_DELAY);
+							queue_espnow_send(&open_q, ESPNOW_QUEUE_WAIT_FILE_MS);
 
 						if (xSemaphoreTake(xNowReturnState, pdMS_TO_TICKS(3000)) == pdPASS)
 						{
@@ -1708,11 +1723,11 @@ void task_update_effect_node()
 
 								espnow_send_queue_t write_st_q;
 								write_st_q.dest_id = id_node;
-								write_st_q.tmout_ms = 1000;
+								write_st_q.tmout_ms = ESPNOW_TX_TIMEOUT_FILE_CTRL_MS;
 								write_st_q.buf = espnow_make_frame_send(payload_st_write,
 									sizeof(payload_st_write), NOW_ST_WRF);
 								if (write_st_q.buf.data != NULL && write_st_q.buf.tot_byte > 0)
-									xQueueSend(xNowSend, &write_st_q, portMAX_DELAY);
+									queue_espnow_send(&write_st_q, ESPNOW_QUEUE_WAIT_FILE_MS);
 
 								if (xSemaphoreTake(xNowReturnState, pdMS_TO_TICKS(3000)) == pdPASS)
 								{
@@ -1756,10 +1771,10 @@ void task_update_effect_node()
 
 											espnow_send_queue_t write_q;
 											write_q.dest_id = id_node;
-											write_q.tmout_ms = 1000;
+											write_q.tmout_ms = ESPNOW_TX_TIMEOUT_FILE_DATA_MS;
 											write_q.buf = espnow_make_frame_send(buf, NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET + tot_byte_read, NOW_WRF);
 											if (write_q.buf.data != NULL && write_q.buf.tot_byte > 0)
-												xQueueSend(xNowSend, &write_q, portMAX_DELAY);
+												queue_espnow_send(&write_q, ESPNOW_QUEUE_WAIT_FILE_MS);
 
 
 											offset_write_node += tot_byte_read;
@@ -1781,10 +1796,10 @@ void task_update_effect_node()
 											xSemaphoreTake(xNowReturnState, 0);
 											espnow_send_queue_t end_write_q;
 											end_write_q.dest_id = id_node;
-											end_write_q.tmout_ms = 1000;
+											end_write_q.tmout_ms = ESPNOW_TX_TIMEOUT_FILE_CTRL_MS;
 											end_write_q.buf = espnow_make_frame_send(&checksum, sizeof(checksum), NOW_END_WRF);
 											if (end_write_q.buf.data != NULL && end_write_q.buf.tot_byte > 0)
-												xQueueSend(xNowSend, &end_write_q, portMAX_DELAY);
+												queue_espnow_send(&end_write_q, ESPNOW_QUEUE_WAIT_FILE_MS);
 
 											if (xSemaphoreTake(xNowReturnState, pdMS_TO_TICKS(3000)) == pdPASS)
 											{
@@ -1821,12 +1836,12 @@ void task_update_effect_node()
 																read(fd, &buf[8], sizedata_packet[packet_number]);
 																espnow_send_queue_t write_q;
 																write_q.dest_id = id_node;
-																write_q.tmout_ms = 1000;
+																write_q.tmout_ms = ESPNOW_TX_TIMEOUT_FILE_DATA_MS;
 																write_q.buf = espnow_make_frame_send(buf,
 																	NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET + sizedata_packet[packet_number],
 																	NOW_WRF);
 																if (write_q.buf.data != NULL && write_q.buf.tot_byte > 0)
-																	xQueueSend(xNowSend, &write_q, portMAX_DELAY);
+																	queue_espnow_send(&write_q, ESPNOW_QUEUE_WAIT_FILE_MS);
 
 																if (buf != NULL) {
 																	free(buf);
@@ -1948,6 +1963,19 @@ static void cleanup_effect_groups(effect_manage_t* effMana)
 	}
 
 	effMana->numGroup = 0;
+}
+static BaseType_t queue_espnow_send(espnow_send_queue_t* queue, uint32_t wait_ms)
+{
+	if (queue == NULL || queue->buf.data == NULL || queue->buf.tot_byte == 0)
+		return pdFAIL;
+
+	if (xQueueSend(xNowSend, queue, pdMS_TO_TICKS(wait_ms)) == pdPASS)
+		return pdPASS;
+
+	free(queue->buf.data);
+	queue->buf.data = NULL;
+	queue->buf.tot_byte = 0;
+	return pdFAIL;
 }
 static void queue_latest_effect_request(const effect_request_t* request)
 {
@@ -2533,10 +2561,12 @@ void task_effect_synchr_asynchr()
 
 								espnow_send_queue_t send_q;
 								send_q.dest_id = SLT.espnow.peer_list[i].id;
-								send_q.tmout_ms = 100;
+								send_q.tmout_ms = ESPNOW_TX_TIMEOUT_EFFECT_SYNC_MS;
 								send_q .buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_EFF_SYNC);
 								if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
-									xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+								{
+									queue_espnow_send(&send_q, ESPNOW_QUEUE_WAIT_REALTIME_MS);
+								}
 							}
 
 							effect_request_t eff_req_tmp;
@@ -2581,10 +2611,12 @@ void task_effect_synchr_asynchr()
 
 							espnow_send_queue_t send_q;
 							send_q.dest_id = SLT.espnow.peer_list[i].id;
-							send_q.tmout_ms = 500;
+							send_q.tmout_ms = ESPNOW_TX_TIMEOUT_EFFECT_MODE_MS;
 							send_q .buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_EFF_ASYNC);
 							if (send_q.buf.data != NULL && send_q.buf.tot_byte > 0)
-								xQueueSend(xNowSend, &send_q, portMAX_DELAY);
+							{
+								queue_espnow_send(&send_q, ESPNOW_QUEUE_WAIT_FAST_MS);
+							}
 						}
 
 						effect_request_t eff_req_tmp;

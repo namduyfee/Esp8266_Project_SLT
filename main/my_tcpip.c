@@ -306,11 +306,10 @@ static void tcp_process_rx_buffer(tcp_client_t* client)
 
 static void tcp_process_frame(uint8_t cmd, const uint8_t* payload, uint32_t payload_len)
 {
-	bool legacy_effect_mode_cmd = payload_len == 0 && (cmd == 7 || cmd == 8);
 
-	if (cmd == TCP_EFF_ASYNCH || cmd == TCP_EFF_SYNCH || legacy_effect_mode_cmd)
+	if (cmd == TCP_EFF_ASYNCH || cmd == TCP_EFF_SYNCH)
 	{
-		if (cmd == TCP_EFF_SYNCH || cmd == 7)
+		if (cmd == TCP_EFF_SYNCH)
 			SLT.effMana.master_mode = EFF_SYNCHRONOUS;
 		else
 			SLT.effMana.master_mode = EFF_ASYNCHRONOUS;
