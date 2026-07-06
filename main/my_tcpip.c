@@ -544,12 +544,14 @@ void tcp_queue_status_response(tcp_command_t status, tcp_command_t response_to, 
 
 void tcp_queue_ack(tcp_command_t response_to)
 {
-	tcp_queue_status_response(TCP_ACK, response_to, NULL, 0);
+	tcp_queue_status_response('Y', response_to, NULL, 0);
+	//tcp_queue_status_response(TCP_ACK, response_to, NULL, 0);
 }
 
 void tcp_queue_nack(tcp_command_t response_to)
 {
-	tcp_queue_status_response(TCP_NACK, response_to, NULL, 0);
+	tcp_queue_status_response('N', response_to, NULL, 0);
+	//tcp_queue_status_response(TCP_NACK, response_to, NULL, 0);
 }
 
 /**
@@ -569,7 +571,9 @@ tcp_buf_t* tcp_make_frame(tcp_command_t cmd, void* data, uint32_t byte_data)
 	retCmd[0] = 'T';
 	retCmd[1] = 'C';
 	retCmd[2] = 'P';
+	
 	retCmd[3] = (uint8_t)cmd;
+	
 	retCmd[4] = payload_len & 0xff;
 	retCmd[5] = (payload_len >> 8) & 0xff;
 	retCmd[6] = (payload_len >> 16) & 0xff;

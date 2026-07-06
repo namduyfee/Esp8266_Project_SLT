@@ -902,7 +902,10 @@ void task_file_tcp()
 				
 				if (file_req.source == F_TCP_SOURCE)
 				{
-					tcp_queue_status_response(fd >= 0 ? TCP_ACK : TCP_NACK, TCP_OPF, NULL, 0);
+					if (fd >= 0)
+						tcp_queue_ack(TCP_OPF); 
+					else 
+						tcp_queue_nack(TCP_OPF); 
 				}
 
 			}
