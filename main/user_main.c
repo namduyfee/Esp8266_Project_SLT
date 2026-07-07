@@ -17,11 +17,14 @@
 #define ESPNOW_QUEUE_WAIT_FAST_MS 5
 #define ESPNOW_QUEUE_WAIT_CTRL_MS 300
 #define ESPNOW_QUEUE_WAIT_FILE_MS 500
+#define ESPNOW_RECV_WRF_TIMEOUT_MS 5000
+#define ESPNOW_RECV_WRF_MAX_PACKETS 512
 
 void task_mana_espmode();
 
 void task_esp_now_send();
 void task_esp_now_recv();
+void task_esp_now_recv_effect();
 
 void task_file_tcp();
 
@@ -34,6 +37,12 @@ void task_effect_synchr_asynchr();
 static void init_effect_group(group_t* group);
 static void cleanup_effect_group(group_t* group);
 static void cleanup_effect_groups(effect_manage_t* effMana);
+static void cleanup_espnow_recv_wrf_mess(void);
+static void touch_espnow_recv_wrf_mess(void);
+static void cleanup_expired_espnow_recv_wrf_mess(void);
+static bool espnow_has_payload_len(const espnow_recv_queue_t* recv, uint32_t payload_len);
+static bool parse_espnow_effect_request(const espnow_recv_queue_t* recv, effect_mode_t mode, effect_request_t* request);
+static void handle_espnow_effect_request(const espnow_recv_queue_t* recv);
 static BaseType_t queue_espnow_send(espnow_send_queue_t* queue, uint32_t wait_ms);
 static void queue_latest_effect_request(const effect_request_t* request);
 Object SLT = {
@@ -92,12 +101,16 @@ SemaphoreHandle_t xLoadEffect;
 QueueHandle_t xTcpLoadf;
 QueueHandle_t xEffLoadf;					/**< get data from tcp recv callback */
 QueueHandle_t xNowRecv;						/**< get data from espnow recv callback */
+QueueHandle_t xNowRecvEffect;				/**< realtime effect frames from espnow recv callback */
 QueueHandle_t xNowSend;
 QueueHandle_t xSendTcp;
 QueueHandle_t xNowResendWrf;
 QueueHandle_t xEffRequest;
 
 QueueHandle_t xConfigEspMode;
+
+static TickType_t s_espnow_recv_wrf_last_tick = 0;
+static bool s_espnow_recv_wrf_active = false;
 
 void my_init_project(void)
 {
@@ -166,6 +179,8 @@ void app_main(void) {
 
 	xNowRecv = xQueueCreate(20, sizeof(espnow_recv_queue_t));
 
+	xNowRecvEffect = xQueueCreate(10, sizeof(espnow_recv_queue_t));
+
 	xNowSend = xQueueCreate(20, sizeof(espnow_send_queue_t));
 
 	xSendTcp = xQueueCreate(20, sizeof(tcp_buf_t*));
@@ -210,6 +225,8 @@ void app_main(void) {
 	xTaskCreate(task_file_tcp, "task_file_tcp", MIN_SIZE_OP_FILE, NULL, 4, NULL);
 
 	xTaskCreate(task_esp_now_recv, "task_esp_now_recv", MIN_SIZE_OP_FILE, NULL, 4, NULL);
+
+	xTaskCreate(task_esp_now_recv_effect, "task_now_eff", 1024, NULL, 5, NULL);
 
 	xTaskCreate(task_send_tcp, "task_send_tcp", 1024, NULL, 4, NULL);
 
@@ -350,16 +367,15 @@ void task_mana_espmode()
 void task_esp_now_recv()
 {
 
-	TickType_t last_write_st = xTaskGetTickCount();
-	bool first_write_st = true;
-
-
 	espnow_recv_queue_t espnow_recv;
 
 	while (1)
 	{
-		if (xQueueReceive(xNowRecv, &espnow_recv, portMAX_DELAY) == pdPASS)
+		cleanup_expired_espnow_recv_wrf_mess();
+
+		if (xQueueReceive(xNowRecv, &espnow_recv, pdMS_TO_TICKS(1000)) == pdPASS)
 		{
+			cleanup_expired_espnow_recv_wrf_mess();
 
 			if (espnow_recv.buf.data != NULL && espnow_recv.buf.tot_byte > 4)
 			{
@@ -463,97 +479,101 @@ void task_esp_now_recv()
 				}
 				else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_ST_WRF)
 				{
-					if (first_write_st == true || xTaskGetTickCount() - last_write_st > pdMS_TO_TICKS(1000))
+					bool st_write_ok = false;
+
+					cleanup_espnow_recv_wrf_mess();
+
+					if (espnow_has_payload_len(&espnow_recv, sizeof(uint32_t) * 3))
 					{
-						/** erase data old */
-						if (SLT.espnow.mana_recv_wrf_mess.p_packet != NULL)
+						uint32_t tot_packet = 0;
+						uint32_t offset_st = 0;
+						uint32_t tot_byte = 0;
+
+						memcpy(&tot_packet, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD], 4);
+						memcpy(&offset_st, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD + 4], 4);
+						memcpy(&tot_byte, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD + 8], 4);
+
+						if (tot_packet > 0 && tot_packet <= ESPNOW_RECV_WRF_MAX_PACKETS && tot_byte > 0)
 						{
-							for (int i = 0; i < SLT.espnow.mana_recv_wrf_mess.tot_packet; i++)
+							SLT.espnow.mana_recv_wrf_mess.tot_packet = tot_packet;
+							SLT.espnow.mana_recv_wrf_mess.offset_st = offset_st;
+							SLT.espnow.mana_recv_wrf_mess.tot_byte = tot_byte;
+							SLT.espnow.mana_recv_wrf_mess.p_packet = calloc(tot_packet, sizeof(espnow_wrf_packet_t));
+
+							if (SLT.espnow.mana_recv_wrf_mess.p_packet != NULL)
 							{
-								if (SLT.espnow.mana_recv_wrf_mess.p_packet[i].data != NULL)
+								file_request_t eff = {
+									.cmd = F_ST_WR,
+									.source = F_NOW_SOURCE
+								};
+
+								eff.write_start.offset = offset_st;
+								eff.write_start.tot_byte = tot_byte;
+
+								if (xQueueSendToBack(xEffLoadf, &eff, pdMS_TO_TICKS(4000)) == pdPASS)
 								{
-									free(SLT.espnow.mana_recv_wrf_mess.p_packet[i].data);
-									SLT.espnow.mana_recv_wrf_mess.p_packet[i].data = NULL;
+									touch_espnow_recv_wrf_mess();
+									st_write_ok = true;
+								}
+								else
+								{
+									cleanup_espnow_recv_wrf_mess();
 								}
 							}
-							free(SLT.espnow.mana_recv_wrf_mess.p_packet);
-							SLT.espnow.mana_recv_wrf_mess.p_packet = NULL;
 						}
+					}
 
-						/** init for new request */
-						memcpy(&SLT.espnow.mana_recv_wrf_mess.tot_packet, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD], 4);
-						memcpy(&SLT.espnow.mana_recv_wrf_mess.offset_st, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD + 4], 4);
-						memcpy(&SLT.espnow.mana_recv_wrf_mess.tot_byte, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD + 8], 4);
+					if (st_write_ok == false)
+					{
+						uint8_t nack_of_cmd = NOW_ST_WRF;
 
-						SLT.espnow.mana_recv_wrf_mess.p_packet = malloc(sizeof(espnow_wrf_packet_t) *
-							                                            SLT.espnow.mana_recv_wrf_mess.tot_packet);
-
-						if (SLT.espnow.mana_recv_wrf_mess.p_packet != NULL)
-						{
-							for (int i = 0; i < SLT.espnow.mana_recv_wrf_mess.tot_packet; i++)
-							{
-								SLT.espnow.mana_recv_wrf_mess.p_packet[i].data = NULL;
-							}
-						}
-
-						first_write_st = false;
-						last_write_st = xTaskGetTickCount();
-
-						/**< send st write to task handle file effect */
-						file_request_t eff = {
-							.cmd = F_ST_WR,
-							.source = F_NOW_SOURCE
-						};
-
-						eff.write_start.offset = SLT.espnow.mana_recv_wrf_mess.offset_st;
-						eff.write_start.tot_byte = SLT.espnow.mana_recv_wrf_mess.tot_byte;
-
-						if (xQueueSendToBack(xEffLoadf, &eff, pdMS_TO_TICKS(4000)) != pdPASS)
-						{
-							/** send nack st write */
-							uint8_t nack_of_cmd = NOW_ST_WRF;
-
-							espnow_send_queue_t nack_q;
-							nack_q.dest_id = SLT.espnow.gw_peer.id;
-							nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
-							nack_q.buf = espnow_make_frame_send(&nack_of_cmd, sizeof(nack_of_cmd), NOW_NACK);
-							if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
-								queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
-						}
+						espnow_send_queue_t nack_q;
+						nack_q.dest_id = SLT.espnow.gw_peer.id;
+						nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
+						nack_q.buf = espnow_make_frame_send(&nack_of_cmd, sizeof(nack_of_cmd), NOW_NACK);
+						if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
+							queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
 					}
 
 				}
 				else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_WRF)
 				{
-					uint32_t packet_number; memcpy(&packet_number, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD], NOW_SZOF_PACKET_NUM);
-					uint32_t offset; memcpy(&offset, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD + 4], NOW_SZOF_OFFSET);
-
-					if (packet_number < SLT.espnow.mana_recv_wrf_mess.tot_packet &&
-						SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data == NULL)
+					if (SLT.espnow.mana_recv_wrf_mess.p_packet != NULL &&
+					    espnow_has_payload_len(&espnow_recv, NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET + 1))
 					{
-						SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].offset = offset;
-						SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].tot_byte = espnow_recv.buf.tot_byte
-																							- NOW_SZOF_HEADER - NOW_SZOF_CMD
-																							- NOW_SZOF_PACKET_NUM - NOW_SZOF_OFFSET;
+						uint32_t packet_number;
+						uint32_t offset;
+						memcpy(&packet_number, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD], NOW_SZOF_PACKET_NUM);
+						memcpy(&offset, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD + NOW_SZOF_PACKET_NUM], NOW_SZOF_OFFSET);
 
-						SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data =
-							malloc(SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].tot_byte);
-						if (SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data != NULL)
+						if (packet_number < SLT.espnow.mana_recv_wrf_mess.tot_packet &&
+							SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data == NULL)
 						{
-							memcpy(SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data,
-								&espnow_recv.buf.data[NOW_INDEX_PAYLOAD + 8],
-								SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].tot_byte);
+							uint32_t data_len = espnow_recv.buf.tot_byte
+							                    - NOW_SZOF_HEADER - NOW_SZOF_CMD
+							                    - NOW_SZOF_PACKET_NUM - NOW_SZOF_OFFSET;
+
+							uint8_t* packet_data = malloc(data_len);
+							if (packet_data != NULL)
+							{
+								memcpy(packet_data, &espnow_recv.buf.data[NOW_INDEX_PAYLOAD + NOW_SZOF_PACKET_NUM + NOW_SZOF_OFFSET], data_len);
+								SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].offset = offset;
+								SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].tot_byte = data_len;
+								SLT.espnow.mana_recv_wrf_mess.p_packet[packet_number].data = packet_data;
+								touch_espnow_recv_wrf_mess();
+							}
 						}
 					}
 
 				}
 				else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_END_WRF)
 				{
-					if (SLT.espnow.mana_recv_wrf_mess.p_packet != NULL)
+					if (SLT.espnow.mana_recv_wrf_mess.p_packet != NULL &&
+					    espnow_has_payload_len(&espnow_recv, sizeof(uint16_t)))
 					{
 
 						bool recv_all = true;
-						uint32_t* packet_resend = NULL;
+						uint32_t* packet_resend = malloc(SLT.espnow.mana_recv_wrf_mess.tot_packet * NOW_SZOF_PACKET_NUM);
 						uint32_t tot_packet_resend = 0;
 						uint16_t checksum_calculate = 0xffff;
 
@@ -562,18 +582,11 @@ void task_esp_now_recv()
 
 							if (SLT.espnow.mana_recv_wrf_mess.p_packet[i].data == NULL)
 							{
-								if (packet_resend == NULL)
+								if (packet_resend != NULL)
 								{
-									tot_packet_resend = 1;
-									packet_resend = malloc(NOW_SZOF_PACKET_NUM * tot_packet_resend);
-								}
-								else
-								{
+									packet_resend[tot_packet_resend] = i;
 									tot_packet_resend++;
-									packet_resend = realloc(packet_resend, NOW_SZOF_PACKET_NUM * tot_packet_resend);
 								}
-
-								packet_resend[tot_packet_resend - 1] = i;
 
 								recv_all = false;
 							}
@@ -669,16 +682,12 @@ void task_esp_now_recv()
 							}
 
 							/** free after recv all packet */
-							for (int i = 0; i <  SLT.espnow.mana_recv_wrf_mess.tot_packet; i++)
+							cleanup_espnow_recv_wrf_mess();
+							if (packet_resend != NULL)
 							{
-								if (SLT.espnow.mana_recv_wrf_mess.p_packet[i].data != NULL)
-								{
-									free(SLT.espnow.mana_recv_wrf_mess.p_packet[i].data);
-									SLT.espnow.mana_recv_wrf_mess.p_packet[i].data = NULL;
-								}
+								free(packet_resend);
+								packet_resend = NULL;
 							}
-							free(SLT.espnow.mana_recv_wrf_mess.p_packet);
-							SLT.espnow.mana_recv_wrf_mess.p_packet = NULL;
 
 						}
 						else
@@ -689,19 +698,40 @@ void task_esp_now_recv()
 							{
 
 								uint8_t nack_of_cmd = NOW_END_WRF;
+								uint32_t max_resend_id = (ESP_NOW_MAX_DATA_LEN - NOW_SZOF_HEADER - NOW_SZOF_CMD
+									- NOW_SZOF_CRC - sizeof(nack_of_cmd)) / NOW_SZOF_PACKET_NUM;
 
-								uint32_t tot_byte_pl = sizeof(nack_of_cmd) + tot_packet_resend * NOW_SZOF_PACKET_NUM;
-								uint8_t payload[tot_byte_pl];
+								if (tot_packet_resend > max_resend_id)
+								{
+									uint32_t resend_all_packet = 0xffffffff;
+									uint32_t tot_byte_pl = sizeof(nack_of_cmd) + sizeof(resend_all_packet);
+									uint8_t payload[tot_byte_pl];
 
-								memcpy(&payload, &nack_of_cmd, sizeof(nack_of_cmd));
-								memcpy(&payload[sizeof(nack_of_cmd)], packet_resend, tot_packet_resend * NOW_SZOF_PACKET_NUM);
+									memcpy(&payload, &nack_of_cmd, sizeof(nack_of_cmd));
+									memcpy(&payload[sizeof(nack_of_cmd)], &resend_all_packet, sizeof(resend_all_packet));
 
-								espnow_send_queue_t nack_q;
-								nack_q.dest_id = SLT.espnow.gw_peer.id;
-								nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
-								nack_q.buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_NACK);
-								if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
-									queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
+									espnow_send_queue_t nack_q;
+									nack_q.dest_id = SLT.espnow.gw_peer.id;
+									nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
+									nack_q.buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_NACK);
+									if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
+										queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
+								}
+								else
+								{
+									uint32_t tot_byte_pl = sizeof(nack_of_cmd) + tot_packet_resend * NOW_SZOF_PACKET_NUM;
+									uint8_t payload[tot_byte_pl];
+
+									memcpy(&payload, &nack_of_cmd, sizeof(nack_of_cmd));
+									memcpy(&payload[sizeof(nack_of_cmd)], packet_resend, tot_packet_resend * NOW_SZOF_PACKET_NUM);
+
+									espnow_send_queue_t nack_q;
+									nack_q.dest_id = SLT.espnow.gw_peer.id;
+									nack_q.tmout_ms = ESPNOW_TX_TIMEOUT_CTRL_MS;
+									nack_q.buf = espnow_make_frame_send(payload, tot_byte_pl, NOW_NACK);
+									if (nack_q.buf.data != NULL && nack_q.buf.tot_byte > 0)
+										queue_espnow_send(&nack_q, ESPNOW_QUEUE_WAIT_CTRL_MS);
+								}
 
 								free(packet_resend);
 								packet_resend = NULL;
@@ -713,32 +743,12 @@ void task_esp_now_recv()
 				}
 				else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_EFF_ASYNC)
 				{
-					effect_request_t eff_req_tmp;
-					eff_req_tmp.mode = EFF_ASYNCHRONOUS;
-					eff_req_tmp.number_of_group = espnow_recv.buf.data[NOW_INDEX_CMD + 1];
-					if (eff_req_tmp.number_of_group > MAX_NUM_OF_GROUP)
-						eff_req_tmp.number_of_group = MAX_NUM_OF_GROUP;
-
-					memcpy(eff_req_tmp.gproup_request, &espnow_recv.buf.data[NOW_INDEX_CMD + 2], eff_req_tmp.number_of_group);
-
-					memcpy(eff_req_tmp.state, &espnow_recv.buf.data[NOW_INDEX_CMD + 2 + eff_req_tmp.number_of_group], eff_req_tmp.number_of_group  * sizeof(uint16_t));
-
-					queue_latest_effect_request(&eff_req_tmp);
+					handle_espnow_effect_request(&espnow_recv);
 
 				}
 				else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_EFF_SYNC)
 				{
-					effect_request_t eff_req_tmp;
-					eff_req_tmp.mode = EFF_SYNCHRONOUS;
-					eff_req_tmp.number_of_group = espnow_recv.buf.data[NOW_INDEX_CMD + 1];
-					if (eff_req_tmp.number_of_group > MAX_NUM_OF_GROUP)
-						eff_req_tmp.number_of_group = MAX_NUM_OF_GROUP;
-
-					memcpy(eff_req_tmp.gproup_request, &espnow_recv.buf.data[NOW_INDEX_CMD + 2], eff_req_tmp.number_of_group);
-
-					memcpy(eff_req_tmp.state, &espnow_recv.buf.data[NOW_INDEX_CMD + 2 + eff_req_tmp.number_of_group], eff_req_tmp.number_of_group * sizeof(uint16_t));
-
-					queue_latest_effect_request(&eff_req_tmp);
+					handle_espnow_effect_request(&espnow_recv);
 
 				}
 				else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_ACK)
@@ -748,25 +758,28 @@ void task_esp_now_recv()
 				}
 				else if (espnow_recv.buf.data[NOW_INDEX_CMD] == NOW_NACK)
 				{
-					if (espnow_recv.buf.data[NOW_INDEX_PAYLOAD] == NOW_END_WRF)
+					if (espnow_has_payload_len(&espnow_recv, NOW_SZOF_CMD) &&
+					    espnow_recv.buf.data[NOW_INDEX_PAYLOAD] == NOW_END_WRF)
 					{
-						espnow_wrf_resend resend_q;
-
-						resend_q.tot_req_pack = (espnow_recv.buf.tot_byte - NOW_SZOF_HEADER
-							- NOW_SZOF_CMD - NOW_SZOF_CMD) / NOW_SZOF_PACKET_NUM;		/**< a NOW_SIZE_CMD for NOW_NACK, a NOW_SIZE_CMD for NOW_END_WRF */
-
-						resend_q.request = malloc(resend_q.tot_req_pack * NOW_SZOF_PACKET_NUM);
-
-						memcpy(resend_q.request,
-							&espnow_recv.buf.data[NOW_INDEX_PAYLOAD + NOW_SZOF_CMD],
-							resend_q.tot_req_pack * NOW_SZOF_PACKET_NUM);
-
-						if (xQueueSend(xNowResendWrf, &resend_q, pdMS_TO_TICKS(4000)) != pdPASS)
+						uint32_t resend_bytes = espnow_recv.buf.tot_byte - NOW_INDEX_PAYLOAD - NOW_SZOF_CMD;
+						if (resend_bytes > 0 && resend_bytes % NOW_SZOF_PACKET_NUM == 0)
 						{
+							espnow_wrf_resend resend_q;
+
+							resend_q.tot_req_pack = resend_bytes / NOW_SZOF_PACKET_NUM;
+							resend_q.request = malloc(resend_bytes);
+
 							if (resend_q.request != NULL)
 							{
-								free(resend_q.request);
-								resend_q.request = NULL;
+								memcpy(resend_q.request,
+									&espnow_recv.buf.data[NOW_INDEX_PAYLOAD + NOW_SZOF_CMD],
+									resend_bytes);
+
+								if (xQueueSend(xNowResendWrf, &resend_q, pdMS_TO_TICKS(4000)) != pdPASS)
+								{
+									free(resend_q.request);
+									resend_q.request = NULL;
+								}
 							}
 						}
 					}
@@ -791,6 +804,27 @@ void task_esp_now_recv()
  * @note
  *	- vtaskdelay must be called after givesemaphore; unless this task will takesemaphore sooner other task
  */
+void task_esp_now_recv_effect()
+{
+	espnow_recv_queue_t espnow_recv;
+
+	while (1)
+	{
+		cleanup_expired_espnow_recv_wrf_mess();
+
+		if (xQueueReceive(xNowRecvEffect, &espnow_recv, pdMS_TO_TICKS(1000)) == pdPASS)
+		{
+			if (espnow_recv.buf.data != NULL && espnow_recv.buf.tot_byte > NOW_INDEX_CMD)
+				handle_espnow_effect_request(&espnow_recv);
+
+			if (espnow_recv.buf.data != NULL)
+			{
+				free(espnow_recv.buf.data);
+				espnow_recv.buf.data = NULL;
+			}
+		}
+	}
+}
 void task_esp_now_send()
 {
 	uint8_t address_brc[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -1964,6 +1998,95 @@ static void cleanup_effect_groups(effect_manage_t* effMana)
 
 	effMana->numGroup = 0;
 }
+static void cleanup_espnow_recv_wrf_mess(void)
+{
+	if (SLT.espnow.mana_recv_wrf_mess.p_packet != NULL)
+	{
+		for (uint32_t i = 0; i < SLT.espnow.mana_recv_wrf_mess.tot_packet; i++)
+		{
+			if (SLT.espnow.mana_recv_wrf_mess.p_packet[i].data != NULL)
+			{
+				free(SLT.espnow.mana_recv_wrf_mess.p_packet[i].data);
+				SLT.espnow.mana_recv_wrf_mess.p_packet[i].data = NULL;
+			}
+		}
+
+		free(SLT.espnow.mana_recv_wrf_mess.p_packet);
+		SLT.espnow.mana_recv_wrf_mess.p_packet = NULL;
+	}
+
+	SLT.espnow.mana_recv_wrf_mess.tot_packet = 0;
+	SLT.espnow.mana_recv_wrf_mess.offset_st = 0;
+	SLT.espnow.mana_recv_wrf_mess.tot_byte = 0;
+	s_espnow_recv_wrf_active = false;
+	s_espnow_recv_wrf_last_tick = 0;
+}
+
+static void touch_espnow_recv_wrf_mess(void)
+{
+	s_espnow_recv_wrf_last_tick = xTaskGetTickCount();
+	s_espnow_recv_wrf_active = true;
+}
+
+static void cleanup_expired_espnow_recv_wrf_mess(void)
+{
+	if (s_espnow_recv_wrf_active == true &&
+	    SLT.espnow.mana_recv_wrf_mess.p_packet != NULL &&
+	    xTaskGetTickCount() - s_espnow_recv_wrf_last_tick > pdMS_TO_TICKS(ESPNOW_RECV_WRF_TIMEOUT_MS))
+	{
+		cleanup_espnow_recv_wrf_mess();
+	}
+}
+static bool espnow_has_payload_len(const espnow_recv_queue_t* recv, uint32_t payload_len)
+{
+	if (recv == NULL || recv->buf.data == NULL)
+		return false;
+
+	return recv->buf.tot_byte >= NOW_INDEX_PAYLOAD + payload_len;
+}
+
+static bool parse_espnow_effect_request(const espnow_recv_queue_t* recv, effect_mode_t mode, effect_request_t* request)
+{
+	if (request == NULL || espnow_has_payload_len(recv, 1) == false)
+		return false;
+
+	uint8_t group_count = recv->buf.data[NOW_INDEX_PAYLOAD];
+	if (group_count == 0 || group_count > MAX_NUM_OF_GROUP)
+		return false;
+
+	uint32_t payload_len = 1 + group_count + group_count * sizeof(uint16_t);
+	if (espnow_has_payload_len(recv, payload_len) == false)
+		return false;
+
+	memset(request, 0, sizeof(*request));
+	request->mode = mode;
+	request->number_of_group = group_count;
+	memcpy(request->gproup_request, &recv->buf.data[NOW_INDEX_PAYLOAD + 1], group_count);
+	memcpy(request->state,
+	       &recv->buf.data[NOW_INDEX_PAYLOAD + 1 + group_count],
+	       group_count * sizeof(uint16_t));
+
+	return true;
+}
+
+static void handle_espnow_effect_request(const espnow_recv_queue_t* recv)
+{
+	if (recv == NULL || recv->buf.data == NULL || recv->buf.tot_byte <= NOW_INDEX_CMD)
+		return;
+
+	effect_request_t request;
+	if (recv->buf.data[NOW_INDEX_CMD] == NOW_EFF_ASYNC)
+	{
+		if (parse_espnow_effect_request(recv, EFF_ASYNCHRONOUS, &request))
+			queue_latest_effect_request(&request);
+	}
+	else if (recv->buf.data[NOW_INDEX_CMD] == NOW_EFF_SYNC)
+	{
+		if (parse_espnow_effect_request(recv, EFF_SYNCHRONOUS, &request))
+			queue_latest_effect_request(&request);
+	}
+}
+
 static BaseType_t queue_espnow_send(espnow_send_queue_t* queue, uint32_t wait_ms)
 {
 	if (queue == NULL || queue->buf.data == NULL || queue->buf.tot_byte == 0)

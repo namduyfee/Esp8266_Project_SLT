@@ -41,6 +41,7 @@ extern Object SLT;
 extern QueueHandle_t xTcpLoadf; 
 extern QueueHandle_t xEffLoadf;
 extern QueueHandle_t xNowRecv;
+extern QueueHandle_t xNowRecvEffect;
 extern QueueHandle_t xNowSend;	
 extern QueueHandle_t xConfigEspMode;
 extern QueueHandle_t xSendTcp;
