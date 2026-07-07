@@ -2,30 +2,35 @@
 #define WIFI_CONFIG
 
 
-#include "my_lib.h"
+#include <fcntl.h>
+#include <math.h>
+#include <stdbool.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
+#include "esp_event_loop.h"
+#include "esp_event.h"
+#include "esp_log.h"
+
+#include "nvs_flash.h"
+#include "tcpip_adapter.h"
+#include "esp_wifi.h"
+#include "my_nvs.h"
 
 #define MAX_RETRY_CONNECT 7
 #define REQEST_FROM_USER 100
-
-typedef struct
+#define POS_ADDR_GATEWAY 0
+typedef struct wifi
 {
-	char ssid[32];
-	char pass[64];
-	volatile bool is_connected;
-	volatile bool last_available;
-	volatile uint32_t retry_connect;
+	uint8_t ap_macaddr[6]; 
+	uint8_t sta_macaddr[6];
 	
-} wifi_cred_t;
-
+} wifi_t;
 
 void init_wifi(void);
 
-void start_wifi(void); 
-//void start_mdns(void);
-extern wifi_cred_t wifi_cred;
-extern wifi_cred_t tem_wifi_cred;
-
-extern wifi_cred_t tcp_wifi_cred;
+void my_start_wifi(void);   
 
 #endif
 

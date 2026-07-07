@@ -1,12 +1,25 @@
 #ifndef GPIO_CONFIG
 #define	GPIO_CONFIG
 
-#include "my_lib.h"
+#include <fcntl.h>
+#include <math.h>
+#include <stdbool.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
+#include "esp_event_loop.h"
+#include "esp_event.h"
+#include "esp_log.h"
+
+#include "driver/gpio.h"
 
 void config_input_pullup_gpio(void);
-void config_GPIO_PWM(void);
+void config_GPIO_OUT(void);
 
-/*	GPIO_NUM_0
+/*======= LIST PIN OF GPIO_NUM_x ========*/
+
+/*	GPIO_NUM_0		D3
  *	GPIO_NUM_1 
  *	GPIO_NUM_2		D4
  *	GPIO_NUM_3
@@ -27,10 +40,18 @@ void config_GPIO_PWM(void);
  *
  **/
 
-#define LED_WIFI GPIO_NUM_13
 
-void config_input_pullup_gpio(void);
+/*======= PWM PIN =========*/
 
-void config_GPIO_OUT(void);
+#define CHANNEL_NOT_USED 100
+#define GPIO_PWM_CHAN_0	GPIO_NUM_0
+#define GPIO_PWM_CHAN_1	GPIO_NUM_1
+#define GPIO_PWM_CHAN_2	GPIO_NUM_2
+#define GPIO_PWM_CHAN_3	GPIO_NUM_3
+#define GPIO_PWM_CHAN_4	GPIO_NUM_4
+#define GPIO_PWM_CHAN_5	GPIO_NUM_5
+#define GPIO_PWM_CHAN_6	GPIO_NUM_14
+#define GPIO_PWM_CHAN_7	GPIO_NUM_15
+
 #endif
 

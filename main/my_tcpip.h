@@ -2,33 +2,103 @@
 
 #define ESP_TCPIP
 
-#include "my_lib.h"
+#include <fcntl.h>
+#include <math.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
+#include "esp_event_loop.h"
+#include "esp_event.h"
+#include "esp_log.h"
 
+#include "tcpip_adapter.h"
+#include "lwip/tcp.h"
+#include "lwip/ip_addr.h"
+#include "lwip/netif.h"
+#include "lwip/opt.h"
+#include "lwip/tcpip.h"
 
-typedef struct buf_item
+#include "spiffs_config.h"
+
+#define TCP_POLL_CYCLE 2
+#define TCP_AUTO_DIS_MS 40000
+#define TCP_FRAME_HEADER_LEN 8
+#define TCP_RX_BUF_SIZE 4096
+#define TCP_MAX_PAYLOAD_LEN (TCP_RX_BUF_SIZE - TCP_FRAME_HEADER_LEN)
+
+typedef enum
 {
-	void* payload;
-	uint16_t len;
-	
-} BufItem_Typedf;
+	TCP_NONE    = 0,
+	TCP_OPF,
+	TCP_CLSF,
+	TCP_DLTF,
 
-void my_init_tcpip(void); 
+	TCP_ST_WRF,
+	TCP_WRF,
+	TCP_END_WRF,
 
-err_t wifi_server_accept(void* arg, struct tcp_pcb* pcb, err_t err);
+	TCP_EFF_SYNCH,
+	TCP_EFF_ASYNCH,
 
-err_t wifi_server_recv(void* arg, struct tcp_pcb* pcb, struct pbuf *p, err_t err);
+	TCP_GET_INF_ESP_MODE,
+	TCP_SET_INF_ESP_MODE,
 
-err_t wifi_server_sent(void* arg, struct tcp_pcb* pcb, uint16_t len);
+	TCP_RETURN_ID_RECEIVED,
 
-void wifi_pcb_tcp(void);
 
-void loadf_pcb_tcp(void);
+	TCP_ACK,
+	TCP_NACK
+} tcp_command_t;
 
-err_t loadf_server_accept(void* arg, struct tcp_pcb* pcb, err_t err);
 
-err_t loadf_server_recv(void* arg, struct tcp_pcb* pcb, struct pbuf *p, err_t err);
- 
-err_t loadf_server_sent(void* arg, struct tcp_pcb* pcb, uint16_t len);
+typedef struct
+{
+	uint8_t* data;
+	uint32_t tot_byte;
+
+} tcp_buf_t;
+
+
+typedef struct
+{
+	struct tcp_pcb* tpcb_server;
+	struct tcp_pcb* tpcb;				/**< tcp client is creat */
+	TickType_t lastTick; 				/**< auto disconnect tcp */
+	uint8_t rx_buf[TCP_RX_BUF_SIZE];
+	uint32_t rx_len;
+
+} tcp_client_t;
+
+typedef struct
+{
+	struct tcp_pcb* tpcb;
+	ip_addr_t ip;
+	uint16_t port;
+
+	uint16_t count_client;
+	uint8_t max_client;
+
+	struct
+	{
+
+	} recv;
+
+	void* arg;
+
+	tcp_client_t* p_client;
+
+} tcp_server_t;
+
+
+err_t init_server_tpcp(uint16_t port, uint8_t max_client);
+void tcp_send_cb(void* arg);
+void tcp_queue_response(tcp_command_t cmd, void* data, uint32_t byte_data);
+void tcp_queue_status_response(tcp_command_t status, tcp_command_t response_to, void* data, uint32_t byte_data);
+void tcp_queue_ack(tcp_command_t response_to);
+void tcp_queue_nack(tcp_command_t response_to);
+tcp_buf_t* tcp_make_frame(tcp_command_t cmd, void* data, uint32_t byte_data);
 
 #endif
-

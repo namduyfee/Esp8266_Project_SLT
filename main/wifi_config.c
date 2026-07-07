@@ -1,69 +1,88 @@
 
 #include "wifi_config.h"
+#include "esp_now_config.h"
+#include "my_lib.h"
 
-wifi_cred_t wifi_cred =
-{
-	.is_connected = false,
-	.retry_connect = 0
-};
-
-wifi_cred_t tem_wifi_cred;
-
-wifi_cred_t tcp_wifi_cred;
+static void wifi_event_handler(void* arg,esp_event_base_t event_base,int32_t event_id,void* event_data); 
 
 void init_wifi(void)
 {
-	esp_event_loop_init(wifi_event_handler, NULL);
+
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	esp_wifi_init(&cfg);
+	esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL);
+	
 }
 
+uint32_t generate_esp32_unique_id(uint8_t mac[6]) {
+    
+	// hash FNV-1a (32-bit)
+	uint32_t hash = 2166136261U; // FNV offset basis
+	for (int i = 0; i < 6; i++) {
+		hash ^= mac[i];
+		hash *= 16777619U;       // FNV prime
+	}
+    
+	return hash; 
+}
 
-void start_wifi(void)
+void my_start_wifi(void)
 {
 	init_wifi();
-	esp_wifi_set_mode(WIFI_MODE_APSTA);
 	
-	nvs_handle nvs;
-	size_t len;
-	esp_err_t err = nvs_open("wifi", NVS_READWRITE, &nvs);
-	if (err == ESP_OK)
-	{
-		len = sizeof(wifi_cred.ssid);
-		if (nvs_get_str(nvs, "ssid", wifi_cred.ssid, &len) == ESP_OK)
-		{
-			len = sizeof(wifi_cred.pass);
-			nvs_get_str(nvs, "pass", wifi_cred.pass, &len);
-		}
-		nvs_close(nvs);
-	}
+	esp_wifi_get_mac(ESP_IF_WIFI_STA, SLT.wifi.sta_macaddr); 
+	esp_wifi_get_mac(ESP_IF_WIFI_AP, SLT.wifi.ap_macaddr); 
 	
-	strcpy((char*)tem_wifi_cred.ssid, wifi_cred.ssid);
-	strcpy((char*)tem_wifi_cred.pass, wifi_cred.pass);
+	SLT.espnow.my_code = generate_esp32_unique_id(SLT.wifi.ap_macaddr);
 	
-	if (strlen(wifi_cred.ssid) != 0)
-	{
-		wifi_cred.last_available = true;
-		
-		wifi_config_t sta_cfg = {0};
-		strcpy((char*)sta_cfg.sta.ssid, wifi_cred.ssid);
-		strcpy((char*)sta_cfg.sta.password, wifi_cred.pass);
-		esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
-	}	
-	else 
-		wifi_cred.last_available = false;
+	char id_string[9];
+	snprintf(id_string, sizeof(id_string), "%08X", SLT.espnow.my_code);
 	
+	esp_wifi_set_mode(WIFI_MODE_AP);
+				
+	char result[32];
+	snprintf(result, sizeof(result), "SLT V8-%s", id_string);
+
 	wifi_config_t ap_config = {
 		.ap = {
-			.ssid = "ESP_SLT",
-			.ssid_len = 0,
-			.max_connection = 4,
-			.password = "12345678",
-			.authmode = WIFI_AUTH_WPA_WPA2_PSK		
+		.max_connection = 4,
+		.password = "12345678",
+		.channel = CONFIG_ESPNOW_CHANNEL, 
+		.authmode = WIFI_AUTH_WPA_WPA2_PSK		
 		}	
 	};
+	memcpy(ap_config.ap.ssid, result, strlen(result));
+	ap_config.ap.ssid_len = strlen(result);
+				
 	esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config);
-	
-
+				
+	tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP);
+	tcpip_adapter_ip_info_t ip_info;
+	IP4_ADDR(&ip_info.ip, 192, 168, 4, 1);
+	IP4_ADDR(&ip_info.gw, 192, 168, 4, 1);
+	IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
+	tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
+	tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP);
+				
 	esp_wifi_start();
+	
+}
+
+static void wifi_event_handler(void* arg, esp_event_base_t event_base,
+								int32_t event_id, void* event_data)
+{
+	switch (event_id) {
+		
+	case WIFI_EVENT_AP_START: {
+			break;
+		}
+		
+	case WIFI_EVENT_STA_START: {
+			break;
+		}
+        
+	default:
+		break;
+	}
+	
 }
