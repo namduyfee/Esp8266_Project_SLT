@@ -2,53 +2,53 @@
 
 #define MY_LIBRARY
 
-#include <fcntl.h>
-#include <math.h>
-#include <stdbool.h>
-#include <string.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-
-#include "driver/gpio.h"
-#include "driver/hw_timer.h"
-
-#include "esp_now.h"
-#include "esp_log.h"
-#include "esp_wifi.h"
-#include "esp_system.h"
-#include "esp_event_loop.h"
-#include "esp_event.h"
-#include "nvs_flash.h"
-#include "tcpip_adapter.h"
-#include "esp_http_server.h"
-#include "esp_spiffs.h"
-#include "esp_netif.h"
-#include "driver/pwm.h"
-
-#include "lwip/tcp.h"
-#include "lwip/ip_addr.h"
-#include "lwip/netif.h"
-
 #include "my_pwm.h"
-#include "my_callback.h"
 #include "esp_now_config.h"
 #include "wifi_config.h"
 #include "gpio_config.h"
 #include "spiffs_config.h"
 #include "my_tcpip.h"
-
-extern uint8_t data_esp_now [];
-
-extern uint8_t len_test_data_esp_now;
-
-extern uint8_t data_frame2 [];
-extern uint8_t len_test_data_2; 
+#include "my_effect.h"
 
 
-extern SemaphoreHandle_t xRecvPassWifi;
-extern SemaphoreHandle_t xTryConnectWifi;
+#define MY_ID 0xff						/**< id of this esp */
 
-extern QueueHandle_t xBuffLoadf;
+
+typedef struct 
+{
+	Pwm_Typedef Pwm;
+	tcp_server_t server;
+	My_Esp_Now_Typedef espnow; 
+	wifi_t wifi;
+	effect_manage_t effMana;
+	
+	
+} Object;
+
+typedef struct
+{
+	tcp_command_t cmd;
+	
+	espnow_mode_t mode; 
+	
+	uint8_t my_id;
+	
+	char gw_code[9];
+	
+} request_config_espmode_t;
+
+extern Object SLT; 
+extern QueueHandle_t xTcpLoadf; 
+extern QueueHandle_t xEffLoadf;
+extern QueueHandle_t xNowRecv;
+extern QueueHandle_t xNowRecvEffect;
+extern QueueHandle_t xNowSend;	
+extern QueueHandle_t xConfigEspMode;
+extern QueueHandle_t xSendTcp;
+
+extern SemaphoreHandle_t xTcpSwitchBufSend;
+extern SemaphoreHandle_t xNowSendDone; 
+extern SemaphoreHandle_t xMasterModeEff;
 
 #endif
 
