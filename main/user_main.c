@@ -1,125 +1,200 @@
-/* gpio example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
+#include "my_lib.h"
 
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
+void esp_now_task(); 
+void esp_recv_inf_wifi();
+void esp_recv_file_bin();
 
-#include "driver/gpio.h"
+void wifi_sta_task();
 
-#include "esp_log.h"
-#include "esp_system.h"
+uint8_t data_esp_now[] = "hello from ESP8266";
+uint8_t len_test_data_esp_now = sizeof(data_esp_now) / sizeof(data_esp_now[0]); 
 
-static const char *TAG = "main";
+uint8_t data_frame2[] = "i am frame 2025";
+uint8_t len_test_data_2 = sizeof(data_frame2) / sizeof(data_frame2[0]); 
 
-/**
- * Brief:
- * This test code shows how to configure gpio and how to use gpio interrupt.
- *
- * GPIO status:
- * GPIO15: output
- * GPIO16: output
- * GPIO4:  input, pulled up, interrupt from rising edge and falling edge
- * GPIO5:  input, pulled up, interrupt from rising edge.
- *
- * Test:
- * Connect GPIO15 with GPIO4
- * Connect GPIO16 with GPIO5
- * Generate pulses on GPIO15/16, that triggers interrupt on GPIO4/5
- *
- */
 
-#define GPIO_OUTPUT_IO_0    15
-#define GPIO_OUTPUT_IO_1    16
-#define GPIO_OUTPUT_PIN_SEL  ((1ULL<<GPIO_OUTPUT_IO_0) | (1ULL<<GPIO_OUTPUT_IO_1))
-#define GPIO_INPUT_IO_0     4
-#define GPIO_INPUT_IO_1     5
-#define GPIO_INPUT_PIN_SEL  ((1ULL<<GPIO_INPUT_IO_0) | (1ULL<<GPIO_INPUT_IO_1))
+SemaphoreHandle_t xRecvPassWifi; 
+SemaphoreHandle_t xTryConnectWifi; 
 
-static xQueueHandle gpio_evt_queue = NULL;
+QueueHandle_t xBuffLoadf;
 
-static void gpio_isr_handler(void *arg)
-{
-    uint32_t gpio_num = (uint32_t) arg;
-    xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
+void app_main(void) {
+	
+	xRecvPassWifi = xSemaphoreCreateBinary();
+	xTryConnectWifi = xSemaphoreCreateBinary();
+	
+	xBuffLoadf = xQueueCreate(10, sizeof(BufItem_Typedf));
+	
+	nvs_flash_init();
+	spiffs_init();
+	config_GPIO_OUT();
+	config_input_pullup_gpio();
+
+	
+	tcpip_adapter_init();
+	
+//	config_espnow();
+	
+	start_wifi();
+	
+	my_init_tcpip();
+	
+	start_pwm();
+	
+	
+//	xTaskCreate(esp_now_task, "esp_now_send_task", 2048, NULL, 4, NULL);
+	
+	xTaskCreate(esp_recv_inf_wifi, "esp_recv_inf_wifi", 1024, NULL, 5, NULL);
+	xTaskCreate(esp_recv_file_bin, "esp_recv_file_bin", 2048, NULL, 4, NULL);
+	
+	xTaskCreate(wifi_sta_task, "wifi_sta_task", 1024, NULL, 4, NULL);
+
+	while (1)
+	{
+
+		vTaskDelay(pdMS_TO_TICKS(1));
+
+	}
+	
 }
 
-static void gpio_task_example(void *arg)
+void esp_now_task() 
 {
-    uint32_t io_num;
+	esp_err_t ret; 
+	g_my_esp_now.can_send = true; 
+	while (1)
+	{
+		if (g_my_esp_now.can_send == true)
+		{
 
-    for (;;) {
-        if (xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
-            ESP_LOGI(TAG, "GPIO[%d] intr, val: %d\n", io_num, gpio_get_level(io_num));
-        }
-    }
+			ret = esp_now_send(g_peer_esp8266.inf.peer_addr, data_esp_now, len_test_data_esp_now);
+			while (ret != ESP_OK)
+			{
+				ret = esp_now_send(g_peer_esp8266.inf.peer_addr, data_esp_now, len_test_data_esp_now);
+				vTaskDelay(pdMS_TO_TICKS(10));
+			}
+			g_my_esp_now.can_send = false;
+		}
+		vTaskDelay(pdMS_TO_TICKS(10));
+	}
 }
 
-void app_main(void)
+
+/* 
+ *	store ssid and pass wifi then auto restart
+ *	unlock by give semaphore in isr
+ **/
+void esp_recv_inf_wifi()
+{ 
+	gpio_set_level(LED_WIFI, 0);
+	xSemaphoreTake(xRecvPassWifi, 0);
+	while (1)
+	{
+		if (xSemaphoreTake(xRecvPassWifi, portMAX_DELAY) == pdTRUE)
+		{
+			gpio_set_level(LED_WIFI, 1);
+			
+			strcpy((char*)wifi_cred.ssid, tem_wifi_cred.ssid);
+			strcpy((char*)wifi_cred.pass, tem_wifi_cred.pass);
+			
+			nvs_handle nvs;
+			if (nvs_open("wifi", NVS_READWRITE, &nvs) == ESP_OK) {
+				nvs_set_str(nvs, "ssid", wifi_cred.ssid);
+				nvs_set_str(nvs, "pass", wifi_cred.pass);
+				nvs_commit(nvs);
+				nvs_close(nvs);
+			}
+		}
+	}
+}
+
+/*
+ *	Config info and try connect wifi STA
+ **/
+void wifi_sta_task() 
 {
-    gpio_config_t io_conf;
-    //disable interrupt
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    //set as output mode
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    //bit mask of the pins that you want to set,e.g.GPIO15/16
-    io_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;
-    //disable pull-down mode
-    io_conf.pull_down_en = 0;
-    //disable pull-up mode
-    io_conf.pull_up_en = 0;
-    //configure GPIO with the given settings
-    gpio_config(&io_conf);
+	xSemaphoreTake(xTryConnectWifi, 0);
+	while (1)
+	{
+		if (xSemaphoreTake(xTryConnectWifi, portMAX_DELAY) == pdTRUE)
+		{
+			if (wifi_cred.retry_connect == MAX_RETRY_CONNECT)
+			{
+				strcpy((char*)tem_wifi_cred.ssid, wifi_cred.ssid);
+				strcpy((char*)tem_wifi_cred.pass, wifi_cred.pass);
+			}
+			
+			if (wifi_cred.retry_connect != MAX_RETRY_CONNECT)
+			{
+				strcpy((char*)tem_wifi_cred.ssid, tcp_wifi_cred.ssid);
+				strcpy((char*)tem_wifi_cred.pass, tcp_wifi_cred.pass);
+			}
+			
+			wifi_config_t sta_cfg = {0};
+			strcpy((char*)sta_cfg.sta.ssid, tem_wifi_cred.ssid);
+			strcpy((char*)sta_cfg.sta.password, tem_wifi_cred.pass);
+			esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_cfg);
+			wifi_cred.retry_connect = 0;
+			
+			if (wifi_cred.is_connected == true) {
+				esp_wifi_disconnect();
+			}
+			else 
+				esp_wifi_connect();
 
-    //interrupt of rising edge
-    io_conf.intr_type = GPIO_INTR_POSEDGE;
-    //bit mask of the pins, use GPIO4/5 here
-    io_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL;
-    //set as input mode
-    io_conf.mode = GPIO_MODE_INPUT;
-    //enable pull-up mode
-    io_conf.pull_up_en = 1;
-    gpio_config(&io_conf);
+		}
+	}
+}
 
-    //change gpio intrrupt type for one pin
-    gpio_set_intr_type(GPIO_INPUT_IO_0, GPIO_INTR_ANYEDGE);
-
-    //create a queue to handle gpio event from isr
-    gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
-    //start gpio task
-    xTaskCreate(gpio_task_example, "gpio_task_example", 2048, NULL, 10, NULL);
-
-    //install gpio isr service
-    gpio_install_isr_service(0);
-    //hook isr handler for specific gpio pin
-    gpio_isr_handler_add(GPIO_INPUT_IO_0, gpio_isr_handler, (void *) GPIO_INPUT_IO_0);
-    //hook isr handler for specific gpio pin
-    gpio_isr_handler_add(GPIO_INPUT_IO_1, gpio_isr_handler, (void *) GPIO_INPUT_IO_1);
-
-    //remove isr handler for gpio number.
-    gpio_isr_handler_remove(GPIO_INPUT_IO_0);
-    //hook isr handler for specific gpio pin again
-    gpio_isr_handler_add(GPIO_INPUT_IO_0, gpio_isr_handler, (void *) GPIO_INPUT_IO_0);
-
-    int cnt = 0;
-
-    while (1) {
-        ESP_LOGI(TAG, "cnt: %d\n", cnt++);
-        vTaskDelay(1000 / portTICK_RATE_MS);
-        gpio_set_level(GPIO_OUTPUT_IO_0, cnt % 2);
-        gpio_set_level(GPIO_OUTPUT_IO_1, cnt % 2);
-    }
+/*
+ *	write file.bin from tcp use spiffs
+ *	
+ **/
+void esp_recv_file_bin()
+{
+	char tem[3] = {0, 0, 0};
+	
+	BufItem_Typedf tm_buf;
+	
+	while (1)
+	{
+		if (xQueueReceive(xBuffLoadf, &tm_buf, portMAX_DELAY) == pdPASS)
+		{
+			int fd = open("/spiffs/upload.bin", O_WRONLY | O_CREAT | O_TRUNC, 0666);
+			
+			if (fd < 0)
+			{
+		
+			}
+			else 
+			{
+				write(fd, tm_buf.payload, tm_buf.len);
+				free(tm_buf.payload);
+				close(fd);
+			}
+			int f = open("/spiffs/upload.bin", O_RDONLY, 0666);
+			if (f >= 0)
+			{
+				read(f, tem, sizeof(tem));
+		
+				//	spiffs_read_file("/spiffs/hello.bin", tem, sizeof(tem));
+				if (tem[0] == 66 && tem[1] == 66 && tem[2] == 66)
+				{
+					gpio_set_level(GPIO_NUM_2, 1); 
+					gpio_set_level(GPIO_NUM_4, 1);
+				}
+				else
+				{
+					gpio_set_level(GPIO_NUM_2, 0); 
+					gpio_set_level(GPIO_NUM_4, 0);				
+					
+				}
+				close(f);			
+			}
+		}
+	}
 }
 
 
